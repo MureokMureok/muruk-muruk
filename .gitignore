@@ -1,0 +1,50 @@
+# 비밀값 / 키
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+secrets/
+private-key*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Node (frontend, contracts)
+node_modules/
+dist/
+build/
+.next/
+.vercel/
+coverage/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Java / Spring (backend)
+.gradle/
+backend/build/
+backend/out/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+HELP.md
+application-local.yml
+application-local.properties
+
+# Smart contract tooling
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/out/
+contracts/broadcast/
+
+# Logs / 기타
+*.log
+tmp/
