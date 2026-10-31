@@ -1,0 +1,78 @@
+/* 무럭무럭 공통 디자인 값 — 목업(murukmuruk-v6-rail.html)의 색·글꼴·모서리를 그대로 옮김 */
+:root {
+  /* 색상 */
+  --lime: #9fe870;   /* 대표색 (연두) */
+  --forest: #163300; /* 대표색 (진녹색) */
+  --mint: #e2f6d5;   /* 연한 배경 */
+  --ink: #0e0f0c;    /* 제목 글자 */
+  --body: #454745;   /* 본문 글자 */
+  --muted: #868685;  /* 흐린 글자 */
+  --line: rgba(14, 15, 12, 0.12);
+  --sand: #f3f5ef;
+  --danger: #d03238;
+
+  /* 모서리 둥글기 */
+  --r-xl: 40px;
+  --r-lg: 30px;
+  --r-md: 20px;
+  --r-sm: 14px;
+
+  /* 글꼴 */
+  --f: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--body);
+  font-family: var(--f);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.011em;
+  word-break: keep-all; /* 한글 단어 중간에서 줄바꿈 안 되게 */
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* 알약 모양 버튼 (목업의 .pill) */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 22px;
+  border-radius: 9999px;
+  font-weight: 650;
+  font-size: 17px;
+}
+.p-forest {
+  background: var(--forest);
+  color: var(--lime);
+}
