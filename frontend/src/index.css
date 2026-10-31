@@ -76,3 +76,121 @@ button {
   background: var(--forest);
   color: var(--lime);
 }
+.p-ghost {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+.p-kakao {
+  background: #fee500;
+  color: #191600;
+}
+.pill:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+.full {
+  width: 100%;
+}
+
+/* 작은 글씨 */
+.tiny {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.cap {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.center {
+  text-align: center;
+}
+
+/* 밑줄 글자 버튼 */
+.text-link {
+  min-height: 42px;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* 입력칸 (목업의 .field / .input) */
+.field {
+  display: grid;
+  gap: 8px;
+}
+.field > label {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.input {
+  height: 48px;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 0 14px;
+  background: #fff;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+}
+.input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--forest);
+}
+.error {
+  font-size: 14px;
+  color: var(--danger);
+}
+
+/* 휴대폰 화면 틀 — 가운데에 폭 400px로 */
+.phone {
+  max-width: 400px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px 20px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 로그인 화면 (목업의 login 화면) */
+.login-body {
+  justify-content: space-between;
+}
+.login-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--forest);
+  font-weight: 900;
+  font-size: 18px;
+  letter-spacing: -0.06em;
+}
+.login-copy {
+  margin-top: 42px;
+}
+.login-copy h1 {
+  font-size: 34px;
+  letter-spacing: -0.06em;
+  line-height: 1.12;
+}
+.login-copy p {
+  margin-top: 14px;
+  font-size: 15.5px;
+}
+.login-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: auto;
+}
+
+/* 임시 화면 */
+.placeholder {
+  justify-content: center;
+  gap: 14px;
+}
