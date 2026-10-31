@@ -13,7 +13,12 @@ export const ROLES = {
 // mvp-spec 초안: "가맹점·KCP는 시드 계정"
 const SEED_ACCOUNTS = [
   { id: 'user', password: '1234', name: '지민', role: ROLES.CONSUMER },
-  { id: 'store', password: '1234', name: '하늘 농원', role: ROLES.STORE },
+  // merchantId: 가짜 백엔드(api/seed.js)의 가맹점 번호
+  { id: 'store', password: '1234', name: '햇살 과수원', role: ROLES.STORE, merchantId: 'm1' },
+  // 다른 참여 가게 (쿠폰이 사용된 가게의 정산 화면을 보여줄 때)
+  { id: 'store2', password: '1234', name: '바다 수산', role: ROLES.STORE, merchantId: 'm2' },
+  { id: 'store3', password: '1234', name: '들꽃 플라워', role: ROLES.STORE, merchantId: 'm3' },
+  { id: 'store4', password: '1234', name: '초록 채소', role: ROLES.STORE, merchantId: 'm4' },
   { id: 'kcp', password: '1234', name: 'KCP 운영팀', role: ROLES.KCP },
 ]
 
@@ -31,12 +36,13 @@ export async function loginWithId(id, password) {
   const found = SEED_ACCOUNTS.find((a) => a.id === id && a.password === password)
   if (!found) throw new Error('아이디 또는 비밀번호가 맞지 않아요.')
   // 비밀번호는 저장하지 않고 필요한 정보만 남긴다
-  return save({ id: found.id, name: found.name, role: found.role })
+  return save({ id: found.id, name: found.name, role: found.role, merchantId: found.merchantId })
 }
 
 // PAYCO·카카오·Google 로그인 (모의). 실제 OAuth 연결 전이라 항상 소비자로 로그인된다.
+// 시연 중 쿠폰이 섞이지 않게, 어떤 버튼으로 들어와도 같은 소비자(id: user)로 로그인한다.
 export async function loginWithSocial(provider) {
-  return save({ id: `${provider}-demo`, name: '지민', role: ROLES.CONSUMER, provider })
+  return save({ id: 'user', name: '지민', role: ROLES.CONSUMER, provider })
 }
 
 // 지금 로그인한 사람. 없으면 null
