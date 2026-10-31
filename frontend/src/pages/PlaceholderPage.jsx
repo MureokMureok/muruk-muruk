@@ -17,7 +17,10 @@ function PlaceholderPage({ title }) {
       <span className="cap">준비 중인 화면</span>
       <h1>{title}</h1>
       <p>{user?.name}님으로 로그인했어요.</p>
-      <button className="pill lg p-ghost full" onClick={handleLogout}>
+      <button className="pill lg p-ghost full" onClick={() => navigate(-1)}>
+        뒤로 가기
+      </button>
+      <button className="text-link" onClick={handleLogout}>
         로그아웃
       </button>
     </main>

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ROLES, getUser, homePathFor } from './auth/mockAuth.js'
+import ConsumerHome from './pages/ConsumerHome.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import PlaceholderPage from './pages/PlaceholderPage.jsx'
 
@@ -28,7 +29,32 @@ function App() {
         path="/home"
         element={
           <RequireRole role={ROLES.CONSUMER}>
-            <PlaceholderPage title="소비자 홈" />
+            <ConsumerHome />
+          </RequireRole>
+        }
+      />
+      {/* 아직 안 만든 소비자 화면들 — 홈의 버튼·아래 메뉴가 갈 곳 */}
+      <Route
+        path="/campaign"
+        element={
+          <RequireRole role={ROLES.CONSUMER}>
+            <PlaceholderPage title="연합 기획전" />
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/coupons"
+        element={
+          <RequireRole role={ROLES.CONSUMER}>
+            <PlaceholderPage title="쿠폰함" />
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/me"
+        element={
+          <RequireRole role={ROLES.CONSUMER}>
+            <PlaceholderPage title="MY" />
           </RequireRole>
         }
       />
