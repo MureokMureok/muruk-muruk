@@ -25,7 +25,7 @@ npm run dev      # 개발 서버 → http://localhost:5173
 
 | 방법 | 결과 |
 |---|---|
-| 카카오·Google 버튼 | 소비자로 로그인 → `/home` |
+| PAYCO·카카오·Google 버튼 | 소비자로 로그인 → `/home` |
 | 아이디 `user` / `1234` | 소비자 → `/home` |
 | 아이디 `store` / `1234` | 가맹점 → `/store` |
 | 아이디 `kcp` / `1234` | KCP 관리자 → `/admin` |

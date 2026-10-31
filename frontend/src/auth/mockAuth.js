@@ -34,7 +34,7 @@ export async function loginWithId(id, password) {
   return save({ id: found.id, name: found.name, role: found.role })
 }
 
-// 카카오·Google 로그인 (모의). 실제 OAuth 연결 전이라 항상 소비자로 로그인된다.
+// PAYCO·카카오·Google 로그인 (모의). 실제 OAuth 연결 전이라 항상 소비자로 로그인된다.
 export async function loginWithSocial(provider) {
   return save({ id: `${provider}-demo`, name: '지민', role: ROLES.CONSUMER, provider })
 }

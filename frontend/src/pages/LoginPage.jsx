@@ -94,6 +94,10 @@ function LoginPage() {
         </form>
       ) : (
         <div className="login-actions">
+          {/* PAYCO: NHN 서비스라 맨 위에 둠. 지금은 다른 소셜 버튼처럼 모의 로그인 */}
+          <button className="pill lg p-payco full" onClick={() => handleSocial('payco')}>
+            PAYCO로 계속하기
+          </button>
           <button className="pill lg p-kakao full" onClick={() => handleSocial('kakao')}>
             카카오로 계속하기
           </button>
