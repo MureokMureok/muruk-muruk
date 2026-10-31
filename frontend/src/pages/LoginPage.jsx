@@ -53,6 +53,7 @@ function LoginPage() {
             한곳에서
           </h1>
           <p>로그인하면 쿠폰 지갑이 자동으로 만들어져요.</p>
+          <p className="login-sub">지갑 앱 설치 없이 바로 쓸 수 있어요.</p>
         </div>
       </div>
 
@@ -107,7 +108,6 @@ function LoginPage() {
           <button className="text-link" onClick={() => setShowIdForm(true)}>
             아이디로 로그인
           </button>
-          <p className="tiny center">지갑 앱 설치 없이 바로 쓸 수 있어요</p>
         </div>
       )}
     </main>

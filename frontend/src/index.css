@@ -188,6 +188,10 @@ button {
   margin-top: 14px;
   font-size: 15.5px;
 }
+/* 바로 위 문장에 붙여서 이어지는 둘째 줄 */
+.login-copy .login-sub {
+  margin-top: 2px;
+}
 .login-actions {
   display: grid;
   gap: 10px;
