@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { getCampaign } from '../api/api.js'
+import CouponCard from '../components/CouponCard.jsx'
 import Icon from '../components/Icon.jsx'
 import MerchantMark from '../components/MerchantMark.jsx'
 import TabBar from '../components/TabBar.jsx'
@@ -85,20 +86,12 @@ function ConsumerHome() {
                   // 이 쿠폰은 "다른" 가게에서 사면 받는다
                   const from = campaign.terms.filter((x) => x.merchantId !== t.merchantId).map((x) => x.merchantName)
                   return (
-                    <Link className="benefit-card" key={t.merchantId} to="/campaign" style={{ '--accent': t.merchantColor }}>
-                      <div className="benefit-main">
-                        <span className="cap">
-                          {campaign.title} · {t.merchantName}
-                        </span>
-                        <b>
-                          {t.merchantName} {t.discountType === 'RATE' ? `${t.value}% 할인` : `${won(t.value)} 할인`}
-                        </b>
-                        <span className="tiny">
-                          {won(t.minOrder)} 이상 · 받는 법: {from.join('·')}에서 구매
-                        </span>
-                      </div>
-                      <div className="benefit-value">{t.discountType === 'RATE' ? `${t.value}%` : won(t.value)}</div>
-                    </Link>
+                    <CouponCard
+                      key={t.merchantId}
+                      coupon={{ ...t, title: campaign.title }}
+                      sub={`${won(t.minOrder)} 이상 · 받는 법: ${from.join('·')}에서 구매`}
+                      to={`/campaign/coupon/${t.merchantId}`}
+                    />
                   )
                 })}
               </div>

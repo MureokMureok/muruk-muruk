@@ -9,6 +9,9 @@ import BuyPage from './pages/BuyPage.jsx'
 import CampaignPage from './pages/CampaignPage.jsx'
 import ConsumerHome from './pages/ConsumerHome.jsx'
 import CouponDetailPage from './pages/CouponDetailPage.jsx'
+import CouponHistoryPage from './pages/CouponHistoryPage.jsx'
+import SettingsPage from './pages/SettingsPage.jsx'
+import CouponOfferPage from './pages/CouponOfferPage.jsx'
 import CouponsPage from './pages/CouponsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import MyPage from './pages/MyPage.jsx'
@@ -56,13 +59,17 @@ function App() {
       {/* 소비자 — 로그인 없이 볼 수 있는 화면 */}
       <Route path="/home" element={<ConsumerHome />} />
       <Route path="/campaign" element={<CampaignPage />} />
+      <Route path="/campaign/coupon/:merchantId" element={<CouponOfferPage />} />
+      {/* 상품 화면도 볼 수 있고, 결제 버튼을 누를 때 로그인 */}
+      <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
 
       {/* 소비자 — 로그인이 필요한 화면 (안 했으면 로그인 → 성공 시 이 화면으로 복귀) */}
       <Route element={<RequireRole role={ROLES.CONSUMER} />}>
-        <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
         <Route path="/coupons" element={<CouponsPage />} />
         <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
+        <Route path="/coupons/:couponId/history" element={<CouponHistoryPage />} />
         <Route path="/me" element={<MyPage />} />
+        <Route path="/me/settings" element={<SettingsPage />} />
       </Route>
 
       {/* 가맹점 콘솔 (PC) */}

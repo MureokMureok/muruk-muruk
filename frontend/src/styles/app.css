@@ -25,9 +25,9 @@
 .c-bad { background: #fde4e5; color: #b0262c; }
 .c-wait { background: #fff2b8; color: #5c4a00; }
 .c-info { background: #dcf2f2; color: #0f4c4c; }
-.c-gray { background: #eceee9; color: #454745; }
+.c-gray { background: var(--chip-gray); color: var(--body); }
 .c-lime { background: var(--lime); color: var(--forest); }
-.c-line { background: #fff; box-shadow: inset 0 0 0 1px var(--line); color: var(--body); }
+.c-line { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--body); }
 .lane { display: inline-flex; align-items: center; font-size: 12px; font-weight: 750; padding: 3px 9px; border-radius: 9999px; white-space: nowrap; vertical-align: middle; }
 .lane.on { background: var(--lime); color: var(--forest); }
 .sig { color: var(--forest); font-weight: 800; white-space: nowrap; }
@@ -36,12 +36,12 @@
 .notice { padding: 12px 14px; border-radius: 14px; background: #fff2b8; color: #4a3b00; font-size: 13.5px; line-height: 1.5; }
 .notice.mint { background: var(--mint); color: var(--forest); }
 .notice.bad { background: #fde4e5; color: #8f1d22; }
-.notice.gray { background: var(--sand); color: var(--body); }
+.notice.gray { background: var(--surface-2); color: var(--body); }
 
 /* 카드 */
-.card { background: #fff; border-radius: var(--r-md); box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.07); padding: 18px; }
+.card { background: var(--surface); border-radius: var(--r-md); box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.07); padding: 18px; }
 .card.mint { background: var(--mint); box-shadow: none; color: var(--forest); }
-.card.soft { background: var(--sand); box-shadow: none; }
+.card.soft { background: var(--surface-2); box-shadow: none; }
 .card.forest { background: var(--forest); box-shadow: none; color: var(--mint); }
 .card.forest b { color: #fff; }
 .card .cap { margin-bottom: 4px; }
@@ -82,7 +82,7 @@
 /* 휴대폰 주소창 높이를 뺀 실제 화면 높이(dvh)로 채움 — 지원 안 하는 브라우저는 index.css의 100vh 사용 */
 .phone-app, .phone { min-height: 100dvh; }
 .appbar-title { font-size: 19px; font-weight: 800; letter-spacing: -0.045em; margin-right: auto; }
-.app-foot { position: sticky; bottom: 0; padding: 12px 20px 16px; background: #fff; box-shadow: 0 -1px 0 rgba(14, 15, 12, 0.07); display: grid; gap: 8px; }
+.app-foot { position: sticky; bottom: 0; padding: 12px 20px 16px; background: var(--surface); box-shadow: 0 -1px 0 var(--line2); display: grid; gap: 8px; }
 .tabbar + .app-foot, .app-foot + .tabbar { bottom: 0; }
 .profile { display: flex; align-items: center; gap: 14px; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--mint); color: var(--forest); font-weight: 800; flex: none; }
@@ -94,13 +94,13 @@
 .home-logo { color: var(--lime); font-size: 24px; font-weight: 900; letter-spacing: -0.06em; }
 .home-tagline { margin-top: 4px; font-size: 13.5px; color: rgba(226, 246, 213, 0.8); }
 .icon-btn.on-dark { background: rgba(226, 246, 213, 0.12); color: var(--lime); }
-.search-box { margin-top: 14px; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 12px; background: #fff; color: var(--muted); }
+.search-box { margin-top: 14px; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--surface); color: var(--muted); }
 .search-box input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 15px; }
 .search-box input:disabled { cursor: not-allowed; }
 .sec-h a { font-size: 13px; font-weight: 650; color: var(--forest); text-decoration: none; }
 .sec-h { margin-bottom: 10px; }
 
-.campaign-card { border-radius: 20px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.08); }
+.campaign-card { border-radius: 20px; overflow: hidden; background: var(--surface); box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.08); }
 .campaign-visual { height: 120px; background: var(--lime); display: flex; align-items: center; justify-content: center; gap: 10px; }
 .campaign-body { padding: 16px 18px 18px; display: grid; gap: 6px; }
 .campaign-body h3 { font-size: 20px; letter-spacing: -0.05em; }
@@ -108,7 +108,7 @@
 .merchant-chips { gap: 4px; }
 .mk.xs { width: 26px; height: 26px; border-radius: 50%; font-size: 11.5px; }
 
-.benefit-card { display: flex; align-items: stretch; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.08); text-decoration: none; color: inherit; }
+.benefit-card { display: flex; align-items: stretch; border-radius: 16px; overflow: hidden; background: var(--surface); box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.08); text-decoration: none; color: inherit; }
 .benefit-main { flex: 1; min-width: 0; padding: 12px 14px; display: grid; gap: 2px; border-left: 6px solid var(--accent); }
 .benefit-main .cap { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .benefit-main b { color: var(--ink); font-size: 15.5px; letter-spacing: -0.03em; }
@@ -245,3 +245,98 @@ button.ticket:hover { transform: translateY(-2px); }
   .preview { position: static; }
   .main { padding: 22px 22px 40px; }
 }
+
+/* ---------- 소비자 화면 (와이어프레임 v0 전체 반영) ---------- */
+.phone-app, .phone { background: var(--bg); }
+.title-lg { font-size: 22px; letter-spacing: -0.05em; margin-top: 2px; }
+.row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.campaign-visual.rounded { border-radius: 20px; height: 140px; }
+.product-visual { height: 180px; border-radius: 20px; display: grid; place-items: center; }
+
+/* 어떻게 받나요 3칸 */
+.how-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.how-steps > div { display: grid; gap: 2px; padding: 12px 10px; border-radius: 14px; background: var(--surface-2); font-size: 13.5px; font-weight: 650; line-height: 1.35; }
+.how-steps b { font-size: 18px; color: var(--forest); }
+
+/* 어디서 사면 무엇을 받나요 */
+.where-row { display: grid; gap: 6px; text-decoration: none; color: inherit; padding: 14px 16px; }
+.where-row .row-top b { color: var(--ink); }
+.where-mini { display: flex; align-items: center; justify-content: space-between; text-decoration: none; color: inherit; padding: 12px 14px; }
+.where-mini b { display: block; color: var(--ink); }
+
+/* 유의사항 펼쳐보기 */
+.notes summary { cursor: pointer; font-weight: 650; color: var(--ink); }
+.notes ul { margin: 10px 0 0; padding-left: 18px; font-size: 14px; color: var(--body); }
+
+/* 쿠폰함 탭 (밑줄형) */
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+.tabs button { padding: 12px 0; font-weight: 650; font-size: 14.5px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--forest); }
+
+/* 사용 완료·만료 쿠폰은 흐리게 */
+.benefit-card.dim { opacity: 0.5; filter: grayscale(1); }
+
+/* 상태 화면: 확인 중(빙글빙글)·실패 */
+.res.wait .big-ic { background: var(--mint); }
+.res.warn .big-ic { background: #fff2b8; color: #5c4a00; }
+.spinner { width: 34px; height: 34px; border-radius: 50%; border: 4px solid rgba(22, 51, 0, 0.15); border-top-color: var(--forest); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 결제 화면 */
+.thumb { width: 52px; height: 52px; border-radius: 12px; flex: none; }
+.applied { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--mint); color: var(--forest); font-weight: 650; font-size: 14px; }
+.row.total b { font-size: 22px; letter-spacing: -0.04em; }
+
+/* MY */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+.stats b { display: block; color: var(--ink); font-size: 18px; }
+.menu-list { display: grid; gap: 8px; }
+.link-row { display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; text-decoration: none; color: var(--ink); font-weight: 600; }
+.link-row.disabled { color: var(--muted); }
+
+/* 설정: 켬/끔 스위치 */
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.switch { position: relative; width: 48px; height: 28px; border-radius: 9999px; background: #d9dcd5; flex: none; transition: background 0.2s; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); transition: transform 0.2s; }
+.switch[aria-checked='true'] { background: var(--forest); }
+.switch[aria-checked='true']::after { transform: translateX(20px); }
+
+/* 발급·사용 기록 (세로 줄 타임라인) */
+.timeline { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 2px solid var(--line); display: grid; gap: 14px; }
+.timeline li { position: relative; }
+.timeline li::before { content: ''; position: absolute; left: -22px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--forest); }
+
+/* ---------- 다크 모드 (MY → 설정 → 시스템 설정에 맞추기) ----------
+   소비자 화면(.phone-app, .phone)에만 적용. 가맹점·KCP 콘솔은 그대로.
+   진녹색↔연두를 서로 바꿔서: 버튼은 연두 바탕+진녹색 글씨, 강조 글자는 연두로 */
+html[data-theme='dark'] body { background: #10140d; }
+html[data-theme='dark'] .phone-app,
+html[data-theme='dark'] .phone {
+  --bg: #10140d;
+  --surface: #1a2015;
+  --surface-2: #232b1d;
+  --ink: #eef3ea;
+  --body: #c9d1c3;
+  --muted: #8e9887;
+  --line: rgba(238, 243, 234, 0.16);
+  --line2: rgba(238, 243, 234, 0.08);
+  --chip-gray: #2c3426;
+  --lime: #163300;
+  --forest: #9fe870;
+  --mint: #22331a;
+  color: var(--body);
+}
+html[data-theme='dark'] .card,
+html[data-theme='dark'] .benefit-card,
+html[data-theme='dark'] .campaign-card { box-shadow: 0 0 0 1px var(--line2); }
+html[data-theme='dark'] .home-top { background: #1d3010; }
+html[data-theme='dark'] .home-logo { color: #9fe870; }
+html[data-theme='dark'] .campaign-visual { background: #1d3010; }
+html[data-theme='dark'] .switch { background: #3a4433; }
+html[data-theme='dark'] .switch[aria-checked='true']::after { background: #163300; }
+html[data-theme='dark'] .spinner { border-color: rgba(159, 232, 112, 0.2); border-top-color: #9fe870; }
+html[data-theme='dark'] .search-box input { color: var(--ink); }
+html[data-theme='dark'] .icon-btn.on-dark { color: #9fe870; }
+html[data-theme='dark'] .bar { background: var(--surface-2); }
+/* 가게 마크는 파스텔 바탕이라 글자는 항상 진하게 */
+.mk { color: #0e0f0c; }

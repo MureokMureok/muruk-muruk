@@ -1,21 +1,23 @@
-import { useNavigate } from 'react-router-dom'
-import { getMyActivity, resetDemo } from '../api/api.js'
+import { Link, useNavigate } from 'react-router-dom'
+import { getMySummary, resetDemo } from '../api/api.js'
 import { getUser, logout } from '../auth/mockAuth.js'
 import PhoneScreen from '../components/PhoneScreen.jsx'
 import { useApi } from '../hooks/useApi.js'
-import { blockNo } from '../utils/format.js'
+import { won } from '../utils/format.js'
 
 const PROVIDER = { payco: 'PAYCO', kakao: '카카오', google: 'Google' }
 
-// MY (목업 c-home.html의 me 화면). 지갑 주소(0x…)는 보여주지 않는다 (중간발표 피드백)
+// ⑪ MY (소비자 와이어프레임 v0)
+// - 지갑 정보는 MY에도 표시하지 않음 (가정 G5)
+// - 11/8 범위: 프로필·쿠폰함·설정·로그아웃만 동작, 나머지 메뉴는 자리만
 function MyPage() {
   const user = getUser()
   const navigate = useNavigate()
-  const { data: activity } = useApi(() => getMyActivity(user.id), [user.id])
+  const { data: s } = useApi(() => getMySummary(user.id), [user.id])
 
   function handleLogout() {
     logout()
-    navigate('/login', { replace: true })
+    navigate('/home', { replace: true })
   }
 
   async function handleReset() {
@@ -29,42 +31,47 @@ function MyPage() {
       <div className="profile">
         <span className="avatar">{user.name[0]}</span>
         <div>
-          <h2>{user.name}</h2>
-          <span className="tiny">{user.provider ? `${PROVIDER[user.provider]} 로그인` : '아이디 로그인'}</span>
+          <h2>{user.name}님</h2>
+          <span className="tiny">{user.provider ? `${PROVIDER[user.provider]} 로그인` : `아이디 ${user.id}`}</span>
         </div>
       </div>
 
-      <div className="card forest">
-        <b>내 쿠폰 지갑</b>
-        <p className="tiny" style={{ color: 'var(--mint)' }}>
-          로그인 계정에 연결돼 있어요. 비밀번호나 지갑 앱이 따로 필요 없어요.
-        </p>
+      <div className="card stats">
+        <div>
+          <b>{s?.received ?? 0}장</b>
+          <span className="tiny">받은 쿠폰</span>
+        </div>
+        <div>
+          <b>{s?.used ?? 0}장</b>
+          <span className="tiny">사용한 쿠폰</span>
+        </div>
+        <div>
+          <b>{won(s?.saved ?? 0)}</b>
+          <span className="tiny">아낀 금액</span>
+        </div>
       </div>
 
-      <section>
-        <div className="sec-h">
-          <h2>활동 기록</h2>
-          <span className="lane on">온체인</span>
-        </div>
-        {activity && activity.length === 0 && <p className="tiny">아직 기록이 없어요.</p>}
-        <div className="merchant-list">
-          {(activity || []).map((a) => (
-            <div className="lrow" key={a.block}>
-              <div className="meta grow">
-                <b>{a.label}</b>
-                <span className="tiny">
-                  {a.detail} · 블록 {blockNo(a.block)}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <nav className="menu-list" aria-label="MY 메뉴">
+        <Link className="card link-row" to="/coupons">
+          <span>쿠폰함</span>
+          <span aria-hidden="true">›</span>
+        </Link>
+        <Link className="card link-row" to="/me/settings">
+          <span>설정</span>
+          <span aria-hidden="true">›</span>
+        </Link>
+        {['알림 설정', '이용 안내', '고객센터'].map((m) => (
+          <div className="card link-row disabled" key={m} title="준비 중이에요">
+            <span>{m}</span>
+            <span className="tiny">준비 중</span>
+          </div>
+        ))}
+      </nav>
 
-      <button className="pill lg p-ghost full" onClick={handleLogout}>
+      <button className="text-link" style={{ justifySelf: 'start' }} onClick={handleLogout}>
         로그아웃
       </button>
-      <button className="text-link" onClick={handleReset}>
+      <button className="text-link" style={{ justifySelf: 'start' }} onClick={handleReset}>
         시연 데이터 처음으로 (리허설용)
       </button>
     </PhoneScreen>

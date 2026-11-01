@@ -1,55 +1,60 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { getMyCoupons } from '../api/api.js'
 import { getUser } from '../auth/mockAuth.js'
+import CouponCard from '../components/CouponCard.jsx'
 import PhoneScreen from '../components/PhoneScreen.jsx'
-import Ticket from '../components/Ticket.jsx'
 import { useApi } from '../hooks/useApi.js'
 
-const FILTERS = [
-  { key: 'ALL', label: '전체' },
-  { key: 'AVAILABLE', label: '사용 가능' },
-  { key: 'USED', label: '사용 완료' },
+// 탭 3개 (확정): 사용 가능 / 사용 완료 / 만료
+const TABS = [
+  { key: 'AVAILABLE', label: '사용 가능', empty: '사용할 수 있는 쿠폰이 없어요' },
+  { key: 'USED', label: '사용 완료', empty: '아직 사용한 쿠폰이 없어요' },
+  { key: 'EXPIRED', label: '만료', empty: '만료된 쿠폰이 없어요' },
 ]
 
-// 쿠폰함 (목업 c-wallet.html의 list 화면)
+// ⑥ 쿠폰함 (소비자 와이어프레임 v0)
 function CouponsPage() {
   const user = getUser()
-  const navigate = useNavigate()
-  const [filter, setFilter] = useState('ALL')
+  const [tab, setTab] = useState('AVAILABLE')
   const { data: coupons } = useApi(() => getMyCoupons(user.id), [user.id])
 
-  const shown = (coupons || []).filter((c) => filter === 'ALL' || c.status === filter)
+  const count = (key) => (coupons || []).filter((c) => c.status === key).length
+  // 만료 임박순: 유효기간이 빠른 것부터
+  const shown = (coupons || []).filter((c) => c.status === tab).sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))
+  const current = TABS.find((t) => t.key === tab)
 
   return (
-    <PhoneScreen title="쿠폰함" back={false} tabs>
-      <div className="seg" role="tablist">
-        {FILTERS.map((f) => (
-          <button key={f.key} className={filter === f.key ? 'sel' : ''} onClick={() => setFilter(f.key)}>
-            {f.label}
+    <PhoneScreen title={`쿠폰함 ${coupons ? coupons.length + '장' : ''}`} back={false} tabs>
+      <div className="tabs" role="tablist">
+        {TABS.map((t) => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'on' : ''} onClick={() => setTab(t.key)}>
+            {t.label} {count(t.key)}
           </button>
         ))}
       </div>
-      <p className="tiny">보유·사용 상태는 체인 기록 기준이에요</p>
+      {shown.length > 0 && <p className="tiny right">만료 임박순</p>}
 
       {coupons && shown.length === 0 && (
         <div className="empty">
-          <p>쿠폰이 없어요.</p>
-          <p className="tiny">연합 기획전 참여 가게에서 구매하면 받을 수 있어요.</p>
+          <p className="ink">{current.empty}</p>
+          {tab === 'AVAILABLE' && (
+            <>
+              <p className="tiny">연합 기획전 가게에서 구매하면 자동으로 받아요</p>
+              <Link className="pill p-ghost" to="/campaign" style={{ marginTop: 14 }}>
+                진행 중인 기획전 보기
+              </Link>
+            </>
+          )}
         </div>
       )}
 
       <div className="stack">
         {shown.map((c) => (
-          <div className="ticket-wrap" key={c.id}>
-            <Ticket as="button" coupon={c} onClick={() => navigate(`/coupons/${c.id}`)} />
-            <div className="ticket-meta">
-              <span className={`chip sm ${c.status === 'USED' ? 'c-gray' : 'c-ok'}`}>{c.status === 'USED' ? '사용 완료' : '사용 가능'}</span>
-              <span className="chip sm c-line">{c.source === 'CAMPAIGN' ? '연합 기획전' : '가게 쿠폰'}</span>
-            </div>
-          </div>
+          <CouponCard key={c.id} coupon={c} caption={`${c.source === 'CAMPAIGN' ? c.title : '가게 쿠폰'} · ${c.merchantName}`} to={`/coupons/${c.id}`} />
         ))}
       </div>
+      <p className="tiny">쿠폰 상태는 발급·사용 기록을 기준으로 표시돼요</p>
     </PhoneScreen>
   )
 }

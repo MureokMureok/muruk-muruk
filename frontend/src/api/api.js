@@ -192,7 +192,7 @@ export async function purchase(userId, merchantId) {
       db.issuances.find((is) => is.id === x.issuanceId).issuedCount += 1
     }
     const coupon = { ...x, id: newId('cp'), ownerId: userId, status: 'AVAILABLE', issuedAt: nowText(), fromMerchantId: merchantId }
-    const log = addLedger(db, 'ISSUE', '쿠폰 발급', `${findMerchant(db, x.merchantId).name} 쿠폰 → 소비자 (${findMerchant(db, merchantId).name} 구매)`, '컨트랙트', { userId })
+    const log = addLedger(db, 'ISSUE', '쿠폰 발급', `${findMerchant(db, x.merchantId).name} 쿠폰 → 소비자 (${findMerchant(db, merchantId).name} 구매)`, '컨트랙트', { userId, couponId: coupon.id })
     coupon.issuedBlock = log.block
     db.coupons.push(coupon)
     return coupon
@@ -202,11 +202,18 @@ export async function purchase(userId, merchantId) {
   return { order, issuedCoupons: issued.map((c) => withMerchant(db, c)), skipped }
 }
 
+// 화면용 쿠폰 정보: 가게 정보 + 유효기간이 지난 '사용 가능' 쿠폰은 EXPIRED(만료)로 표시
+// 만료 판정: 유효기간 마지막 날까지 사용 가능 (와이어프레임 구현 체크 — 마지막 날 23:59)
+function couponView(db, c) {
+  const status = c.status === 'AVAILABLE' && c.expiresAt < today() ? 'EXPIRED' : c.status
+  return { ...withMerchant(db, c), status, fromMerchantName: c.fromMerchantId ? findMerchant(db, c.fromMerchantId).name : '' }
+}
+
 // GET /api/me/coupons
 export async function getMyCoupons(userId) {
   await wait(READ_MS)
   const db = load()
-  return db.coupons.filter((c) => c.ownerId === userId).reverse().map((c) => withMerchant(db, c))
+  return db.coupons.filter((c) => c.ownerId === userId).reverse().map((c) => couponView(db, c))
 }
 
 // GET /api/coupons/{id}
@@ -214,25 +221,43 @@ export async function getCoupon(couponId) {
   await wait(READ_MS)
   const db = load()
   const c = db.coupons.find((x) => x.id === couponId)
-  return c ? withMerchant(db, c) : null
+  return c ? couponView(db, c) : null
 }
 
-// 쿠폰 사용 때 컨트랙트가 확인하는 항목 (순서대로)
+// GET /api/coupons/{id}/history — 이 쿠폰의 발급·사용 기록 (와이어프레임 ⑫)
+export async function getCouponHistory(couponId) {
+  await wait(READ_MS)
+  return load().ledger.filter((l) => l.couponId === couponId)
+}
+
+// GET /api/me/summary — MY 화면 요약 (받은 쿠폰·사용한 쿠폰·아낀 금액)
+export async function getMySummary(userId) {
+  await wait(READ_MS)
+  const db = load()
+  const mine = db.coupons.filter((c) => c.ownerId === userId)
+  return {
+    received: mine.length,
+    used: mine.filter((c) => c.status === 'USED').length,
+    saved: db.orders.filter((o) => o.userId === userId).reduce((s, o) => s + o.discount, 0),
+  }
+}
+
+// 쿠폰 사용 때 확인하는 항목 (소비자에게 보이는 쉬운 말 — 와이어프레임 ⑨-c 쿠폰 확인 결과)
+// 실제 발급된 쿠폰인지는 '내 쿠폰인가'에 함께 포함
 export const USE_CHECKS = [
-  { key: 'exists', label: '실제 발급된 쿠폰', code: 'COUPON_NOT_FOUND' },
   { key: 'owner', label: '내 쿠폰인가', code: 'NOT_OWNER' },
-  { key: 'merchant', label: '사용 가능 가게', code: 'WRONG_MERCHANT' },
-  { key: 'expiry', label: '유효기간', code: 'EXPIRED' },
-  { key: 'unused', label: '미사용', code: 'COUPON_ALREADY_USED' },
+  { key: 'merchant', label: '쓸 수 있는 가게인가', code: 'WRONG_MERCHANT' },
+  { key: 'expiry', label: '유효기간 안인가', code: 'EXPIRED' },
+  { key: 'minOrder', label: '최소 주문 금액', code: 'MIN_ORDER_NOT_MET' },
+  { key: 'unused', label: '아직 안 쓴 쿠폰인가', code: 'COUPON_ALREADY_USED' },
 ]
 
 const FAIL_MESSAGES = {
-  COUPON_NOT_FOUND: '발급 기록이 없는 쿠폰이에요.',
-  NOT_OWNER: '내 쿠폰이 아니에요.',
+  NOT_OWNER: '내 쿠폰이 아니라 쓸 수 없어요.',
   WRONG_MERCHANT: '이 가게에서는 쓸 수 없는 쿠폰이에요.',
   EXPIRED: '유효기간이 지난 쿠폰이에요.',
-  COUPON_ALREADY_USED: '이미 사용한 쿠폰이라 거절됐어요. 결제는 진행되지 않았어요.',
-  MIN_ORDER_NOT_MET: '최소 주문 금액보다 적어요.',
+  COUPON_ALREADY_USED: '이미 사용한 쿠폰이라 쓸 수 없어요.',
+  MIN_ORDER_NOT_MET: '최소 주문 금액보다 적어 쓸 수 없어요.',
 }
 
 // POST /api/orders (쿠폰 적용) — 컨트랙트 검증 후 사용 처리
@@ -243,28 +268,26 @@ export async function redeemCoupon(userId, couponId, merchantId) {
   const c = db.coupons.find((x) => x.id === couponId)
   const product = db.products.find((p) => p.merchantId === merchantId)
 
-  // 검증 결과를 하나씩 계산 (화면에서 통과/실패 표시용)
+  // 검증 결과를 하나씩 계산 (화면에서 통과/거절 표시용). 쿠폰이 없으면(발급 기록 없음) '내 쿠폰인가'에서 거절
   const results = {
-    exists: !!c,
     owner: !!c && c.ownerId === userId,
     merchant: !!c && c.merchantId === merchantId,
     expiry: !!c && c.expiresAt >= today(),
+    minOrder: !!c && product.price >= c.minOrder,
     unused: !!c && c.status === 'AVAILABLE',
   }
   const failed = USE_CHECKS.find((ch) => !results[ch.key])
   if (failed) {
-    addLedger(db, 'USE', '사용 거절', `${c ? findMerchant(db, c.merchantId).name + ' 쿠폰' : '알 수 없는 쿠폰'} · ${failed.label} 확인 실패`, '컨트랙트', { userId })
+    // 거절도 기록에 남는다 (쿠폰 상태는 그대로)
+    addLedger(db, 'USE', '사용 거절', `${c ? findMerchant(db, c.merchantId).name + ' 쿠폰' : '알 수 없는 쿠폰'} · ${failed.label} 확인 실패`, '컨트랙트', { userId, couponId })
     save(db)
-    throw new ApiError(failed.code, FAIL_MESSAGES[failed.code], { checks: results, failedKey: failed.key })
-  }
-  if (product.price < c.minOrder) {
-    throw new ApiError('MIN_ORDER_NOT_MET', FAIL_MESSAGES.MIN_ORDER_NOT_MET, { checks: results })
+    throw new ApiError(failed.code, FAIL_MESSAGES[failed.code], { checks: results, failedKey: failed.key, usedAt: c?.usedAt, merchantName: c ? findMerchant(db, c.merchantId).name : '' })
   }
 
   const discount = calcDiscount(c, product.price)
   c.status = 'USED'
   c.usedAt = nowText()
-  const log = addLedger(db, 'USE', '쿠폰 사용', `${findMerchant(db, merchantId).name} · 할인 ${won(discount)}`, '컨트랙트', { userId })
+  const log = addLedger(db, 'USE', '쿠폰 사용', `${findMerchant(db, merchantId).name} · 할인 ${won(discount)}`, '컨트랙트', { userId, couponId })
   c.usedBlock = log.block
 
   // 할인 비용 부담: 사용처 가게 (기획전 쿠폰은 충전금, 직접 발행 쿠폰은 발행분에서)
@@ -293,14 +316,7 @@ export async function redeemCoupon(userId, couponId, merchantId) {
   }
   db.orders.push(order)
   save(db)
-  return { order, coupon: withMerchant(db, c), checks: results }
-}
-
-// 내 활동 기록 (MY 화면)
-export async function getMyActivity(userId) {
-  await wait(READ_MS)
-  const db = load()
-  return db.ledger.filter((l) => l.userId === userId).reverse()
+  return { order, coupon: couponView(db, c), checks: results }
 }
 
 // ================= 가맹점 =================
