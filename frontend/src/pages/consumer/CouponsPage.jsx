@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyCoupons } from '../api/api.js'
-import { getUser } from '../auth/mockAuth.js'
-import CouponCard from '../components/CouponCard.jsx'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import { useApi } from '../hooks/useApi.js'
+import { getMyCoupons } from '../../api/api.js'
+import { getUser } from '../../auth/mockAuth.js'
+import CouponCard from '../../components/CouponCard.jsx'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { useApi } from '../../hooks/useApi.js'
 
 // 탭 3개 (확정): 사용 가능 / 사용 완료 / 만료
 const TABS = [

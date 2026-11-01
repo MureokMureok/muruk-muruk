@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import Icon from '../components/Icon.jsx'
-import SproutIcon from '../components/SproutIcon.jsx'
-import { homePathFor, loginWithId, loginWithSocial } from '../auth/mockAuth.js'
+import Icon from '../../components/Icon.jsx'
+import SproutIcon from '../../components/SproutIcon.jsx'
+import { homePathFor, loginWithId, loginWithSocial } from '../../auth/mockAuth.js'
 
 // 로그인 화면 (목업 c-home.html의 login 화면 기준)
 // - 카카오·Google: 모의 로그인 → 소비자

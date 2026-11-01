@@ -19,6 +19,29 @@ npm run dev      # 개발 서버 → http://localhost:5173
 - `npm run lint`: 코드 검사 (oxlint)
 - 백엔드 주소는 `.env.example`을 복사해 `.env`로 만들고 `VITE_API_BASE_URL`을 채움
 
+## 폴더 구조
+
+화면은 **역할별 폴더**로 나눠 둡니다. 새 화면은 해당 역할 폴더에 추가해 주세요.
+
+```
+frontend/src/
+├─ main.jsx · App.jsx     앱 시작점 · 주소별 화면 연결(라우팅)과 로그인·역할 검사
+├─ pages/                 화면 (화면 하나 = 파일 하나)
+│  ├─ auth/               로그인 (모든 역할 공통)
+│  ├─ consumer/           소비자 (휴대폰 폭) — 소비자 와이어프레임 v0 기준
+│  ├─ store/              가맹점 콘솔 (PC)
+│  └─ admin/              KCP 관리자 콘솔 (PC)
+├─ components/            여러 화면에서 같이 쓰는 부품 (쿠폰 카드, 하단 메뉴, 콘솔 틀 등)
+├─ api/                   모의 API — 백엔드 연결 시 이 폴더만 교체
+│  ├─ api.js              API 함수 (함수 옆 주석에 제안 API 주소)
+│  └─ seed.js             시연 시작 데이터
+├─ auth/                  로그인 상태 관리 (현재 모의 로그인)
+├─ hooks/                 화면에서 데이터 불러오는 도구
+├─ utils/                 숫자·날짜 표시, 상태 문구, 다크 모드 등 작은 도구
+├─ styles/app.css         화면 부품 디자인 (맨 아래 다크 모드 색)
+└─ index.css              공통 색·글꼴·버튼 (디자인 기본값)
+```
+
 ## 로그인 (현재: 모의 로그인)
 
 백엔드 로그인 API 연결 전까지 `src/auth/mockAuth.js`의 가짜 로그인을 씁니다.

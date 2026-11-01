@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import { getCampaign } from '../api/api.js'
-import CouponCard from '../components/CouponCard.jsx'
-import Icon from '../components/Icon.jsx'
-import MerchantMark from '../components/MerchantMark.jsx'
-import TabBar from '../components/TabBar.jsx'
-import { useApi } from '../hooks/useApi.js'
-import { md, won } from '../utils/format.js'
+import { getCampaign } from '../../api/api.js'
+import CouponCard from '../../components/CouponCard.jsx'
+import Icon from '../../components/Icon.jsx'
+import MerchantMark from '../../components/MerchantMark.jsx'
+import TabBar from '../../components/TabBar.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { md, won } from '../../utils/format.js'
 
 // 카테고리 (와이어프레임 ①). 11/8 시연 범위에 넣을지 팀 논의 중이라 지금은 눌러지지 않는 표시만
 const CATEGORIES = ['꽃·식물', '제철 과일', '수산물', '농산물', '반찬·밀키트']

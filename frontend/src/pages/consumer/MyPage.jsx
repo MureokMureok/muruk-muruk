@@ -1,9 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { getMySummary, resetDemo } from '../api/api.js'
-import { getUser, logout } from '../auth/mockAuth.js'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import { useApi } from '../hooks/useApi.js'
-import { won } from '../utils/format.js'
+import { getMySummary, resetDemo } from '../../api/api.js'
+import { getUser, logout } from '../../auth/mockAuth.js'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { won } from '../../utils/format.js'
 
 const PROVIDER = { payco: 'PAYCO', kakao: '카카오', google: 'Google' }
 

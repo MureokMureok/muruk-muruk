@@ -1,9 +1,9 @@
 import { Link, useParams } from 'react-router-dom'
-import { getCampaign } from '../api/api.js'
-import CouponCard from '../components/CouponCard.jsx'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import { useApi } from '../hooks/useApi.js'
-import { won } from '../utils/format.js'
+import { getCampaign } from '../../api/api.js'
+import CouponCard from '../../components/CouponCard.jsx'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { won } from '../../utils/format.js'
 
 // ⑩ 받을 수 있는 쿠폰 상세 (소비자 와이어프레임 v0) — 홈 "추천 혜택"에서 들어옴
 // 아직 받지 않은 쿠폰: 직접 받기 버튼은 없고, 다른 가게에서 사면 자동으로 받는다 (가정 G1)

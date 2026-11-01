@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { getProduct, previewPurchase, purchase } from '../api/api.js'
-import { getUser } from '../auth/mockAuth.js'
-import CouponCard from '../components/CouponCard.jsx'
-import MerchantMark from '../components/MerchantMark.jsx'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import StatusView from '../components/StatusView.jsx'
-import { useApi } from '../hooks/useApi.js'
-import { won } from '../utils/format.js'
+import { getProduct, previewPurchase, purchase } from '../../api/api.js'
+import { getUser } from '../../auth/mockAuth.js'
+import CouponCard from '../../components/CouponCard.jsx'
+import MerchantMark from '../../components/MerchantMark.jsx'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import StatusView from '../../components/StatusView.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { won } from '../../utils/format.js'
 
 // 받는 쿠폰 카드의 맨 위 글씨
 const captionOf = (c) => (c.source === 'CAMPAIGN' ? `연합 기획전 · ${c.merchantName}` : `조건 충족 보너스 · ${c.title}`)

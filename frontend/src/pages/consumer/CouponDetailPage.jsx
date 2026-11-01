@@ -1,13 +1,13 @@
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { USE_CHECKS, calcDiscount, getCoupon, getProduct, redeemCoupon } from '../api/api.js'
-import { getUser } from '../auth/mockAuth.js'
-import CouponCard from '../components/CouponCard.jsx'
-import MerchantMark from '../components/MerchantMark.jsx'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import StatusView from '../components/StatusView.jsx'
-import { useApi } from '../hooks/useApi.js'
-import { won } from '../utils/format.js'
+import { USE_CHECKS, calcDiscount, getCoupon, getProduct, redeemCoupon } from '../../api/api.js'
+import { getUser } from '../../auth/mockAuth.js'
+import CouponCard from '../../components/CouponCard.jsx'
+import MerchantMark from '../../components/MerchantMark.jsx'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import StatusView from '../../components/StatusView.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { won } from '../../utils/format.js'
 
 // 오늘부터 유효기간까지 남은 날 (D-30)
 // 날짜끼리만 비교 (오늘 몇 시인지는 무시)

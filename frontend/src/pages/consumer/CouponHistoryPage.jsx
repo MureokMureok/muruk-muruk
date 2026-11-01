@@ -1,9 +1,9 @@
 import { useParams } from 'react-router-dom'
-import { getCoupon, getCouponHistory } from '../api/api.js'
-import CouponCard from '../components/CouponCard.jsx'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import { useApi } from '../hooks/useApi.js'
-import { num } from '../utils/format.js'
+import { getCoupon, getCouponHistory } from '../../api/api.js'
+import CouponCard from '../../components/CouponCard.jsx'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { num } from '../../utils/format.js'
 
 // 기록 종류 → 소비자에게 보일 이름
 const LABEL = { '쿠폰 발급': '발급', '쿠폰 사용': '사용', '사용 거절': '사용 시도 · 거절' }

@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom'
-import { getCampaign } from '../api/api.js'
-import MerchantMark from '../components/MerchantMark.jsx'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import { useApi } from '../hooks/useApi.js'
-import { md, won } from '../utils/format.js'
+import { getCampaign } from '../../api/api.js'
+import MerchantMark from '../../components/MerchantMark.jsx'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { md, won } from '../../utils/format.js'
 
 // 쿠폰 혜택 짧게: "봄꽃상회 3,000원" / "바다찬 10%"
 const shortBenefit = (t) => `${t.merchantName} ${t.discountType === 'RATE' ? `${t.value}%` : won(t.value)}`

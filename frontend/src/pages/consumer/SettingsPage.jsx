@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import PhoneScreen from '../components/PhoneScreen.jsx'
-import { getDarkMode, getFollowSystem, onSystemChange, setDarkMode, setFollowSystem, systemIsDark } from '../utils/theme.js'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { getDarkMode, getFollowSystem, onSystemChange, setDarkMode, setFollowSystem, systemIsDark } from '../../utils/theme.js'
 
 // 켬/끔 스위치 한 줄
 function SwitchRow({ title, desc, on, disabled, onToggle }) {
