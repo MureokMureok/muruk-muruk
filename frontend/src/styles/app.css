@@ -340,3 +340,7 @@ html[data-theme='dark'] .icon-btn.on-dark { color: #9fe870; }
 html[data-theme='dark'] .bar { background: var(--surface-2); }
 /* 가게 마크는 파스텔 바탕이라 글자는 항상 진하게 */
 .mk { color: #0e0f0c; }
+/* 설정: 시스템 따르기가 켜져 있으면 다크 모드 스위치는 흐리게 (직접 못 바꿈) */
+.switch-row.is-disabled { opacity: 0.55; }
+.switch:disabled { cursor: not-allowed; }
+.divider { height: 1px; background: var(--line2); }
