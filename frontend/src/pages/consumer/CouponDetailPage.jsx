@@ -37,8 +37,7 @@ function CheckList({ results, failedKey }) {
 }
 
 // ⑦ 쿠폰 상세 → ⑧ B 가게 결제(가상) → ⑨ 사용 결과 / 재사용 거절 (소비자 와이어프레임 v0)
-function CouponDetailPage() {
-  const { couponId } = useParams()
+function CouponScreen({ couponId }) {
   const user = getUser()
   const { data, reload } = useApi(async () => {
     const coupon = await getCoupon(couponId)
@@ -117,6 +116,44 @@ function CouponDetailPage() {
           <div className="row">
             <span>할인 부담</span>
             <b>{coupon.merchantName}</b>
+          </div>
+        </div>
+      </PhoneScreen>
+    )
+  }
+
+  // ----- ⑨-d 사용 실패: 결제 승인 실패 (쿠폰은 그대로) -----
+  if (phase === 'rejected' && outcome.code === 'PAYMENT_FAILED') {
+    return (
+      <PhoneScreen
+        title="사용 결과"
+        back={false}
+        foot={
+          <>
+            <button className="pill lg p-forest full" onClick={() => setPhase('order')}>
+              다시 결제하기
+            </button>
+            <Link className="pill lg p-ghost full" to="/coupons">
+              쿠폰함으로
+            </Link>
+          </>
+        }
+      >
+        <StatusView kind="warn" title="쿠폰을 사용하지 못했어요" desc="결제 승인이 되지 않았어요" />
+        <div className="card rows">
+          <div className="row">
+            <span>쿠폰</span>
+            <b>
+              {coupon.merchantName} {coupon.discountType === 'RATE' ? `${coupon.value}%` : won(coupon.value)}
+            </b>
+          </div>
+          <div className="row">
+            <span>쿠폰 상태</span>
+            <b>그대로 남아 있어요</b>
+          </div>
+          <div className="row">
+            <span>사유</span>
+            <b>결제 승인 실패 (시연용)</b>
           </div>
         </div>
       </PhoneScreen>
@@ -306,6 +343,12 @@ function CouponDetailPage() {
       </Link>
     </PhoneScreen>
   )
+}
+
+// 주소의 쿠폰(:couponId)이 바뀌면 화면을 새로 만든다 (이전 쿠폰의 결과가 남지 않게)
+function CouponDetailPage() {
+  const { couponId } = useParams()
+  return <CouponScreen key={couponId} couponId={couponId} />
 }
 
 export default CouponDetailPage

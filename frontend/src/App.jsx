@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { ROLES, getUser, homePathFor } from './auth/mockAuth.js'
 import ConsoleLayout from './components/ConsoleLayout.jsx'
+import NetworkErrorBoundary from './components/NetworkErrorBoundary.jsx'
 // 로그인 (모든 역할 공통)
 import LoginPage from './pages/auth/LoginPage.jsx'
 // 소비자 (휴대폰 폭)
@@ -38,6 +39,16 @@ function RequireRole({ role }) {
   return <Outlet />
 }
 
+// 소비자 화면들을 감싸는 틀: 오류 처리. 주소가 바뀌면 오류 표시를 지운다
+function ConsumerShell() {
+  const location = useLocation()
+  return (
+    <NetworkErrorBoundary resetKey={location.pathname}>
+      <Outlet />
+    </NetworkErrorBoundary>
+  )
+}
+
 const STORE_MENU = [
   { to: '/store', label: '대시보드' },
   { to: '/store/issue', label: '쿠폰 발행' },
@@ -60,20 +71,23 @@ function App() {
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/login" element={<LoginPage />} />
 
-      {/* 소비자 — 로그인 없이 볼 수 있는 화면 */}
-      <Route path="/home" element={<ConsumerHome />} />
-      <Route path="/campaign" element={<CampaignPage />} />
-      <Route path="/campaign/coupon/:merchantId" element={<CouponOfferPage />} />
-      {/* 상품 화면도 볼 수 있고, 결제 버튼을 누를 때 로그인 */}
-      <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
+      {/* 소비자 화면 전체를 오류 처리 틀로 감쌈: 데이터를 못 불러오면 "연결이 불안정해요" */}
+      <Route element={<ConsumerShell />}>
+        {/* 소비자 — 로그인 없이 볼 수 있는 화면 */}
+        <Route path="/home" element={<ConsumerHome />} />
+        <Route path="/campaign" element={<CampaignPage />} />
+        <Route path="/campaign/coupon/:merchantId" element={<CouponOfferPage />} />
+        {/* 상품 화면도 볼 수 있고, 결제 버튼을 누를 때 로그인 */}
+        <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
 
-      {/* 소비자 — 로그인이 필요한 화면 (안 했으면 로그인 → 성공 시 이 화면으로 복귀) */}
-      <Route element={<RequireRole role={ROLES.CONSUMER} />}>
-        <Route path="/coupons" element={<CouponsPage />} />
-        <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
-        <Route path="/coupons/:couponId/history" element={<CouponHistoryPage />} />
-        <Route path="/me" element={<MyPage />} />
-        <Route path="/me/settings" element={<SettingsPage />} />
+        {/* 소비자 — 로그인이 필요한 화면 (안 했으면 로그인 → 성공 시 이 화면으로 복귀) */}
+        <Route element={<RequireRole role={ROLES.CONSUMER} />}>
+          <Route path="/coupons" element={<CouponsPage />} />
+          <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
+          <Route path="/coupons/:couponId/history" element={<CouponHistoryPage />} />
+          <Route path="/me" element={<MyPage />} />
+          <Route path="/me/settings" element={<SettingsPage />} />
+        </Route>
       </Route>
 
       {/* 가맹점 콘솔 (PC) */}

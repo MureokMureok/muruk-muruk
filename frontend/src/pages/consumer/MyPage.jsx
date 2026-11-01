@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getMySummary, resetDemo } from '../../api/api.js'
+import { SIMULATIONS, getMySummary, getSimulation, resetDemo, setSimulation } from '../../api/api.js'
 import { getUser, logout } from '../../auth/mockAuth.js'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { useApi } from '../../hooks/useApi.js'
@@ -24,6 +25,13 @@ function MyPage() {
     if (!window.confirm('시연 데이터를 처음 상태로 되돌릴까요? (쿠폰·주문·기록이 모두 지워져요)')) return
     await resetDemo()
     navigate('/home')
+  }
+
+  // 시연용 실패 고르기 (다음 한 번만 실패, 그 뒤 자동으로 정상)
+  const [sim, setSim] = useState(getSimulation())
+  function handleSim(e) {
+    setSim(e.target.value)
+    setSimulation(e.target.value)
   }
 
   return (
@@ -71,9 +79,23 @@ function MyPage() {
       <button className="text-link" style={{ justifySelf: 'start' }} onClick={handleLogout}>
         로그아웃
       </button>
-      <button className="text-link" style={{ justifySelf: 'start' }} onClick={handleReset}>
-        시연 데이터 처음으로 (리허설용)
-      </button>
+      {/* 발표 질의응답용: 실패 화면을 보여줄 때 (와이어프레임 상태 화면) */}
+      <section className="card soft demo-tools">
+        <span className="cap">시연 도구 (발표용)</span>
+        <label className="field">
+          <span className="tiny">실패 상황 만들기 (발급·결제 실패는 한 번만)</span>
+          <select className="input" value={sim} onChange={handleSim}>
+            {SIMULATIONS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="text-link" style={{ justifySelf: 'start' }} onClick={handleReset}>
+          시연 데이터 처음으로 (리허설용)
+        </button>
+      </section>
     </PhoneScreen>
   )
 }

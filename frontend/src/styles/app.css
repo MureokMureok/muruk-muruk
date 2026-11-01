@@ -344,3 +344,7 @@ html[data-theme='dark'] .bar { background: var(--surface-2); }
 .switch-row.is-disabled { opacity: 0.55; }
 .switch:disabled { cursor: not-allowed; }
 .divider { height: 1px; background: var(--line2); }
+/* MY 시연 도구 */
+.demo-tools { display: grid; gap: 8px; }
+/* 링크 모양의 글자 버튼: 기본 파란색 대신 글자색 */
+a.text-link { color: var(--ink); display: block; }

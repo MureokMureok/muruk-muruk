@@ -59,6 +59,50 @@ function addLedger(db, type, label, detail, actor, extra = {}) {
 const findMerchant = (db, id) => db.merchants.find((m) => m.id === id)
 const remainingLimit = (m) => m.limit - m.reserved
 
+// ---------- 시연용 실패 (발표 질의응답용) ----------
+// MY 화면에서 고르면 실패를 흉내 낸다. 발급·결제 실패는 한 번 일어나면 자동으로 정상으로 돌아옴
+// - ISSUE_FAIL: 결제는 됐는데 쿠폰 발급 실패 (와이어프레임 ④-c)
+// - PAY_FAIL: 쿠폰 쓰려는데 결제 승인 실패 (⑨-d)
+// - NETWORK: 화면 데이터를 못 불러옴 (공통 네트워크·서버 오류)
+const SIM_KEY = 'muruk.simulate'
+export const SIMULATIONS = [
+  { value: '', label: '정상' },
+  { value: 'ISSUE_FAIL', label: '다음 구매 때 쿠폰 발급 실패' },
+  { value: 'PAY_FAIL', label: '다음 쿠폰 사용 때 결제 실패' },
+  { value: 'NETWORK', label: '연결 오류 (다시 불러오기 누를 때까지)' },
+]
+
+export function getSimulation() {
+  try {
+    return localStorage.getItem(SIM_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function setSimulation(value) {
+  try {
+    if (value) localStorage.setItem(SIM_KEY, value)
+    else localStorage.removeItem(SIM_KEY)
+  } catch {
+    // 저장 못 하면 시연 실패 없이 정상 동작
+  }
+}
+
+// 이 실패가 예약돼 있으면 꺼내 쓰고(한 번만) true
+function takeSim(kind) {
+  if (getSimulation() !== kind) return false
+  setSimulation('')
+  return true
+}
+
+// 화면 데이터 읽기 전에 부름: 연결 오류 시연이면 실패
+// 연결 오류는 "한 번만"이 아니라 '다시 불러오기'를 누를 때까지 계속된다
+// (개발 모드에서 React가 화면을 두 번 불러서, 한 번만 실패하면 실패가 묻혀 버리기 때문)
+function readGuard() {
+  if (getSimulation() === 'NETWORK') throw new ApiError('NETWORK', '연결이 불안정해요. 잠시 후 다시 시도해 주세요.')
+}
+
 // 할인 금액 계산: 정률이면 (금액 × %) 단 최대 할인액까지, 정액이면 그 금액
 export function calcDiscount(coupon, amount) {
   if (coupon.discountType === 'RATE') {
@@ -83,6 +127,7 @@ function withMerchant(db, obj) {
 // GET /api/campaigns/current — 기획전과 참여 가게
 export async function getCampaign() {
   await wait(READ_MS)
+  readGuard()
   const db = load()
   const c = db.campaign
   return {
@@ -101,6 +146,7 @@ export async function getCampaign() {
 // GET /api/merchants/{id}/product — 가게 상품 (시연용 1개)
 export async function getProduct(merchantId) {
   await wait(READ_MS)
+  readGuard()
   const db = load()
   return withMerchant(db, db.products.find((p) => p.merchantId === merchantId))
 }
@@ -158,6 +204,7 @@ function couponsForPurchase(db, userId, merchantId, amount) {
 
 export async function previewPurchase(userId, merchantId) {
   await wait(READ_MS)
+  readGuard()
   const db = load()
   const product = db.products.find((p) => p.merchantId === merchantId)
   const { coupons, skipped } = couponsForPurchase(db, userId, merchantId, product.price)
@@ -183,6 +230,12 @@ export async function purchase(userId, merchantId) {
     at: nowText(),
   }
   db.orders.push(order)
+
+  // 시연용: 결제는 됐지만 쿠폰 발급 실패 (와이어프레임 ④-c). 예산은 확보하지 않음
+  if (takeSim('ISSUE_FAIL')) {
+    save(db)
+    return { order, issuedCoupons: [], skipped, failed: true, missedCoupons: toIssue.map((x) => withMerchant(db, x)) }
+  }
 
   const issued = toIssue.map((x) => {
     // 발급할 때 예산을 미리 확보 (기획전: 해당 가게 충전금 / 보너스: 발행 수량)
@@ -212,6 +265,7 @@ function couponView(db, c) {
 // GET /api/me/coupons
 export async function getMyCoupons(userId) {
   await wait(READ_MS)
+  readGuard()
   const db = load()
   return db.coupons.filter((c) => c.ownerId === userId).reverse().map((c) => couponView(db, c))
 }
@@ -219,6 +273,7 @@ export async function getMyCoupons(userId) {
 // GET /api/coupons/{id}
 export async function getCoupon(couponId) {
   await wait(READ_MS)
+  readGuard()
   const db = load()
   const c = db.coupons.find((x) => x.id === couponId)
   return c ? couponView(db, c) : null
@@ -227,12 +282,14 @@ export async function getCoupon(couponId) {
 // GET /api/coupons/{id}/history — 이 쿠폰의 발급·사용 기록 (와이어프레임 ⑫)
 export async function getCouponHistory(couponId) {
   await wait(READ_MS)
+  readGuard()
   return load().ledger.filter((l) => l.couponId === couponId)
 }
 
 // GET /api/me/summary — MY 화면 요약 (받은 쿠폰·사용한 쿠폰·아낀 금액)
 export async function getMySummary(userId) {
   await wait(READ_MS)
+  readGuard()
   const db = load()
   const mine = db.coupons.filter((c) => c.ownerId === userId)
   return {
@@ -264,6 +321,8 @@ const FAIL_MESSAGES = {
 // (이름을 useCoupon으로 하지 않은 이유: React는 use로 시작하는 함수를 특별한 함수(Hook)로 취급함)
 export async function redeemCoupon(userId, couponId, merchantId) {
   await wait(CHAIN_MS)
+  // 시연용: 결제 승인 실패 (와이어프레임 ⑨-d). 쿠폰은 쓰이지 않고 그대로 남는다 (결제 실패 시 쿠폰이 사라지면 안 됨)
+  if (takeSim('PAY_FAIL')) throw new ApiError('PAYMENT_FAILED', '결제 승인이 되지 않았어요.')
   const db = load()
   const c = db.coupons.find((x) => x.id === couponId)
   const product = db.products.find((p) => p.merchantId === merchantId)
