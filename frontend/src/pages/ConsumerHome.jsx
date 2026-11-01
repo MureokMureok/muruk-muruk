@@ -1,88 +1,119 @@
 import { Link } from 'react-router-dom'
-import { benefitText, getCampaign, getMyCoupons } from '../api/api.js'
-import { getUser } from '../auth/mockAuth.js'
+import { getCampaign } from '../api/api.js'
 import Icon from '../components/Icon.jsx'
 import MerchantMark from '../components/MerchantMark.jsx'
-import SproutIcon from '../components/SproutIcon.jsx'
 import TabBar from '../components/TabBar.jsx'
 import { useApi } from '../hooks/useApi.js'
-import { md } from '../utils/format.js'
+import { md, won } from '../utils/format.js'
 
-// 소비자 홈 (목업 c-home.html의 home 화면 기준)
-// 목업과 다른 점: 예시 가게를 농수산물·꽃으로, 교환 마켓 카드는 MVP 확장 범위라 뺌
+// 카테고리 (와이어프레임 ①). 11/8 시연 범위에 넣을지 팀 논의 중이라 지금은 눌러지지 않는 표시만
+const CATEGORIES = ['꽃·식물', '제철 과일', '수산물', '농산물', '반찬·밀키트']
+
+// 소비자 홈 — 소비자 와이어프레임 v0의 ① 홈 기준 (색은 무럭무럭 테마 유지)
+// 순서: 상단(로고·검색) → 연합 기획전 배너 → 추천 혜택 → 카테고리 → 하단 탭
+// 로그인 안 해도 볼 수 있다 (확정 정책: 비회원도 홈·기획전·쿠폰 정보 탐색 가능)
 function ConsumerHome() {
-  const user = getUser()
-  const { data } = useApi(async () => {
-    const [campaign, coupons] = await Promise.all([getCampaign(), getMyCoupons(user.id)])
-    return { campaign, available: coupons.filter((c) => c.status === 'AVAILABLE').length }
-  }, [user.id])
-
-  const campaign = data?.campaign
-  const others = campaign ? campaign.terms.length - 1 : 0
+  const { data: campaign } = useApi(() => getCampaign(), [])
+  const active = campaign?.status === 'ACTIVE'
 
   return (
     <div className="phone-app">
-      <header className="appbar">
-        <div className="brand">
-          <SproutIcon size={20} />
-          무럭무럭
+      {/* 상단: 로고·한 줄 소개·검색 */}
+      <header className="home-top">
+        <div className="home-top-row">
+          <div>
+            <h1 className="home-logo">무럭무럭</h1>
+            <p className="home-tagline">작은 가게들이 함께 무럭무럭</p>
+          </div>
+          <button className="icon-btn on-dark" aria-label="알림">
+            <Icon name="bell" />
+          </button>
         </div>
-        <button className="icon-btn" aria-label="알림">
-          <Icon name="bell" />
-        </button>
+        {/* 검색은 시연 범위 밖이라 비활성 (와이어프레임 구현 체크) */}
+        <label className="search-box" title="검색은 준비 중이에요">
+          <input placeholder="가게·상품 검색" disabled />
+          <Icon name="search" size={18} />
+        </label>
       </header>
 
       <main className="app-body">
         {campaign && (
           <>
-            {/* 기획전 큰 카드 */}
-            <article className="hero-card">
-              <span className="cap">무럭무럭 연합 기획전</span>
-              <h1>{campaign.title.replace(' 연합', '\n연합')}</h1>
-              <span className="period">
-                {md(campaign.startDate)} – {md(campaign.endDate)}
-              </span>
-              <p>
-                {campaign.status === 'ACTIVE'
-                  ? `한 곳에서 사면 다른 ${others}곳 쿠폰을 드려요.`
-                  : '곧 시작해요. 참여 가게들이 조건을 정하고 있어요.'}
-              </p>
-              <div className="merchant-strip" aria-label="참여 가게">
-                {campaign.terms.map((t) => (
-                  <MerchantMark key={t.merchantId} m={t} />
-                ))}
-              </div>
-              <Link className="pill full" to="/campaign">
-                기획전 보기 <Icon name="chev" size={16} />
-              </Link>
-            </article>
-
-            {/* 보유 쿠폰 요약 */}
-            <div className="coupon-summary">
-              <Icon name="ticket" size={26} />
-              <div>
-                <b>사용 가능한 쿠폰 {data.available}장</b>
-                <span className="tiny">기획전 가게에서 사면 받을 수 있어요</span>
-              </div>
-              <Link to="/coupons">쿠폰함</Link>
-            </div>
-
-            {/* 참여 가게 목록 */}
+            {/* 연합 기획전 배너 (최상단 노출 — 필수 구현) */}
             <section>
               <div className="sec-h">
-                <h2>참여 가게</h2>
-                <span className="tiny">{campaign.terms.length}곳</span>
+                <h2>연합 기획전</h2>
+                <Link to="/campaign">전체 보기</Link>
               </div>
-              <div className="merchant-list">
-                {campaign.terms.map((t) => (
-                  <Link className="lrow" key={t.merchantId} to={`/campaign/buy/${t.merchantId}`}>
-                    <MerchantMark m={t} size="sm" />
-                    <div className="meta">
-                      <b>{t.merchantName}</b>
-                      <span className="tiny">{t.merchantCategory}</span>
-                    </div>
-                    <span className="condition">{benefitText(t)}</span>
+              <article className="campaign-card">
+                {/* 이미지 자리: 가게 이미지가 없을 때 기본 그림 (참여 가게 마크) */}
+                <div className="campaign-visual" aria-hidden="true">
+                  {campaign.terms.map((t) => (
+                    <MerchantMark key={t.merchantId} m={t} size="lg" />
+                  ))}
+                </div>
+                <div className="campaign-body">
+                  <div className="hstack">
+                    <span className="tiny">
+                      {md(campaign.startDate)} – {md(campaign.endDate)}
+                    </span>
+                    {!active && <span className="chip sm c-wait">시작 전</span>}
+                  </div>
+                  <h3>{campaign.title}</h3>
+                  <p className="tiny">한 곳에서 사면 다른 가게 쿠폰을 드려요</p>
+                  <div className="hstack merchant-chips">
+                    {campaign.terms.map((t) => (
+                      <MerchantMark key={t.merchantId} m={t} size="xs" />
+                    ))}
+                    <span className="tiny">참여 가게 {campaign.terms.length}곳</span>
+                  </div>
+                  <Link className="pill p-forest full" to="/campaign">
+                    기획전 보기
                   </Link>
+                </div>
+              </article>
+            </section>
+
+            {/* 추천 혜택: 기획전에서 받을 수 있는 쿠폰과 받는 방법 */}
+            <section>
+              <div className="sec-h">
+                <h2>추천 혜택</h2>
+                <Link to="/campaign">전체 보기</Link>
+              </div>
+              <div className="stack">
+                {campaign.terms.map((t) => {
+                  // 이 쿠폰은 "다른" 가게에서 사면 받는다
+                  const from = campaign.terms.filter((x) => x.merchantId !== t.merchantId).map((x) => x.merchantName)
+                  return (
+                    <Link className="benefit-card" key={t.merchantId} to="/campaign" style={{ '--accent': t.merchantColor }}>
+                      <div className="benefit-main">
+                        <span className="cap">
+                          {campaign.title} · {t.merchantName}
+                        </span>
+                        <b>
+                          {t.merchantName} {t.discountType === 'RATE' ? `${t.value}% 할인` : `${won(t.value)} 할인`}
+                        </b>
+                        <span className="tiny">
+                          {won(t.minOrder)} 이상 · 받는 법: {from.join('·')}에서 구매
+                        </span>
+                      </div>
+                      <div className="benefit-value">{t.discountType === 'RATE' ? `${t.value}%` : won(t.value)}</div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
+
+            {/* 카테고리 (표시만) */}
+            <section>
+              <div className="sec-h">
+                <h2>카테고리</h2>
+              </div>
+              <div className="category-chips">
+                {CATEGORIES.map((c) => (
+                  <span key={c} className="chip c-line" aria-disabled="true">
+                    {c}
+                  </span>
                 ))}
               </div>
             </section>

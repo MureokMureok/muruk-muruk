@@ -88,6 +88,35 @@
 .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--mint); color: var(--forest); font-weight: 800; flex: none; }
 .profile .avatar { width: 56px; height: 56px; font-size: 22px; }
 
+/* ---------- 소비자 홈 (와이어프레임 v0 ① 구조, 무럭무럭 색) ---------- */
+.home-top { background: var(--forest); color: var(--mint); padding: 18px 20px 20px; border-radius: 0 0 24px 24px; }
+.home-top-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.home-logo { color: var(--lime); font-size: 24px; font-weight: 900; letter-spacing: -0.06em; }
+.home-tagline { margin-top: 4px; font-size: 13.5px; color: rgba(226, 246, 213, 0.8); }
+.icon-btn.on-dark { background: rgba(226, 246, 213, 0.12); color: var(--lime); }
+.search-box { margin-top: 14px; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 12px; background: #fff; color: var(--muted); }
+.search-box input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 15px; }
+.search-box input:disabled { cursor: not-allowed; }
+.sec-h a { font-size: 13px; font-weight: 650; color: var(--forest); text-decoration: none; }
+.sec-h { margin-bottom: 10px; }
+
+.campaign-card { border-radius: 20px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.08); }
+.campaign-visual { height: 120px; background: var(--lime); display: flex; align-items: center; justify-content: center; gap: 10px; }
+.campaign-body { padding: 16px 18px 18px; display: grid; gap: 6px; }
+.campaign-body h3 { font-size: 20px; letter-spacing: -0.05em; }
+.campaign-body .pill { margin-top: 8px; min-height: 48px; font-size: 16px; }
+.merchant-chips { gap: 4px; }
+.mk.xs { width: 26px; height: 26px; border-radius: 50%; font-size: 11.5px; }
+
+.benefit-card { display: flex; align-items: stretch; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(14, 15, 12, 0.08); text-decoration: none; color: inherit; }
+.benefit-main { flex: 1; min-width: 0; padding: 12px 14px; display: grid; gap: 2px; border-left: 6px solid var(--accent); }
+.benefit-main .cap { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.benefit-main b { color: var(--ink); font-size: 15.5px; letter-spacing: -0.03em; }
+.benefit-value { min-width: 88px; display: grid; place-items: center; padding: 0 12px; background: var(--mint); color: var(--forest); font-weight: 900; font-size: 18px; letter-spacing: -0.04em; border-left: 2px dashed rgba(22, 51, 0, 0.2); }
+.category-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.login-body { position: relative; }
+.login-close { position: absolute; top: 20px; right: 20px; }
+
 /* ---------- 쿠폰 모양 ---------- */
 .ticket { position: relative; display: flex; align-items: stretch; justify-content: space-between; width: 100%; text-align: left; border-radius: 18px; color: var(--forest); min-height: 84px; }
 button.ticket { cursor: pointer; transition: transform 0.18s; }

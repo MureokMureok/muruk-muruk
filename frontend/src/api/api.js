@@ -5,7 +5,7 @@
 // 데이터는 브라우저 localStorage에 저장한다. 그래서 KCP·가맹점·소비자로 번갈아 로그인해도
 // 같은 데이터를 공유해 시연 장면이 이어진다. resetDemo()로 처음 상태로 되돌릴 수 있다.
 
-import { createSeed } from './seed.js'
+import { SEED_VERSION, createSeed } from './seed.js'
 
 const DB_KEY = 'muruk.db'
 
@@ -23,7 +23,8 @@ export class ApiError extends Error {
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(DB_KEY))
-    if (saved) return saved
+    // 저장된 데이터가 예전 버전이면 버리고 새 처음 상태로
+    if (saved && saved.version === SEED_VERSION) return saved
   } catch {
     // 저장된 값이 깨졌으면 처음 상태로
   }
@@ -42,6 +43,7 @@ const READ_MS = 150
 const CHAIN_MS = 1600
 
 const today = () => new Date().toISOString().slice(0, 10)
+const daysFromToday = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
 const nowText = () => new Date().toLocaleString('sv-SE').slice(0, 16) // 2026-10-31 19:40 형태
 const newId = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 const won = (n) => `${n.toLocaleString('ko-KR')}원`
@@ -89,6 +91,9 @@ export async function getCampaign() {
       ...withMerchant(db, t),
       // 남은 예산 비율 (쿠폰을 더 발급할 수 있는 여유)
       fundLeftRate: t.fund ? Math.max(0, (t.fund - t.fundReserved) / t.fund) : 0,
+      // 쿠폰 수량 (와이어프레임: % 대신 "남은 수량 72/100")
+      qtyTotal: Math.floor(t.fund / t.maxDiscount),
+      qtyLeft: Math.max(0, Math.floor((t.fund - t.fundReserved) / t.maxDiscount)),
     })),
   }
 }
@@ -123,7 +128,7 @@ function couponsForPurchase(db, userId, merchantId, amount) {
         value: t.value,
         maxDiscount: t.maxDiscount,
         minOrder: t.minOrder,
-        expiresAt: c.endDate,
+        expiresAt: daysFromToday(c.validDays), // 받은 날부터 30일
       })
     }
   }

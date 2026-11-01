@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import Icon from '../components/Icon.jsx'
 import SproutIcon from '../components/SproutIcon.jsx'
 import { homePathFor, loginWithId, loginWithSocial } from '../auth/mockAuth.js'
 
@@ -41,6 +42,10 @@ function LoginPage() {
 
   return (
     <main className="phone login-body">
+      {/* 닫기(X): 로그인 안 하고 둘러보기로 (와이어프레임 ⑤) */}
+      <button className="icon-btn login-close" aria-label="닫기" onClick={() => navigate('/home')}>
+        <Icon name="close" />
+      </button>
       <div>
         <div className="login-mark">
           <SproutIcon />

@@ -14,11 +14,10 @@ export const ROLES = {
 const SEED_ACCOUNTS = [
   { id: 'user', password: '1234', name: '지민', role: ROLES.CONSUMER },
   // merchantId: 가짜 백엔드(api/seed.js)의 가맹점 번호
-  { id: 'store', password: '1234', name: '햇살 과수원', role: ROLES.STORE, merchantId: 'm1' },
+  { id: 'store', password: '1234', name: '과수원집', role: ROLES.STORE, merchantId: 'm1' },
   // 다른 참여 가게 (쿠폰이 사용된 가게의 정산 화면을 보여줄 때)
-  { id: 'store2', password: '1234', name: '바다 수산', role: ROLES.STORE, merchantId: 'm2' },
-  { id: 'store3', password: '1234', name: '들꽃 플라워', role: ROLES.STORE, merchantId: 'm3' },
-  { id: 'store4', password: '1234', name: '초록 채소', role: ROLES.STORE, merchantId: 'm4' },
+  { id: 'store2', password: '1234', name: '봄꽃상회', role: ROLES.STORE, merchantId: 'm2' },
+  { id: 'store3', password: '1234', name: '바다찬', role: ROLES.STORE, merchantId: 'm3' },
   { id: 'kcp', password: '1234', name: 'KCP 운영팀', role: ROLES.KCP },
 ]
 

@@ -49,14 +49,16 @@ const ADMIN_MENU = [
 function App() {
   return (
     <Routes>
-      {/* 시작 주소: 일단 로그인 화면으로. 로그인 전 홈 둘러보기 여부는 팀 확인 후 결정 */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* 시작 주소: 홈. 와이어프레임 v0 확정 정책 — 비회원도 둘러보고, 로그인은 구매·쿠폰함·MY 때 */}
+      <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/login" element={<LoginPage />} />
 
-      {/* 소비자 (휴대폰 폭) */}
+      {/* 소비자 — 로그인 없이 볼 수 있는 화면 */}
+      <Route path="/home" element={<ConsumerHome />} />
+      <Route path="/campaign" element={<CampaignPage />} />
+
+      {/* 소비자 — 로그인이 필요한 화면 (안 했으면 로그인 → 성공 시 이 화면으로 복귀) */}
       <Route element={<RequireRole role={ROLES.CONSUMER} />}>
-        <Route path="/home" element={<ConsumerHome />} />
-        <Route path="/campaign" element={<CampaignPage />} />
         <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
         <Route path="/coupons" element={<CouponsPage />} />
         <Route path="/coupons/:couponId" element={<CouponDetailPage />} />

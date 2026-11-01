@@ -9,6 +9,13 @@ const PATHS = {
   ),
   bell: <path d="M6 16v-5a6 6 0 1 1 12 0v5l2 2H4zM10 20.5a2 2 0 0 0 4 0" />,
   chev: <path d="m9 5 7 7-7 7" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </>
+  ),
+  close: <path d="M6 6l12 12M18 6 6 18" />,
   user: (
     <>
       <circle cx="12" cy="8" r="4" />
