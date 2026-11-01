@@ -87,25 +87,12 @@ function StoreIssue() {
 
           <div className="section">
             <h3>혜택</h3>
-            <div className="seg">
-              <button className={form.discountType === 'FIXED' ? 'sel' : ''} onClick={() => set('discountType', 'FIXED')}>
-                정액
-              </button>
-              <button className={form.discountType === 'RATE' ? 'sel' : ''} onClick={() => set('discountType', 'RATE')}>
-                정률
-              </button>
-            </div>
+            {/* [확정] 쿠폰은 정액권만 — 정률(%) 선택지 없음 */}
             <div className="mini-grid">
               <div className="field">
-                <label htmlFor="is-value">{form.discountType === 'FIXED' ? '할인 금액' : '할인율 (%)'}</label>
-                <input id="is-value" className="input" inputMode="numeric" value={form.value} onChange={(e) => set('value', Number(e.target.value.replace(/\D/g, '')) || 0)} />
+                <label htmlFor="is-value">할인 금액 (정액)</label>
+                <MoneyInput id="is-value" value={form.value} onChange={(v) => set('value', v)} />
               </div>
-              {form.discountType === 'RATE' && (
-                <div className="field">
-                  <label htmlFor="is-max">1장 최대 할인액</label>
-                  <MoneyInput id="is-max" value={form.maxDiscount} onChange={(v) => set('maxDiscount', v)} />
-                </div>
-              )}
             </div>
           </div>
 

@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
 import SproutIcon from '../../components/SproutIcon.jsx'
-import { homePathFor, loginWithId, loginWithSocial } from '../../auth/mockAuth.js'
+import { DEMO_GOOGLE_ACCOUNTS, ROLES, homePathFor, loginWithGoogle } from '../../auth/mockAuth.js'
 
-// 로그인 화면 (목업 c-home.html의 login 화면 기준)
-// - 카카오·Google: 모의 로그인 → 소비자
-// - 아이디 로그인: 시드 계정의 역할(소비자·가맹점·KCP)에 따라 각 화면으로 이동
+const ROLE_LABEL = { [ROLES.CONSUMER]: '소비자', [ROLES.STORE]: '가맹점', [ROLES.KCP]: 'KCP 관리자' }
+
+// 로그인 화면 — [확정] 소비자·가맹점·KCP 관리자 모두 구글 로그인
+// 구글 연동 전이라 "Google로 계속하기"를 누르면 시연용 계정 선택 목록이 나온다 (구글 계정 선택 화면 흉내)
+// 로그인한 계정의 역할에 따라 소비자 홈 / 가맹점 콘솔 / KCP 콘솔로 이동
 function LoginPage() {
   const navigate = useNavigate()
   // ?next=/주소 가 붙어 있으면 로그인 후 그 화면으로 돌아간다
@@ -14,30 +16,13 @@ function LoginPage() {
   const [searchParams] = useSearchParams()
   const next = searchParams.get('next')
 
-  const [showIdForm, setShowIdForm] = useState(false) // 아이디 입력칸을 보여줄지
-  const [id, setId] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [choosing, setChoosing] = useState(false) // 계정 선택 목록을 보여줄지
 
-  // 로그인 성공 후 이동: 돌아갈 곳이 있으면 거기로, 없으면 역할별 첫 화면으로
-  function goAfterLogin(user) {
+  async function handlePick(accountId) {
+    const user = await loginWithGoogle(accountId)
+    // 돌아갈 곳이 있으면 거기로, 없으면 역할별 첫 화면으로
+    // (다른 역할의 화면이면 그 화면의 문지기가 자기 역할 첫 화면으로 보내 줌)
     navigate(next || homePathFor(user.role), { replace: true })
-  }
-
-  async function handleSocial(provider) {
-    const user = await loginWithSocial(provider)
-    goAfterLogin(user)
-  }
-
-  async function handleIdSubmit(e) {
-    e.preventDefault() // 폼 제출 시 페이지가 새로고침되는 기본 동작 막기
-    setError('')
-    try {
-      const user = await loginWithId(id.trim(), password)
-      goAfterLogin(user)
-    } catch (err) {
-      setError(err.message)
-    }
   }
 
   return (
@@ -62,57 +47,34 @@ function LoginPage() {
         </div>
       </div>
 
-      {showIdForm ? (
-        <form className="login-actions" onSubmit={handleIdSubmit}>
-          <div className="field">
-            <label htmlFor="login-id">아이디</label>
-            <input
-              id="login-id"
-              className="input"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              autoComplete="username"
-              autoFocus
-            />
+      {choosing ? (
+        <div className="login-actions">
+          <div className="card account-picker">
+            <span className="cap">계정 선택 · 시연용 구글 계정</span>
+            {DEMO_GOOGLE_ACCOUNTS.map((a) => (
+              <button key={a.id} className="account-row" onClick={() => handlePick(a.id)}>
+                <span className="avatar">{a.name[0]}</span>
+                <span className="grow">
+                  <b>{a.name}</b>
+                  <span className="tiny">{a.email}</span>
+                </span>
+                <span className="chip sm c-line">{ROLE_LABEL[a.role]}</span>
+              </button>
+            ))}
           </div>
-          <div className="field">
-            <label htmlFor="login-pw">비밀번호</label>
-            <input
-              id="login-pw"
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <button className="pill lg p-forest full" type="submit" disabled={!id || !password}>
-            로그인
+          <button className="text-link" onClick={() => setChoosing(false)}>
+            취소
           </button>
-          <button className="text-link" type="button" onClick={() => setShowIdForm(false)}>
-            다른 방법으로 로그인
-          </button>
-        </form>
+        </div>
       ) : (
         <div className="login-actions">
-          {/* PAYCO: NHN 서비스라 맨 위에 둠. 지금은 다른 소셜 버튼처럼 모의 로그인 */}
-          <button className="pill lg p-payco full" onClick={() => handleSocial('payco')}>
-            PAYCO로 계속하기
-          </button>
-          <button className="pill lg p-kakao full" onClick={() => handleSocial('kakao')}>
-            카카오로 계속하기
-          </button>
-          <button className="pill lg p-ghost full" onClick={() => handleSocial('google')}>
+          <button className="pill lg p-ghost full google-btn" onClick={() => setChoosing(true)}>
+            <span className="g-mark" aria-hidden="true">
+              G
+            </span>
             Google로 계속하기
           </button>
-          <button className="text-link" onClick={() => setShowIdForm(true)}>
-            아이디로 로그인
-          </button>
+          <p className="tiny center">소비자·가맹점·KCP 관리자 모두 구글 계정으로 로그인해요</p>
         </div>
       )}
     </main>

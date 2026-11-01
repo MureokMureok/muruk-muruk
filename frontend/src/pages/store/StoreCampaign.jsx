@@ -35,8 +35,9 @@ function StoreCampaign() {
     setError('')
     setPhase('signing')
     try {
-      const { discountType, value, maxDiscount, minOrder, fund } = terms
-      await runWithSteps(() => signCampaign(user.merchantId, { discountType, value, maxDiscount: discountType === 'FIXED' ? value : maxDiscount, minOrder, fund }), STEPS.length, setStep)
+      const { value, minOrder, fund } = terms
+      // 정액권만: 최대 할인액 = 할인 금액
+      await runWithSteps(() => signCampaign(user.merchantId, { discountType: 'FIXED', value, maxDiscount: value, minOrder, fund }), STEPS.length, setStep)
       setDraft(null)
       setPhase('done')
       reload()
@@ -133,17 +134,9 @@ function StoreCampaign() {
             </>
           ) : (
             <>
-              <div className="seg">
-                <button className={terms.discountType === 'RATE' ? 'sel' : ''} onClick={() => set('discountType', 'RATE')}>
-                  정률
-                </button>
-                <button className={terms.discountType === 'FIXED' ? 'sel' : ''} onClick={() => set('discountType', 'FIXED')}>
-                  정액
-                </button>
-              </div>
+              {/* [확정] 쿠폰은 정액권만 — 정률(%) 선택지 없음 */}
               <div className="mini-grid">
-                {numInput('value', terms.discountType === 'RATE' ? '할인율 (%)' : '할인 금액 (원)')}
-                {terms.discountType === 'RATE' && numInput('maxDiscount', '최대 할인액 (원)')}
+                {numInput('value', '할인 금액 (정액, 원)')}
                 {numInput('minOrder', '최소 주문 금액 (원)')}
                 {numInput('fund', '충전금 (원)')}
               </div>

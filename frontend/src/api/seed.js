@@ -8,7 +8,7 @@
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 2
+export const SEED_VERSION = 3
 
 export function createSeed() {
   const now = new Date().toISOString()
@@ -46,11 +46,12 @@ export function createSeed() {
       endDate: '2026-11-23',
       validDays: 30, // 쿠폰 유효기간: 받은 날부터 30일
       status: 'SIGNING',
+      // [확정] 쿠폰은 정액권만 (팀 결정)
       // 가게별 조건. fund = 충전금(= 최대 할인액 × 수량), fundReserved = 발급된 쿠폰 최대 할인액만큼 미리 확보한 금액, fundUsed = 실제 쓰인 할인액
       terms: [
         { merchantId: 'm1', discountType: 'FIXED', value: 2000, maxDiscount: 2000, minOrder: 10000, fund: 200000, fundReserved: 0, fundUsed: 0, signed: false },
         { merchantId: 'm2', discountType: 'FIXED', value: 3000, maxDiscount: 3000, minOrder: 15000, fund: 300000, fundReserved: 0, fundUsed: 0, signed: true },
-        { merchantId: 'm3', discountType: 'RATE', value: 10, maxDiscount: 3000, minOrder: 20000, fund: 300000, fundReserved: 0, fundUsed: 0, signed: true },
+        { merchantId: 'm3', discountType: 'FIXED', value: 3000, maxDiscount: 3000, minOrder: 20000, fund: 300000, fundReserved: 0, fundUsed: 0, signed: true },
       ],
     },
 
@@ -69,7 +70,7 @@ export function createSeed() {
       { block: 18204002, at: '2026-10-22 09:45', type: 'ADMIN', label: '가맹점 등록', detail: '바다찬 지갑 화이트리스트 등록 · 한도 500,000원', actor: 'KCP' },
       { block: 18204003, at: '2026-10-23 10:00', type: 'ADMIN', label: '가맹점 등록', detail: '과수원집 지갑 화이트리스트 등록 (한도 등록 전)', actor: 'KCP' },
       { block: 18204010, at: '2026-10-28 11:20', type: 'ADMIN', label: '기획전 조건 서명', detail: '봄꽃상회 · 3,000원 할인 · 충전금 300,000원', actor: '봄꽃상회' },
-      { block: 18204011, at: '2026-10-28 15:05', type: 'ADMIN', label: '기획전 조건 서명', detail: '바다찬 · 10% 할인 · 최대 3,000원 · 충전금 300,000원', actor: '바다찬' },
+      { block: 18204011, at: '2026-10-28 15:05', type: 'ADMIN', label: '기획전 조건 서명', detail: '바다찬 · 3,000원 할인 · 충전금 300,000원', actor: '바다찬' },
     ],
 
     createdAt: now,

@@ -6,8 +6,6 @@ import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { won } from '../../utils/format.js'
 
-const PROVIDER = { payco: 'PAYCO', kakao: '카카오', google: 'Google' }
-
 // ⑪ MY (소비자 와이어프레임 v0)
 // - 지갑 정보는 MY에도 표시하지 않음 (가정 G5)
 // - 11/8 범위: 프로필·쿠폰함·설정·로그아웃만 동작, 나머지 메뉴는 자리만
@@ -40,7 +38,7 @@ function MyPage() {
         <span className="avatar">{user.name[0]}</span>
         <div>
           <h2>{user.name}님</h2>
-          <span className="tiny">{user.provider ? `${PROVIDER[user.provider]} 로그인` : `아이디 ${user.id}`}</span>
+          <span className="tiny">Google 로그인{user.email ? ` · ${user.email}` : ''}</span>
         </div>
       </div>
 

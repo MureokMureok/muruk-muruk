@@ -88,15 +88,6 @@ button {
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink);
 }
-/* PAYCO 빨강 바탕 + 흰 글씨 (색상값은 공식 가이드 확인 전 근사값) */
-.p-payco {
-  background: #fa2828;
-  color: #fff;
-}
-.p-kakao {
-  background: #fee500;
-  color: #191600;
-}
 .pill:disabled {
   opacity: 0.36;
   cursor: not-allowed;
