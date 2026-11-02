@@ -27,7 +27,7 @@ async function withCoupons() {
 async function redeem(coupon, backend, tokenId, owner, merchantId, amount, orderId) {
   const args = [tokenId, owner.address, merchantId, amount, ref(orderId)];
   const result = await coupon.connect(backend).redeem.staticCall(...args);
-  const tx = coupon.connect(backend).redeem(...args);
+  const tx = await coupon.connect(backend).redeem(...args); // 실제 전송까지 기다림
   return { result, tx };
 }
 

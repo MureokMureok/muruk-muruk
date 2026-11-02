@@ -1,7 +1,7 @@
 # 쿠폰 컨트랙트 인터페이스 v1
 
 - 코드: [`contracts/interfaces/IMurukCoupon.sol`](contracts/interfaces/IMurukCoupon.sol)
-- 기준 자료: 프론트 모의 API(`frontend/src/api/api.js`, `seed.js`, PR #1) · `docs/mvp-spec.md` MVP 목록 · 소비자 와이어프레임 v0 · 11/1 팀 확정 사항
+- 기준 자료: 프론트 모의 API(`frontend/src/api/api.js`, `seed.js` — `feature/frontend` 브랜치, PR #1) · `docs/mvp-spec.md` MVP 목록 · 소비자 와이어프레임 v0 · 11/1 팀 확정 사항
 - 상태: 구현 완료 — [`contracts/MurukCoupon.sol`](contracts/MurukCoupon.sol), 테스트 `test/` (시연 흐름 전체 포함)
 
 ## 1. 기본 전제
@@ -16,7 +16,7 @@
 | 쿠폰 종류 | **정액권만** (할인액 = 쿠폰 금액) |
 | 단위 | 금액 = 원(정수), 시각 = unix seconds, 유효기간 = 일수 |
 
-## 2. 전체 흐름 (시연 8장면 순서)
+## 2. 전체 흐름 (시연 장면 순서, ⑤는 컨트랙트 호출 없음)
 
 ```
 ① KCP     whitelistMerchant(가게)          가맹점 등록
@@ -68,7 +68,9 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 ```
 
 - 기획전 쿠폰 발급 조건: `fund - fundReserved >= 할인액` (부족하면 그 가게만 건너뜀 = 쏠림 대응)
-- 직접 발행 쿠폰 발급 조건: `issuedCount < qty`
+- 직접 발행 쿠폰 발급 조건: 수량 남음(`issuedCount < qty`) + 유효기간 안 + `주문금액 >= receiveMin` + (첫 구매 조건이면) 그 가게 첫 구매
+- **구매 1건에 보너스 쿠폰은 조건을 채운 묶음마다 1장씩 나온다** (가게당 진행 중 묶음 최대 20개 → 최대 20장). 1장으로 제한할지는 기획 확인 필요
+- `issuedFor` 순서: 기획전 쿠폰(기획전 가게 목록 순) → 보너스 쿠폰(순서 보장 없음 — 끝난 묶음을 정리하면서 순서가 바뀔 수 있음)
 
 ## 4. 함수
 
@@ -109,13 +111,15 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | `BelowMinOrder` | 최소 주문 금액 | `MIN_ORDER_NOT_MET` |
 | `AlreadyUsed` | 아직 안 쓴 쿠폰인가 | `COUPON_ALREADY_USED` |
 
+여러 항목이 동시에 틀리면 **위에 있는 항목 하나만** 사유로 나온다 (모의 API와 같음). 예: 사용한 쿠폰이 유효기간까지 지나면 재사용 거절 사유는 `Expired`. 쿠폰함 상태 표시는 `statusOf` 기준(이 경우 `Used`).
+
 ## 5. 백엔드가 지켜야 할 것
 
 1. **결제 승인 후에 `redeem`을 호출**한다. 결제가 실패하면 `redeem`을 부르지 않으므로 쿠폰은 그대로 남는다 (⑨-d). 락업은 쓰지 않는다 (11/1 결정).
 2. `redeem`은 거절해도 **트랜잭션은 성공**한다. 반환값 또는 `RedeemRejected` 이벤트를 꼭 확인한다.
 3. 모든 구매에 대해 `issueForPurchase`를 부른다 (쿠폰이 없는 구매도). 그래야 첫 구매 판단(`hasPurchased`)이 맞는다.
 4. `orderRef`, `depositRef`는 백엔드 ID를 `keccak256` 한 값. 개인정보를 넣지 않는다.
-5. 응답이 늦으면 재호출하지 말고 `issuedFor` / `statusOf`로 먼저 조회한다 (E-04, E-05).
+5. 응답이 늦으면 재호출하지 말고 `issuedFor` / `statusOf`로 먼저 조회한다 (와이어프레임 E-04 발급 결과 불명확, E-05 사용 결과 불명확 — "확인 중" 표시 후 조회).
 6. `createIssuance`에는 발행 요청마다 고유한 `requestRef`(요청 ID의 `keccak256`)를 넣는다. 응답이 늦으면 `issuanceFor(requestRef)`로 먼저 확인한다.
 7. 배포할 때 `admin`(KCP 지갑)·`operator`(백엔드 서버 지갑) 주소를 꼭 따로 지정한다. Ignition 기본값은 배포 계정이 둘 다 가짐 (로컬 테스트용).
 
@@ -126,6 +130,7 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | 만료 판정 | 모의 API는 날짜 단위(마지막 날까지), 컨트랙트는 `발급 시각 + 유효일수 × 24시간`. 화면 날짜 표시는 백엔드가 맞춰 준다 |
 | 기획전 기간 | 모의 API처럼 날짜가 아니라 **상태(Active)** 로만 발급 여부 판단 |
 | 만료 쿠폰의 확보 금액 | 모의 API와 같이 돌려주지 않음 (후속 결정) |
+| 만료된 발행 묶음의 안 나간 수량 | `(수량 - 발급 수) × 할인액`도 한도로 돌려주지 않음 → 가맹점 "남은 한도"가 그만큼 줄어든 채 유지 (후속 결정) |
 | 할인액 > 주문 금액 | 주문 금액까지만 할인 (모의 API `calcDiscount`와 같음). 충전금 사용액도 실제 할인액만큼 |
 | 가맹점 구분 | `merchantId` 번호 — 백엔드 답변 후 확정 |
 | 구매 취소 시 쿠폰 회수 | 범위 밖 (후속) |
@@ -141,7 +146,7 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | 서명 시 한도 0 | `NoLimit`이 아니라 `LimitExceeded` (충전금 > 남은 한도) | 모의 API `signCampaign` |
 | 보너스 쿠폰 발급 때 묶음 유효기간 | **유효기간이 지난 묶음은 발급하지 않음** (모의 API와 다름 — 만료 묶음이 상한 20개 자리를 막지 않게. 받아도 이미 만료된 쿠폰이라 잃는 것 없음) | 11/2 보안 점검 |
 | 진행 중 발행 묶음 상한 | 가게당 20개. 수량 소진·유효기간 지난 묶음은 자동으로 빠짐 | 11/2 보안 점검 (구매 처리 가스 고갈 방지) |
-| 반려·취소된 기획전 충전금 | 서명한 가게 한도로 돌려줌 (모의 API에는 반환 없음) | 11/2 보안 점검 |
+| 반려·취소된 기획전 충전금 | 서명한 가게 한도로 돌려줌 (모의 API에는 반환 없음). `termOf().fund`는 기록용으로 원래 금액이 남으니 정산은 기획전 상태(Rejected·Cancelled)와 함께 본다 | 11/2 보안 점검 |
 | 받는 주소 0, 주문·요청 ID 0 | 항상 거절 | 11/2 보안 점검 |
 | 권한 구조 | KCP 지갑(`DEFAULT_ADMIN_ROLE`)이 백엔드 권한을 주고 회수할 수 있음 (백엔드 키 유출 시 `revokeRole`로 차단) | 11/2 보안 점검 |
 | 충전금 < 쿠폰 1장 값으로 서명 | 허용. 그 가게 쿠폰은 항상 건너뜀 (`IssueSkipped`) | 모의 API `signCampaign` |

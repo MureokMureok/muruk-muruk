@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 /// @title IMurukCoupon — 무럭무럭 연합 기획전 쿠폰 (ERC-1155, 양도 불가)
-/// @notice 인터페이스 v1. 동작 기준은 프론트 모의 API(frontend/src/api/api.js, PR #1)와 docs/mvp-spec.md MVP 목록.
+/// @notice 인터페이스 v1. 동작 기준은 프론트 모의 API(feature/frontend 브랜치 frontend/src/api/api.js, PR #1)와 docs/mvp-spec.md MVP 목록.
 ///         모든 사용자는 구글 로그인 → 백엔드 서버 지갑이 대신 호출한다.
 ///         ADMIN = KCP 관리자 기능, OPERATOR = 백엔드(가맹점·소비자 요청 대행).
 ///         금액 단위는 원(KRW) 정수, 시각은 unix seconds. 쿠폰은 정액권만.
@@ -223,8 +223,11 @@ interface IMurukCoupon {
         view
         returns (bool isOwner, bool merchantOk, bool inPeriod, bool minOrderOk, bool unused);
 
+    /// @notice 쿠폰함 상태 (Used가 Expired보다 먼저). 없는 쿠폰이면 None
     function statusOf(uint256 tokenId) external view returns (Status);
+    /// @notice 쿠폰 정보. 없는 쿠폰이면 모든 값이 0
     function couponOf(uint256 tokenId) external view returns (Coupon memory);
+    /// @notice 쿠폰을 받은 지갑. 사용(소각) 뒤에도 기록으로 남는다
     function ownerOfCoupon(uint256 tokenId) external view returns (address);
 
     function merchantOf(uint256 merchantId) external view returns (Merchant memory m, uint256 remaining);

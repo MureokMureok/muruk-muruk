@@ -1,5 +1,5 @@
 // 인터페이스 v1이 INTERFACE.md에서 합의한 함수·이벤트를 빠짐없이 갖고 있는지 확인한다.
-// 구현이 들어오면 이 파일 옆에 시나리오 테스트(시연 8장면)를 추가한다.
+// 동작은 1~6번 시나리오 테스트에서 확인한다.
 import { expect } from "chai";
 import { Interface } from "ethers";
 import hre from "hardhat";

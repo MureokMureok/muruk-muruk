@@ -6,7 +6,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IMurukCoupon} from "./interfaces/IMurukCoupon.sol";
 
 /// @title MurukCoupon — 무럭무럭 연합 기획전 쿠폰 구현
-/// @notice 동작 기준은 INTERFACE.md와 프론트 모의 API(frontend/src/api/api.js).
+/// @notice 동작 기준은 INTERFACE.md와 프론트 모의 API(feature/frontend 브랜치 frontend/src/api/api.js).
 ///         ADMIN = KCP 관리자, OPERATOR = 백엔드 서버 지갑.
 contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");

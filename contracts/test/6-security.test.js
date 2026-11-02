@@ -86,6 +86,10 @@ describe("보안 점검 회귀 테스트", function () {
       await b.coupon.decideCampaign(CAMPAIGN, false);
       await expect(b.coupon.cancelCampaign(CAMPAIGN)).to.be.revertedWithCustomError(b.coupon, "CampaignNotCancellable");
 
+      const d = await withSignedCampaign();
+      await d.coupon.cancelCampaign(CAMPAIGN);
+      await expect(d.coupon.cancelCampaign(CAMPAIGN)).to.be.revertedWithCustomError(d.coupon, "CampaignNotCancellable");
+
       const c = await withSignedCampaign();
       await expect(c.coupon.connect(c.backend).cancelCampaign(CAMPAIGN)).to.be.revertedWithCustomError(
         c.coupon,
@@ -156,7 +160,7 @@ describe("보안 점검 회귀 테스트", function () {
       await expect(create(coupon, backend)).to.emit(coupon, "IssuanceCreated");
     });
 
-    it("묶음이 상한까지 차 있어도 구매 처리 가스가 일정 범위 안이다", async function () {
+    it("묶음 20개를 확인만 하고 발급은 없을 때 구매 처리 가스가 작다", async function () {
       const { coupon, backend, alice } = await withActiveCampaign();
       for (let i = 0; i < 20; i++) await create(coupon, backend, 1000);
       const tx = await coupon
@@ -165,6 +169,19 @@ describe("보안 점검 회귀 테스트", function () {
       const { gasUsed } = await tx.wait();
       // 기획전 쿠폰 2장 + 묶음 20개 확인. 묶음이 무한히 쌓이던 문제(1,500개 → 1,030만 gas) 방지
       expect(gasUsed).to.be.lessThan(1_500_000n);
+    });
+
+    it("최악의 경우(묶음 20개 모두 조건 충족 + 기획전 2장)에도 구매 1건 가스에 상한이 있다", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      for (let i = 0; i < 20; i++) {
+        await coupon.connect(backend).createIssuance(ORCHARD, 1n, 0n, ReceiveRule.MinAmount, 0n, 14, 1000, nextRef());
+      }
+      const tx = await coupon
+        .connect(backend)
+        .issueForPurchase(CAMPAIGN, ORCHARD, alice.address, 24_900n, ref("order-worst"));
+      const { gasUsed } = await tx.wait();
+      expect(await coupon.issuedFor(ref("order-worst"))).to.have.length(22); // 기획전 2 + 보너스 20
+      expect(gasUsed).to.be.lessThan(6_000_000n); // 측정값 약 518만
     });
   });
 
