@@ -356,3 +356,23 @@ a.text-link { color: var(--ink); display: block; }
 .account-row:hover { background: var(--surface-2); }
 .account-row b { display: block; color: var(--ink); font-size: 15px; }
 .account-row .tiny { display: block; }
+
+/* ---------- 결과 아이콘 애니메이션 (✓ 성공 · ✕ 거절 · ! 실패) ----------
+   1) 동그라미가 작게 시작해 살짝 커졌다가 제자리로 (톡 튀어나오는 느낌)
+   2) 그다음 선이 붓으로 그리듯 그려짐 — 선 길이를 1로 맞추고(pathLength) 안 보이게 밀어 둔 뒤 0으로 당김 */
+.big-ic .mark { width: 46px; height: 46px; }
+.big-ic .mark path { fill: none; stroke: currentColor; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.res.ok .big-ic, .res.bad .big-ic, .res.warn .big-ic { animation: ic-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.mark .draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: ic-draw 0.4s ease-out 0.3s forwards; }
+.mark .draw.d2 { animation-delay: 0.55s; }
+@keyframes ic-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes ic-draw { to { stroke-dashoffset: 0; } }
+/* 휴대폰 접근성 설정에서 "동작 줄이기"를 켠 사람에게는 애니메이션 없이 바로 보여줌 */
+@media (prefers-reduced-motion: reduce) {
+  .res .big-ic { animation: none; }
+  .mark .draw { animation: none; stroke-dashoffset: 0; }
+}
