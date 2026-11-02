@@ -45,7 +45,8 @@
 
 ```
 Signing ──(전원 서명)──▶ PendingApproval ──승인──▶ Active
-                                         └─반려──▶ Rejected
+                                         └─반려──▶ Rejected   (충전금 반환)
+Signing / PendingApproval ──KCP 취소──▶ Cancelled          (충전금 반환)
 ```
 
 쿠폰 상태:
@@ -79,9 +80,10 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | `addLimit` | ADMIN | 입금액만큼 한도 추가 | 미등록 가맹점 `NotWhitelisted`, 0원 `InvalidAmount` |
 | `createCampaign` | ADMIN | 기획전 생성 (Signing) | 중복 `CampaignExists`, 미등록 가게 `NotWhitelisted`, 번호 0·빈 목록·유효기간 0·가게 중복 `InvalidAmount` |
 | `signCampaign` | OPERATOR | 가게 조건 서명 + 충전금 확보, 전원 서명 시 잠금 | 없는 기획전 `CampaignNotFound`, 미참여 가게 `NotInCampaign`, 잠긴 뒤 `CampaignNotSigning`, 재서명 `AlreadySigned`, 할인액 0 `InvalidAmount`, 충전금 > 남은 한도 `LimitExceeded` |
-| `decideCampaign` | ADMIN | 승인 / 반려 | 승인 대기 아님 `CampaignNotPending` |
-| `createIssuance` | OPERATOR | 직접 발행 쿠폰 묶음 등록 | 할인액·수량·유효기간 0 `InvalidAmount`, 한도 0 `NoLimit`, 초과 `LimitExceeded` |
-| `issueForPurchase` | OPERATOR | 구매 시 쿠폰 발급 | 같은 주문 재호출 `OrderAlreadyIssued` |
+| `decideCampaign` | ADMIN | 승인 / 반려 (반려 시 서명한 가게 충전금을 한도로 반환, `FundReleased`) | 승인 대기 아님 `CampaignNotPending` |
+| `cancelCampaign` | ADMIN | 서명이 멈췄거나 승인 전인 기획전 취소 + 충전금 반환 | 서명 중·승인 대기가 아님 `CampaignNotCancellable` |
+| `createIssuance` | OPERATOR | 직접 발행 쿠폰 묶음 등록 (가게당 진행 중 최대 20개) | 요청 ID 0 `InvalidRef`, 같은 요청 ID `IssuanceAlreadyCreated`, 할인액·수량·유효기간 0 `InvalidAmount`, 한도 0 `NoLimit`, 묶음 20개 `TooManyIssuances`, 초과 `LimitExceeded` |
+| `issueForPurchase` | OPERATOR | 구매 시 쿠폰 발급 | 받는 주소 0 `InvalidAddress`, 주문 ID 0 `InvalidRef`, 같은 주문 재호출 `OrderAlreadyIssued` |
 | `redeem` | OPERATOR | 5가지 검사 → 소각 | **되돌리지 않음** — `(false, reason, 0)` 반환 + `RedeemRejected` |
 
 ### 조회
@@ -93,6 +95,7 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | `merchantOf` | 가맹점 대시보드 (한도·남은 한도), KCP 입금·한도 |
 | `campaignOf`, `termOf` | ② 기획전 상세, 가맹점 기획전 서명, KCP 기획전 승인, 정산 |
 | `issuanceOf` | 가맹점 쿠폰 발행 내역, 정산 |
+| `issuanceFor` | 발행 요청 응답이 늦을 때 결과 조회 (없으면 0) |
 | `issuedFor` | ④-b 발급 확인 중 → 결과 조회 |
 | `hasPurchased` | 첫 구매 보너스 판단 |
 
@@ -113,6 +116,8 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 3. 모든 구매에 대해 `issueForPurchase`를 부른다 (쿠폰이 없는 구매도). 그래야 첫 구매 판단(`hasPurchased`)이 맞는다.
 4. `orderRef`, `depositRef`는 백엔드 ID를 `keccak256` 한 값. 개인정보를 넣지 않는다.
 5. 응답이 늦으면 재호출하지 말고 `issuedFor` / `statusOf`로 먼저 조회한다 (E-04, E-05).
+6. `createIssuance`에는 발행 요청마다 고유한 `requestRef`(요청 ID의 `keccak256`)를 넣는다. 응답이 늦으면 `issuanceFor(requestRef)`로 먼저 확인한다.
+7. 배포할 때 `admin`(KCP 지갑)·`operator`(백엔드 서버 지갑) 주소를 꼭 따로 지정한다. Ignition 기본값은 배포 계정이 둘 다 가짐 (로컬 테스트용).
 
 ## 6. 모의 API와 다른 점 / 나중에 정할 것
 
@@ -125,7 +130,7 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | 가맹점 구분 | `merchantId` 번호 — 백엔드 답변 후 확정 |
 | 구매 취소 시 쿠폰 회수 | 범위 밖 (후속) |
 
-## 7. 구현하면서 모의 API 기준으로 정한 것
+## 7. 구현하면서 정한 것 (모의 API 기준 + 11/2 보안 점검)
 
 팀 자료에 따로 정해지지 않은 부분은 프론트 모의 API(`api.js`)와 똑같이 동작하게 했다. 바꿔야 하면 알려 주세요.
 
@@ -134,7 +139,12 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | 같은 가맹점 다시 등록 | 에러 없이 그대로 (이벤트만 다시 남음) | 모의 API `whitelistMerchant` |
 | 같은 입금 ID로 한도 두 번 추가 | 막지 않음 (두 번 더해짐). 중복 방지는 백엔드에서 | 모의 API `registerLimit` |
 | 서명 시 한도 0 | `NoLimit`이 아니라 `LimitExceeded` (충전금 > 남은 한도) | 모의 API `signCampaign` |
-| 보너스 쿠폰 발급 때 묶음 유효기간 | 확인하지 않음 (받은 쿠폰이 바로 만료 상태일 수 있음) | 모의 API `couponsForPurchase` |
+| 보너스 쿠폰 발급 때 묶음 유효기간 | **유효기간이 지난 묶음은 발급하지 않음** (모의 API와 다름 — 만료 묶음이 상한 20개 자리를 막지 않게. 받아도 이미 만료된 쿠폰이라 잃는 것 없음) | 11/2 보안 점검 |
+| 진행 중 발행 묶음 상한 | 가게당 20개. 수량 소진·유효기간 지난 묶음은 자동으로 빠짐 | 11/2 보안 점검 (구매 처리 가스 고갈 방지) |
+| 반려·취소된 기획전 충전금 | 서명한 가게 한도로 돌려줌 (모의 API에는 반환 없음) | 11/2 보안 점검 |
+| 받는 주소 0, 주문·요청 ID 0 | 항상 거절 | 11/2 보안 점검 |
+| 권한 구조 | KCP 지갑(`DEFAULT_ADMIN_ROLE`)이 백엔드 권한을 주고 회수할 수 있음 (백엔드 키 유출 시 `revokeRole`로 차단) | 11/2 보안 점검 |
+| 충전금 < 쿠폰 1장 값으로 서명 | 허용. 그 가게 쿠폰은 항상 건너뜀 (`IssueSkipped`) | 모의 API `signCampaign` |
 | 첫 구매 판단 | 이번 구매를 기록하기 전의 구매 이력 | 모의 API `couponsForPurchase` |
 | 충전금 확보 | 발급 때 할인액만큼 `fundReserved`, 사용 때 실제 할인액만큼 `fundUsed` (만료 쿠폰 확보분은 돌려주지 않음) | 모의 API `purchase`, `redeemCoupon` |
 | 만료 시각 | 발급 시각 + 유효일수 × 24시간까지 사용 가능 (그 시각 포함) | 6절 |

@@ -14,6 +14,7 @@ import {
   TERMS,
   ReceiveRule,
   Status,
+  nextRef,
 } from "./helpers.js";
 
 const DAY = 24n * 60n * 60n;
@@ -23,7 +24,7 @@ describe("3단계 쿠폰 발급", function () {
     it("할인액 × 수량만큼 남은 한도가 묶인다", async function () {
       const { coupon, backend } = await withMerchants();
       await expect(
-        coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50),
+        coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef()),
       )
         .to.emit(coupon, "IssuanceCreated")
         .withArgs(1n, ORCHARD, 1_000n, 50n, 50_000n);
@@ -39,13 +40,13 @@ describe("3단계 쿠폰 발급", function () {
       const { coupon, backend } = await withMerchants();
       await coupon.whitelistMerchant(9n);
       await expect(
-        coupon.connect(backend).createIssuance(9n, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1),
+        coupon.connect(backend).createIssuance(9n, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1, nextRef()),
       ).to.be.revertedWithCustomError(coupon, "NoLimit");
     });
 
     it("남은 한도를 넘으면 발행할 수 없다", async function () {
       const { coupon, backend } = await withMerchants();
-      await expect(coupon.connect(backend).createIssuance(ORCHARD, 10_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 51))
+      await expect(coupon.connect(backend).createIssuance(ORCHARD, 10_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 51, nextRef()))
         .to.be.revertedWithCustomError(coupon, "LimitExceeded")
         .withArgs(ORCHARD, 510_000n, 500_000n);
     });
@@ -58,7 +59,7 @@ describe("3단계 쿠폰 발급", function () {
         [1_000n, 0, 1],
       ]) {
         await expect(
-          coupon.connect(backend).createIssuance(ORCHARD, amount, 0n, ReceiveRule.MinAmount, 0n, days, qty),
+          coupon.connect(backend).createIssuance(ORCHARD, amount, 0n, ReceiveRule.MinAmount, 0n, days, qty, nextRef()),
         ).to.be.revertedWithCustomError(coupon, "InvalidAmount");
       }
     });
@@ -138,7 +139,7 @@ describe("3단계 쿠폰 발급", function () {
   describe("구매 시 보너스 쿠폰 (가맹점 직접 발행)", function () {
     it("첫 구매 쿠폰은 그 가게 첫 구매 때만 받는다", async function () {
       const { coupon, backend, alice } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50);
+      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef());
 
       expect(await coupon.hasPurchased(alice.address, ORCHARD)).to.equal(false);
       const first = await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1", 0n);
@@ -153,28 +154,28 @@ describe("3단계 쿠폰 발급", function () {
 
     it("받는 조건 금액보다 적게 사면 받지 못한다", async function () {
       const { coupon, backend, alice } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 30_000n, 14, 50);
+      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 30_000n, 14, 50, nextRef());
       expect(await buy(coupon, backend, alice, ORCHARD, 29_999n, "order-1", 0n)).to.deep.equal([]);
       expect(await buy(coupon, backend, alice, ORCHARD, 30_000n, "order-2", 0n)).to.have.length(1);
     });
 
     it("수량이 다 떨어지면 더 발급되지 않는다", async function () {
       const { coupon, backend, alice, bob } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1);
+      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1, nextRef());
       expect(await buy(coupon, backend, alice, ORCHARD, 10_000n, "order-1", 0n)).to.have.length(1);
       expect(await buy(coupon, backend, bob, ORCHARD, 10_000n, "order-2", 0n)).to.deep.equal([]);
     });
 
     it("보너스 쿠폰 유효기간은 발행 묶음 기준이다", async function () {
       const { coupon, backend, alice } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 5);
+      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 5, nextRef());
       const [id] = await buy(coupon, backend, alice, ORCHARD, 10_000n, "order-1", 0n);
       expect((await coupon.couponOf(id)).expiresAt).to.equal((await coupon.issuanceOf(1n)).expiresAt);
     });
 
     it("기획전 쿠폰과 보너스 쿠폰을 함께 받을 수 있다", async function () {
       const { coupon, backend, alice } = await withActiveCampaign();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50);
+      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef());
       expect(await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1")).to.have.length(3);
     });
   });

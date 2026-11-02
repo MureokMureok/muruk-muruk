@@ -19,11 +19,15 @@ export const TERMS = {
 };
 
 export const ReceiveRule = { FirstPurchase: 0, MinAmount: 1 };
-export const CampaignStatus = { None: 0n, Signing: 1n, PendingApproval: 2n, Active: 3n, Rejected: 4n };
+export const CampaignStatus = { None: 0n, Signing: 1n, PendingApproval: 2n, Active: 3n, Rejected: 4n, Cancelled: 5n };
 export const Status = { None: 0n, Available: 1n, Used: 2n, Expired: 3n };
 export const Reason = { Ok: 0n, NotOwner: 1n, WrongMerchant: 2n, Expired: 3n, BelowMinOrder: 4n, AlreadyUsed: 5n };
 
 export const ref = (s) => ethers.id(s); // 백엔드 ID → keccak256
+
+// createIssuance 요청 ID (테스트마다 겹치지 않게 번호를 붙임)
+let reqNo = 0;
+export const nextRef = () => ref(`issuance-request-${++reqNo}`);
 
 export async function deploy() {
   const [kcp, backend, alice, bob] = await ethers.getSigners();

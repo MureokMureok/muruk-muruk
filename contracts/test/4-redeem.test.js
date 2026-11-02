@@ -13,6 +13,7 @@ import {
   ReceiveRule,
   Status,
   Reason,
+  nextRef,
 } from "./helpers.js";
 
 // 과수원집 구매로 봄꽃상회 쿠폰(1번: 3,000원, 최소 15,000원)과 바다찬 쿠폰(2번)을 받은 상태
@@ -125,7 +126,7 @@ describe("4단계 쿠폰 사용", function () {
 
   it("보너스 쿠폰을 쓰면 발행 묶음의 사용 수량·금액이 늘어난다", async function () {
     const { coupon, backend, alice } = await withMerchants();
-    await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50);
+    await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef());
     const [id] = await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1", 0n);
 
     await coupon.connect(backend).redeem(id, alice.address, ORCHARD, 12_000n, ref("pay-1"));
@@ -136,7 +137,7 @@ describe("4단계 쿠폰 사용", function () {
 
   it("할인액이 주문 금액보다 크면 주문 금액까지만 할인된다", async function () {
     const { coupon, backend, alice } = await withMerchants();
-    await coupon.connect(backend).createIssuance(ORCHARD, 5_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1);
+    await coupon.connect(backend).createIssuance(ORCHARD, 5_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1, nextRef());
     const [id] = await buy(coupon, backend, alice, ORCHARD, 10_000n, "order-1", 0n);
 
     const { result } = await redeem(coupon, backend, id, alice, ORCHARD, 3_000n, "pay-1");

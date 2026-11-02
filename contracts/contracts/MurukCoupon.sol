@@ -12,6 +12,9 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
+    /// @notice 가게당 진행 중인 직접 발행 묶음 상한. 구매 한 번에 확인하는 묶음 수(가스)를 묶어 둔다.
+    uint256 public constant MAX_ACTIVE_ISSUANCES = 20;
+
     /// @dev 기획전 저장용. 화면에는 campaignOf로 나눠서 돌려준다.
     struct CampaignData {
         CampaignStatus status;
@@ -31,7 +34,8 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
     // 직접 발행
     uint256 private _lastIssuanceId;
     mapping(uint256 issuanceId => Issuance) private _issuances;
-    mapping(uint256 merchantId => uint256[]) private _issuancesOf;
+    mapping(uint256 merchantId => uint256[]) private _issuancesOf; // 진행 중인 묶음만 (소진·만료되면 빠짐)
+    mapping(bytes32 requestRef => uint256 issuanceId) private _issuanceFor;
 
     // 쿠폰 (tokenId 1장 = 쿠폰 1장)
     uint256 private _lastTokenId;
@@ -46,6 +50,7 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
     /// @param admin KCP 관리자 지갑 (역할 관리 권한도 가짐)
     /// @param operator 백엔드 서버 지갑
     constructor(address admin, address operator) ERC1155("") {
+        if (admin == address(0) || operator == address(0)) revert InvalidAddress();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(OPERATOR_ROLE, operator);
@@ -137,6 +142,28 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         if (c.status != CampaignStatus.PendingApproval) revert CampaignNotPending(campaignId);
         c.status = approve ? CampaignStatus.Active : CampaignStatus.Rejected;
         emit CampaignDecided(campaignId, approve);
+        if (!approve) _releaseFunds(campaignId, c);
+    }
+
+    function cancelCampaign(uint256 campaignId) external onlyRole(ADMIN_ROLE) {
+        CampaignData storage c = _campaigns[campaignId];
+        if (c.status != CampaignStatus.Signing && c.status != CampaignStatus.PendingApproval) {
+            revert CampaignNotCancellable(campaignId);
+        }
+        c.status = CampaignStatus.Cancelled;
+        emit CampaignCancelled(campaignId);
+        _releaseFunds(campaignId, c);
+    }
+
+    /// @dev 반려·취소 시 서명한 가게들의 충전금을 한도로 돌려준다. 쿠폰이 발급되기 전 상태에서만 호출된다.
+    function _releaseFunds(uint256 campaignId, CampaignData storage c) private {
+        for (uint256 i = 0; i < c.merchantIds.length; i++) {
+            uint256 mId = c.merchantIds[i];
+            CampaignTerm storage t = _terms[campaignId][mId];
+            if (!t.signed || t.fund == 0) continue;
+            _merchants[mId].reserved -= t.fund;
+            emit FundReleased(campaignId, mId, t.fund);
+        }
     }
 
     function campaignOf(uint256 campaignId)
@@ -161,10 +188,18 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         ReceiveRule receiveRule,
         uint256 receiveMin,
         uint32 validDays,
-        uint32 qty
+        uint32 qty,
+        bytes32 requestRef
     ) external onlyRole(OPERATOR_ROLE) returns (uint256 issuanceId) {
+        if (requestRef == bytes32(0)) revert InvalidRef();
+        if (_issuanceFor[requestRef] != 0) revert IssuanceAlreadyCreated(requestRef);
         if (amount == 0 || qty == 0 || validDays == 0) revert InvalidAmount();
         if (_merchants[merchantId].limit == 0) revert NoLimit(merchantId);
+
+        _pruneIssuances(merchantId);
+        if (_issuancesOf[merchantId].length >= MAX_ACTIVE_ISSUANCES) {
+            revert TooManyIssuances(merchantId, MAX_ACTIVE_ISSUANCES);
+        }
 
         uint256 total = amount * qty;
         _reserve(merchantId, total);
@@ -179,6 +214,7 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         s.expiresAt = uint64(block.timestamp + uint256(validDays) * 1 days);
         s.qty = qty;
         _issuancesOf[merchantId].push(issuanceId);
+        _issuanceFor[requestRef] = issuanceId;
 
         emit IssuanceCreated(issuanceId, merchantId, amount, qty, total);
     }
@@ -188,6 +224,8 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         onlyRole(OPERATOR_ROLE)
         returns (uint256[] memory tokenIds)
     {
+        if (to == address(0)) revert InvalidAddress();
+        if (orderRef == bytes32(0)) revert InvalidRef();
         if (_orderDone[orderRef]) revert OrderAlreadyIssued(orderRef);
         _orderDone[orderRef] = true;
 
@@ -227,10 +265,11 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         }
 
         // 2) 보너스 쿠폰: 구매 가게가 직접 발행한 묶음 중 받는 조건을 채우고 수량이 남은 것
+        _pruneIssuances(buyMerchantId);
         uint256[] storage ids = _issuancesOf[buyMerchantId];
         for (uint256 i = 0; i < ids.length; i++) {
             Issuance storage s = _issuances[ids[i]];
-            if (s.issuedCount >= s.qty || orderAmount < s.receiveMin) continue;
+            if (orderAmount < s.receiveMin) continue;
             if (s.receiveRule == ReceiveRule.FirstPurchase && boughtBefore) continue;
 
             s.issuedCount += 1;
@@ -259,8 +298,28 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         emit CouponIssued(tokenId, cp.merchantId, to, cp.source, cp.fromMerchantId, orderRef, cp.expiresAt);
     }
 
+    /// @dev 진행 중 목록에서 수량이 다 떨어졌거나 유효기간이 지난 묶음을 뺀다 (swap-and-pop).
+    ///      목록이 상한(20개) 안에서만 유지되므로 구매 한 번의 가스가 묶인다.
+    function _pruneIssuances(uint256 merchantId) private {
+        uint256[] storage ids = _issuancesOf[merchantId];
+        uint256 i = 0;
+        while (i < ids.length) {
+            Issuance storage s = _issuances[ids[i]];
+            if (s.issuedCount >= s.qty || block.timestamp > s.expiresAt) {
+                ids[i] = ids[ids.length - 1];
+                ids.pop();
+            } else {
+                i++;
+            }
+        }
+    }
+
     function issuanceOf(uint256 issuanceId) external view returns (Issuance memory) {
         return _issuances[issuanceId];
+    }
+
+    function issuanceFor(bytes32 requestRef) external view returns (uint256) {
+        return _issuanceFor[requestRef];
     }
 
     function issuedFor(bytes32 orderRef) external view returns (uint256[] memory) {

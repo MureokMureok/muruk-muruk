@@ -1,6 +1,6 @@
 // 시연 흐름 전체를 처음부터 끝까지 한 번에 (frontend/README.md 시연 장면 순서)
 import { expect } from "chai";
-import { deploy, ref, CAMPAIGN, ORCHARD, FLOWER, SEA, TERMS, ReceiveRule, CampaignStatus, Reason, Status } from "./helpers.js";
+import { deploy, ref, CAMPAIGN, ORCHARD, FLOWER, SEA, TERMS, ReceiveRule, CampaignStatus, Reason, Status, nextRef } from "./helpers.js";
 
 describe("시연 시나리오 전체", function () {
   it("등록 → 한도 → 기획전 서명·잠금·승인 → 구매 시 쿠폰 발급 → 사용 → 재사용 거절 → 정산", async function () {
@@ -15,7 +15,7 @@ describe("시연 시나리오 전체", function () {
     await coupon.connect(kcp).createCampaign(CAMPAIGN, [ORCHARD, FLOWER, SEA], 30);
 
     // ② 가맹점: 첫 구매 쿠폰 직접 발행
-    await op.createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50);
+    await op.createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef());
 
     // ③ 가맹점 3곳 서명 → 규칙 잠금 → KCP 승인
     for (const id of [ORCHARD, FLOWER, SEA]) {
