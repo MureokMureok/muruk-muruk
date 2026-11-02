@@ -1,38 +1,5 @@
-import { Route } from 'react-router-dom'
-import RequireRole from '../auth/RequireRole.jsx'
-import { ROLES } from '../auth/mockAuth.js'
-import ConsumerShell from '../components/ConsumerShell.jsx'
-import BuyPage from '../pages/consumer/BuyPage.jsx'
-import CampaignPage from '../pages/consumer/CampaignPage.jsx'
-import ConsumerHome from '../pages/consumer/ConsumerHome.jsx'
-import CouponDetailPage from '../pages/consumer/CouponDetailPage.jsx'
-import CouponHistoryPage from '../pages/consumer/CouponHistoryPage.jsx'
-import CouponOfferPage from '../pages/consumer/CouponOfferPage.jsx'
-import CouponsPage from '../pages/consumer/CouponsPage.jsx'
-import MyPage from '../pages/consumer/MyPage.jsx'
-import SettingsPage from '../pages/consumer/SettingsPage.jsx'
-
-// 소비자 화면 주소 목록 (휴대폰 폭) — feature/frontend-consumer 브랜치 담당
-// App.jsx가 이 목록을 불러서 붙인다
+// 소비자 화면 주소 목록 — 실제 내용은 feature/frontend-consumer 브랜치에 있습니다.
+// 공통 브랜치(feature/frontend)에는 비어 있는 자리만 둡니다. (역할 브랜치끼리 합쳐도 충돌하지 않게)
 export function consumerRoutes() {
-  return (
-    // 소비자 화면 전체를 오류 처리 틀로 감쌈
-    <Route element={<ConsumerShell />}>
-      {/* 로그인 없이 볼 수 있는 화면 (와이어프레임 v0 확정 정책 — 비회원도 둘러보기) */}
-      <Route path="/home" element={<ConsumerHome />} />
-      <Route path="/campaign" element={<CampaignPage />} />
-      <Route path="/campaign/coupon/:merchantId" element={<CouponOfferPage />} />
-      {/* 상품 화면도 볼 수 있고, 결제 버튼을 누를 때 로그인 */}
-      <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
-
-      {/* 로그인이 필요한 화면 (안 했으면 로그인 → 성공 시 이 화면으로 복귀) */}
-      <Route element={<RequireRole role={ROLES.CONSUMER} />}>
-        <Route path="/coupons" element={<CouponsPage />} />
-        <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
-        <Route path="/coupons/:couponId/history" element={<CouponHistoryPage />} />
-        <Route path="/me" element={<MyPage />} />
-        <Route path="/me/settings" element={<SettingsPage />} />
-      </Route>
-    </Route>
-  )
+  return null
 }
