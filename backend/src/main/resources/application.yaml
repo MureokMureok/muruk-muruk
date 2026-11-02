@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: muruk-muruk
+  config:
+    import: optional:file:.env[.properties],optional:file:backend/.env[.properties]
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Seoul
