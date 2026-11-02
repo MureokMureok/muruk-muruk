@@ -1,0 +1,105 @@
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { SIMULATIONS, getMySummary, getSimulation, resetDemo, setSimulation } from '../../api/api.js'
+import { getUser, logout } from '../../auth/mockAuth.js'
+import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { useApi } from '../../hooks/useApi.js'
+import { won } from '../../utils/format.js'
+
+// ⑪ MY (소비자 와이어프레임 v0)
+// - 지갑 정보는 MY에도 표시하지 않음 (가정 G5)
+// - 11/8 범위: 프로필·쿠폰함·설정·로그아웃만 동작, 나머지 메뉴는 자리만
+function MyPage() {
+  const user = getUser()
+  const navigate = useNavigate()
+  const { data: s } = useApi(() => getMySummary(user.id), [user.id])
+
+  function handleLogout() {
+    logout()
+    navigate('/home', { replace: true })
+  }
+
+  // mode: 'ready'(기획전 진행 중, 바로 쿠폰 받기) / 'demo'(시연 8장면 시작 — KCP 한도 등록부터)
+  async function handleReset(mode) {
+    if (!window.confirm('시연 데이터를 처음 상태로 되돌릴까요? (쿠폰·주문·기록이 모두 지워져요)')) return
+    await resetDemo(mode)
+    navigate('/home')
+  }
+
+  // 시연용 실패 고르기 (다음 한 번만 실패, 그 뒤 자동으로 정상)
+  const [sim, setSim] = useState(getSimulation())
+  function handleSim(e) {
+    setSim(e.target.value)
+    setSimulation(e.target.value)
+  }
+
+  return (
+    <PhoneScreen title="MY" back={false} tabs>
+      <div className="profile">
+        <span className="avatar">{user.name[0]}</span>
+        <div>
+          <h2>{user.name}님</h2>
+          <span className="tiny">Google 로그인{user.email ? ` · ${user.email}` : ''}</span>
+        </div>
+      </div>
+
+      <div className="card stats">
+        <div>
+          <b>{s?.received ?? 0}장</b>
+          <span className="tiny">받은 쿠폰</span>
+        </div>
+        <div>
+          <b>{s?.used ?? 0}장</b>
+          <span className="tiny">사용한 쿠폰</span>
+        </div>
+        <div>
+          <b>{won(s?.saved ?? 0)}</b>
+          <span className="tiny">아낀 금액</span>
+        </div>
+      </div>
+
+      <nav className="menu-list" aria-label="MY 메뉴">
+        <Link className="card link-row" to="/coupons">
+          <span>쿠폰함</span>
+          <span aria-hidden="true">›</span>
+        </Link>
+        <Link className="card link-row" to="/me/settings">
+          <span>설정</span>
+          <span aria-hidden="true">›</span>
+        </Link>
+        {['알림 설정', '이용 안내', '고객센터'].map((m) => (
+          <div className="card link-row disabled" key={m} title="준비 중이에요">
+            <span>{m}</span>
+            <span className="tiny">준비 중</span>
+          </div>
+        ))}
+      </nav>
+
+      <button className="text-link" style={{ justifySelf: 'start' }} onClick={handleLogout}>
+        로그아웃
+      </button>
+      {/* 발표 질의응답용: 실패 화면을 보여줄 때 (와이어프레임 상태 화면) */}
+      <section className="card soft demo-tools">
+        <span className="cap">시연 도구 (발표용)</span>
+        <label className="field">
+          <span className="tiny">실패 상황 만들기 (발급·결제 실패는 한 번만)</span>
+          <select className="input" value={sim} onChange={handleSim}>
+            {SIMULATIONS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="text-link" style={{ justifySelf: 'start' }} onClick={() => handleReset('ready')}>
+          데이터 처음으로 (기획전 진행 중 · 바로 쿠폰 받기)
+        </button>
+        <button className="text-link" style={{ justifySelf: 'start' }} onClick={() => handleReset('demo')}>
+          8장면 시연 시작 상태로 (KCP 한도 등록부터)
+        </button>
+      </section>
+    </PhoneScreen>
+  )
+}
+
+export default MyPage
