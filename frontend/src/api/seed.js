@@ -2,15 +2,41 @@
 // 가게·상품·쿠폰 예시는 소비자 와이어프레임 v0(Figma) 기준: 과수원집·봄꽃상회·바다찬 3곳
 // (와이어프레임 가정 G6 "기획전 가게 3곳" — 개발팀 확인 필요)
 //
-// 시연 흐름: ① KCP가 과수원집 입금 확인 → 한도 등록 ② 과수원집이 쿠폰 발행
+// 처음 상태는 두 가지 (mode)
+// - 'ready'(기본): 기획전이 이미 진행 중 → 앱을 열자마자 구매하면 쿠폰을 받을 수 있음 (팀원 확인·개발용)
+// - 'demo': 시연 8장면의 시작 상태 → ① KCP가 과수원집 입금 확인 → 한도 등록 ② 과수원집이 쿠폰 발행
 //           ③ 과수원집이 기획전 조건 서명(마지막 서명) → 규칙 잠금 → KCP 승인 ④ 소비자 구매 …
-// 그래서 과수원집만 한도 0, 서명 안 함 상태로 시작한다. 나머지 2곳은 이미 준비 끝난 상태.
+//   그래서 과수원집만 한도 0, 서명 안 함, 기획전은 '조건 서명 중'. (이 상태에서는 아직 쿠폰이 발급되지 않음)
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 3
+export const SEED_VERSION = 4
 
-export function createSeed() {
+export function createSeed(mode = 'ready') {
+  const seed = createDemoStart()
+  return mode === 'demo' ? seed : makeReady(seed)
+}
+
+// 'ready': 시연 ①~③(한도 등록·과수원집 서명·KCP 승인)을 이미 마친 상태로 바꿈
+function makeReady(seed) {
+  const m1 = seed.merchants.find((m) => m.id === 'm1')
+  const t1 = seed.campaign.terms.find((t) => t.merchantId === 'm1')
+  m1.limit = 500000
+  m1.reserved = t1.fund // 충전금만큼 한도에서 확보
+  seed.deposits.find((d) => d.id === 'd1').status = 'REGISTERED'
+  t1.signed = true
+  seed.campaign.status = 'ACTIVE'
+  seed.ledger.push(
+    { block: 18204012, at: '2026-10-31 10:20', type: 'ADMIN', label: '한도 등록', detail: '과수원집 · 입금 500,000원 확인 → 한도 500,000원', actor: 'KCP' },
+    { block: 18204013, at: '2026-10-31 11:00', type: 'ADMIN', label: '기획전 조건 서명', detail: '과수원집 · 2,000원 할인 · 충전금 200,000원', actor: '과수원집' },
+    { block: 18204014, at: '2026-10-31 11:00', type: 'ADMIN', label: '규칙 잠금', detail: '겨울 제철 연합 기획전 · 참여 가게 3곳 서명 완료', actor: '컨트랙트' },
+    { block: 18204015, at: '2026-10-31 14:00', type: 'ADMIN', label: '기획전 승인', detail: '겨울 제철 연합 기획전', actor: 'KCP' },
+  )
+  return seed
+}
+
+// 시연 8장면의 시작 상태
+function createDemoStart() {
   const now = new Date().toISOString()
 
   return {
@@ -42,8 +68,9 @@ export function createSeed() {
     campaign: {
       id: 'c1',
       title: '겨울 제철 연합 기획전',
-      startDate: '2026-11-10',
-      endDate: '2026-11-23',
+      // 시연 기간에 '진행 중'으로 보이도록 11월 한 달 (와이어프레임 예시는 11/10–11/23)
+      startDate: '2026-11-01',
+      endDate: '2026-11-30',
       validDays: 30, // 쿠폰 유효기간: 받은 날부터 30일
       status: 'SIGNING',
       // [확정] 쿠폰은 정액권만 (팀 결정)

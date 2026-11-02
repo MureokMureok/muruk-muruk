@@ -19,9 +19,10 @@ function MyPage() {
     navigate('/home', { replace: true })
   }
 
-  async function handleReset() {
+  // mode: 'ready'(기획전 진행 중, 바로 쿠폰 받기) / 'demo'(시연 8장면 시작 — KCP 한도 등록부터)
+  async function handleReset(mode) {
     if (!window.confirm('시연 데이터를 처음 상태로 되돌릴까요? (쿠폰·주문·기록이 모두 지워져요)')) return
-    await resetDemo()
+    await resetDemo(mode)
     navigate('/home')
   }
 
@@ -90,8 +91,11 @@ function MyPage() {
             ))}
           </select>
         </label>
-        <button className="text-link" style={{ justifySelf: 'start' }} onClick={handleReset}>
-          시연 데이터 처음으로 (리허설용)
+        <button className="text-link" style={{ justifySelf: 'start' }} onClick={() => handleReset('ready')}>
+          데이터 처음으로 (기획전 진행 중 · 바로 쿠폰 받기)
+        </button>
+        <button className="text-link" style={{ justifySelf: 'start' }} onClick={() => handleReset('demo')}>
+          8장면 시연 시작 상태로 (KCP 한도 등록부터)
         </button>
       </section>
     </PhoneScreen>

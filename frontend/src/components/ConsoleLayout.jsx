@@ -16,9 +16,10 @@ function ConsoleLayout({ variant, roleLabel, menu }) {
     navigate('/login', { replace: true })
   }
 
-  async function handleReset() {
+  // mode: 'ready'(기획전 진행 중) / 'demo'(시연 8장면 시작 — KCP 한도 등록부터)
+  async function handleReset(mode) {
     if (!window.confirm('시연 데이터를 처음 상태로 되돌릴까요?')) return
-    await resetDemo()
+    await resetDemo(mode)
     window.location.reload()
   }
 
@@ -49,8 +50,11 @@ function ConsoleLayout({ variant, roleLabel, menu }) {
           <button className="text-link" onClick={handleLogout}>
             로그아웃
           </button>
-          <button className="text-link" onClick={handleReset}>
-            시연 데이터 처음으로
+          <button className="text-link" onClick={() => handleReset('ready')}>
+            데이터 처음으로 (기획전 진행 중)
+          </button>
+          <button className="text-link" onClick={() => handleReset('demo')}>
+            8장면 시연 시작 상태로
           </button>
           <p>시연용 · 실제 결제·체인 연결 없음 (모의)</p>
         </div>

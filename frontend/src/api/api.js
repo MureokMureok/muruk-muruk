@@ -521,7 +521,9 @@ export async function getLedger() {
   return [...load().ledger].reverse()
 }
 
-// 시연 처음부터 다시 (리허설용)
-export async function resetDemo() {
-  save(createSeed())
+// 시연 데이터 처음으로 (리허설용)
+// - mode 'ready'(기본): 기획전 진행 중 상태 → 바로 구매·쿠폰 받기 가능
+// - mode 'demo': 시연 8장면 시작 상태 → KCP 한도 등록부터
+export async function resetDemo(mode = 'ready') {
+  save(createSeed(mode))
 }
