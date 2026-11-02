@@ -99,7 +99,7 @@ function CouponScreen({ couponId }) {
           </>
         }
       >
-        <StatusView kind="ok" title="쿠폰을 사용했어요" desc={`${coupon.merchantName} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
+        <StatusView kind="ok" sound="pay" title="쿠폰을 사용했어요" desc={`${coupon.merchantName} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
         <CouponCard coupon={outcome.coupon} />
         <span className="chip c-gray" style={{ justifySelf: 'center' }}>
           사용 완료 · 다시 쓸 수 없어요
@@ -139,7 +139,7 @@ function CouponScreen({ couponId }) {
           </>
         }
       >
-        <StatusView kind="warn" title="쿠폰을 사용하지 못했어요" desc="결제 승인이 되지 않았어요" />
+        <StatusView kind="warn" sound="fail" title="쿠폰을 사용하지 못했어요" desc="결제 승인이 되지 않았어요" />
         <div className="card rows">
           <div className="row">
             <span>쿠폰</span>
@@ -180,6 +180,7 @@ function CouponScreen({ couponId }) {
       >
         <StatusView
           kind="bad"
+          sound="fail"
           title={reused ? '이미 사용한 쿠폰이에요' : '쓸 수 없는 쿠폰이에요'}
           desc={`${reused ? `${mmdd(outcome.usedAt)} ${outcome.merchantName}에서 사용한 쿠폰이라 쓸 수 없어요.` : outcome.message} 결제는 진행되지 않았어요.`}
         />

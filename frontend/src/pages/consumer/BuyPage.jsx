@@ -72,7 +72,7 @@ function BuyScreen({ merchantId }) {
           </>
         }
       >
-        <StatusView kind="warn" title="쿠폰을 발급하지 못했어요" desc={`${product.merchantName} 결제는 정상적으로 완료됐어요`} />
+        <StatusView kind="warn" sound="fail" title="쿠폰을 발급하지 못했어요" desc={`${product.merchantName} 결제는 정상적으로 완료됐어요`} />
         <div className="card rows">
           <div className="row">
             <span>받지 못한 쿠폰</span>
@@ -110,7 +110,7 @@ function BuyScreen({ merchantId }) {
           </>
         }
       >
-        <StatusView kind="ok" title={n > 0 ? `쿠폰 ${n}장을 받았어요` : '결제가 완료됐어요'} desc={`${product.merchantName} 결제가 완료됐어요`} />
+        <StatusView kind="ok" sound={n > 0 ? 'issue' : 'pay'} title={n > 0 ? `쿠폰 ${n}장을 받았어요` : '결제가 완료됐어요'} desc={`${product.merchantName} 결제가 완료됐어요`} />
         <div className="stack">
           {result.issuedCoupons.map((c) => (
             <CouponCard key={c.id} coupon={c} caption={captionOf(c)} />
