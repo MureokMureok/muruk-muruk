@@ -19,15 +19,35 @@ npm run dev      # 개발 서버 → http://localhost:5173
 - `npm run lint`: 코드 검사 (oxlint)
 - 백엔드 주소는 `.env.example`을 복사해 `.env`로 만들고 `VITE_API_BASE_URL`을 채움
 
+## 브랜치 구성 (프론트)
+
+역할별로 브랜치를 나눕니다. 공통 코드는 `feature/frontend`에만 두고, 역할 브랜치는 그 위에 **자기 화면만** 더합니다.
+
+```
+feature/frontend               공통 — 로그인, 공통 부품, 모의 API, 디자인, 앱 틀
+ ├─ feature/frontend-consumer  소비자 화면   (pages/consumer/, routes/consumerRoutes.jsx)
+ ├─ feature/frontend-store     가맹점 콘솔   (pages/store/,    routes/storeRoutes.jsx)
+ └─ feature/frontend-admin     KCP 콘솔      (pages/admin/,    routes/adminRoutes.jsx)
+```
+
+- 역할 브랜치는 서로 **다른 파일만** 고치므로, develop에 차례로 합쳐도 충돌하지 않습니다. (공통 → 소비자 → 가맹점 → KCP 순서 권장)
+- 공통 브랜치만 실행하면 로그인 화면만 있고, 역할 화면은 "화면을 찾을 수 없어요"로 나옵니다.
+- 여러 역할이 같이 쓰는 코드(부품·API·디자인)를 고칠 때는 `feature/frontend`에서 고칩니다.
+
 ## 폴더 구조
 
 화면은 **역할별 폴더**로 나눠 둡니다. 새 화면은 해당 역할 폴더에 추가해 주세요.
 
 ```
 frontend/src/
-├─ main.jsx · App.jsx     앱 시작점 · 주소별 화면 연결(라우팅)과 로그인·역할 검사
+├─ main.jsx · App.jsx     앱 시작점 · 역할별 주소 목록을 모아 붙이는 곳
+├─ routes/                역할별 주소(URL) 목록 — 역할 브랜치마다 자기 파일만 고침
+│  ├─ consumerRoutes.jsx  소비자
+│  ├─ storeRoutes.jsx     가맹점 콘솔
+│  └─ adminRoutes.jsx     KCP 관리자 콘솔
 ├─ pages/                 화면 (화면 하나 = 파일 하나)
 │  ├─ auth/               로그인 (모든 역할 공통)
+│  ├─ common/             없는 주소 안내 등 공통 화면
 │  ├─ consumer/           소비자 (휴대폰 폭) — 소비자 와이어프레임 v0 기준
 │  ├─ store/              가맹점 콘솔 (PC)
 │  └─ admin/              KCP 관리자 콘솔 (PC)
@@ -35,7 +55,7 @@ frontend/src/
 ├─ api/                   모의 API — 백엔드 연결 시 이 폴더만 교체
 │  ├─ api.js              API 함수 (함수 옆 주석에 제안 API 주소)
 │  └─ seed.js             시연 시작 데이터
-├─ auth/                  로그인 상태 관리 (현재 모의 로그인)
+├─ auth/                  로그인 상태 관리 (현재 모의 로그인) · 역할 검사 문지기(RequireRole)
 ├─ hooks/                 화면에서 데이터 불러오는 도구
 ├─ utils/                 숫자·날짜 표시, 상태 문구, 다크 모드 등 작은 도구
 ├─ styles/app.css         화면 부품 디자인 (맨 아래 다크 모드 색)

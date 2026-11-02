@@ -1,67 +1,10 @@
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { ROLES, getUser, homePathFor } from './auth/mockAuth.js'
-import ConsoleLayout from './components/ConsoleLayout.jsx'
-import NetworkErrorBoundary from './components/NetworkErrorBoundary.jsx'
-// 로그인 (모든 역할 공통)
+import { Navigate, Route, Routes } from 'react-router-dom'
 import LoginPage from './pages/auth/LoginPage.jsx'
-// 소비자 (휴대폰 폭)
-import BuyPage from './pages/consumer/BuyPage.jsx'
-import CampaignPage from './pages/consumer/CampaignPage.jsx'
-import ConsumerHome from './pages/consumer/ConsumerHome.jsx'
-import CouponDetailPage from './pages/consumer/CouponDetailPage.jsx'
-import CouponHistoryPage from './pages/consumer/CouponHistoryPage.jsx'
-import CouponOfferPage from './pages/consumer/CouponOfferPage.jsx'
-import CouponsPage from './pages/consumer/CouponsPage.jsx'
-import MyPage from './pages/consumer/MyPage.jsx'
-import SettingsPage from './pages/consumer/SettingsPage.jsx'
-// KCP 관리자 콘솔 (PC)
-import AdminCampaign from './pages/admin/AdminCampaign.jsx'
-import AdminDeposits from './pages/admin/AdminDeposits.jsx'
-import AdminLedger from './pages/admin/AdminLedger.jsx'
-import AdminMerchants from './pages/admin/AdminMerchants.jsx'
-// 가맹점 콘솔 (PC)
-import StoreCampaign from './pages/store/StoreCampaign.jsx'
-import StoreDashboard from './pages/store/StoreDashboard.jsx'
-import StoreIssue from './pages/store/StoreIssue.jsx'
-import StoreSettle from './pages/store/StoreSettle.jsx'
-
-// 로그인·역할 검사 문지기. 안쪽 화면들(Outlet 자리)을 감싼다.
-// - 로그인 안 했으면 → 로그인 화면으로 (로그인 후 원래 화면으로 돌아오도록 next에 주소를 담음)
-// - 역할이 다르면 (예: 소비자가 /admin 접근) → 자기 역할의 첫 화면으로
-function RequireRole({ role }) {
-  const location = useLocation()
-  const user = getUser()
-  if (!user) {
-    const next = encodeURIComponent(location.pathname)
-    return <Navigate to={`/login?next=${next}`} replace />
-  }
-  if (user.role !== role) return <Navigate to={homePathFor(user.role)} replace />
-  return <Outlet />
-}
-
-// 소비자 화면들을 감싸는 틀: 오류 처리. 주소가 바뀌면 오류 표시를 지운다
-function ConsumerShell() {
-  const location = useLocation()
-  return (
-    <NetworkErrorBoundary resetKey={location.pathname}>
-      <Outlet />
-    </NetworkErrorBoundary>
-  )
-}
-
-const STORE_MENU = [
-  { to: '/store', label: '대시보드' },
-  { to: '/store/issue', label: '쿠폰 발행' },
-  { to: '/store/campaign', label: '연합 기획전' },
-  { to: '/store/settle', label: '정산' },
-]
-
-const ADMIN_MENU = [
-  { to: '/admin', label: '가맹점 등록' },
-  { to: '/admin/deposits', label: '입금·한도' },
-  { to: '/admin/campaign', label: '기획전 승인' },
-  { to: '/admin/ledger', label: '체인 기록' },
-]
+import NotFoundPage from './pages/common/NotFoundPage.jsx'
+// 역할별 화면 주소 목록 — 역할마다 파일이 따로라서, 역할 브랜치끼리 합쳐도 이 파일은 충돌하지 않는다
+import { adminRoutes } from './routes/adminRoutes.jsx'
+import { consumerRoutes } from './routes/consumerRoutes.jsx'
+import { storeRoutes } from './routes/storeRoutes.jsx'
 
 // 주소(URL)별로 어떤 화면을 보여줄지 정하는 곳
 function App() {
@@ -69,49 +12,18 @@ function App() {
     <Routes>
       {/* 시작 주소: 홈. 와이어프레임 v0 확정 정책 — 비회원도 둘러보고, 로그인은 구매·쿠폰함·MY 때 */}
       <Route path="/" element={<Navigate to="/home" replace />} />
+      {/* 로그인 (모든 역할 공통, [확정] 구글 로그인) */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* 소비자 화면 전체를 오류 처리 틀로 감쌈: 데이터를 못 불러오면 "연결이 불안정해요" */}
-      <Route element={<ConsumerShell />}>
-        {/* 소비자 — 로그인 없이 볼 수 있는 화면 */}
-        <Route path="/home" element={<ConsumerHome />} />
-        <Route path="/campaign" element={<CampaignPage />} />
-        <Route path="/campaign/coupon/:merchantId" element={<CouponOfferPage />} />
-        {/* 상품 화면도 볼 수 있고, 결제 버튼을 누를 때 로그인 */}
-        <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
-
-        {/* 소비자 — 로그인이 필요한 화면 (안 했으면 로그인 → 성공 시 이 화면으로 복귀) */}
-        <Route element={<RequireRole role={ROLES.CONSUMER} />}>
-          <Route path="/coupons" element={<CouponsPage />} />
-          <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
-          <Route path="/coupons/:couponId/history" element={<CouponHistoryPage />} />
-          <Route path="/me" element={<MyPage />} />
-          <Route path="/me/settings" element={<SettingsPage />} />
-        </Route>
-      </Route>
-
+      {/* 소비자 (휴대폰 폭) */}
+      {consumerRoutes()}
       {/* 가맹점 콘솔 (PC) */}
-      <Route element={<RequireRole role={ROLES.STORE} />}>
-        <Route path="/store" element={<ConsoleLayout variant="store" roleLabel="가맹점" menu={STORE_MENU} />}>
-          <Route index element={<StoreDashboard />} />
-          <Route path="issue" element={<StoreIssue />} />
-          <Route path="campaign" element={<StoreCampaign />} />
-          <Route path="settle" element={<StoreSettle />} />
-        </Route>
-      </Route>
-
+      {storeRoutes()}
       {/* KCP 관리자 콘솔 (PC) */}
-      <Route element={<RequireRole role={ROLES.KCP} />}>
-        <Route path="/admin" element={<ConsoleLayout variant="kcp" roleLabel="NHN KCP 관리자" menu={ADMIN_MENU} />}>
-          <Route index element={<AdminMerchants />} />
-          <Route path="deposits" element={<AdminDeposits />} />
-          <Route path="campaign" element={<AdminCampaign />} />
-          <Route path="ledger" element={<AdminLedger />} />
-        </Route>
-      </Route>
+      {adminRoutes()}
 
-      {/* 없는 주소는 시작 주소로 */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 없는 주소 */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }
