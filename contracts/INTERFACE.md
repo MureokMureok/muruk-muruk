@@ -2,7 +2,7 @@
 
 - 코드: [`contracts/interfaces/IMurukCoupon.sol`](contracts/interfaces/IMurukCoupon.sol)
 - 기준 자료: 프론트 모의 API(`frontend/src/api/api.js`, `seed.js`, PR #1) · `docs/mvp-spec.md` MVP 목록 · 소비자 와이어프레임 v0 · 11/1 팀 확정 사항
-- 상태: 인터페이스(함수 목록)만 확정. 실제 동작 코드는 다음 PR에서 구현
+- 상태: 구현 완료 — [`contracts/MurukCoupon.sol`](contracts/MurukCoupon.sol), 테스트 `test/` (시연 흐름 전체 포함)
 
 ## 1. 기본 전제
 
@@ -77,10 +77,10 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 |---|---|---|---|
 | `whitelistMerchant` | ADMIN | 가맹점 등록 | — |
 | `addLimit` | ADMIN | 입금액만큼 한도 추가 | 미등록 가맹점 `NotWhitelisted`, 0원 `InvalidAmount` |
-| `createCampaign` | ADMIN | 기획전 생성 (Signing) | 중복 `CampaignExists`, 미등록 가게 `NotWhitelisted` |
-| `signCampaign` | OPERATOR | 가게 조건 서명 + 충전금 확보, 전원 서명 시 잠금 | 잠긴 뒤 `CampaignNotSigning`, 재서명 `AlreadySigned`, 한도 0 `NoLimit`, 초과 `LimitExceeded` |
+| `createCampaign` | ADMIN | 기획전 생성 (Signing) | 중복 `CampaignExists`, 미등록 가게 `NotWhitelisted`, 번호 0·빈 목록·유효기간 0·가게 중복 `InvalidAmount` |
+| `signCampaign` | OPERATOR | 가게 조건 서명 + 충전금 확보, 전원 서명 시 잠금 | 없는 기획전 `CampaignNotFound`, 미참여 가게 `NotInCampaign`, 잠긴 뒤 `CampaignNotSigning`, 재서명 `AlreadySigned`, 할인액 0 `InvalidAmount`, 충전금 > 남은 한도 `LimitExceeded` |
 | `decideCampaign` | ADMIN | 승인 / 반려 | 승인 대기 아님 `CampaignNotPending` |
-| `createIssuance` | OPERATOR | 직접 발행 쿠폰 묶음 등록 | `NoLimit`, `LimitExceeded`, `InvalidAmount` |
+| `createIssuance` | OPERATOR | 직접 발행 쿠폰 묶음 등록 | 할인액·수량·유효기간 0 `InvalidAmount`, 한도 0 `NoLimit`, 초과 `LimitExceeded` |
 | `issueForPurchase` | OPERATOR | 구매 시 쿠폰 발급 | 같은 주문 재호출 `OrderAlreadyIssued` |
 | `redeem` | OPERATOR | 5가지 검사 → 소각 | **되돌리지 않음** — `(false, reason, 0)` 반환 + `RedeemRejected` |
 
@@ -121,6 +121,20 @@ Available ──유효기간 지남──▶ Expired (조회 시 계산)
 | 만료 판정 | 모의 API는 날짜 단위(마지막 날까지), 컨트랙트는 `발급 시각 + 유효일수 × 24시간`. 화면 날짜 표시는 백엔드가 맞춰 준다 |
 | 기획전 기간 | 모의 API처럼 날짜가 아니라 **상태(Active)** 로만 발급 여부 판단 |
 | 만료 쿠폰의 확보 금액 | 모의 API와 같이 돌려주지 않음 (후속 결정) |
-| 할인액 > 주문 금액 | 정액 그대로 적용. 최소 주문 금액을 할인액 이상으로 설정하는 것을 권장 (팀 확인 필요) |
+| 할인액 > 주문 금액 | 주문 금액까지만 할인 (모의 API `calcDiscount`와 같음). 충전금 사용액도 실제 할인액만큼 |
 | 가맹점 구분 | `merchantId` 번호 — 백엔드 답변 후 확정 |
 | 구매 취소 시 쿠폰 회수 | 범위 밖 (후속) |
+
+## 7. 구현하면서 모의 API 기준으로 정한 것
+
+팀 자료에 따로 정해지지 않은 부분은 프론트 모의 API(`api.js`)와 똑같이 동작하게 했다. 바꿔야 하면 알려 주세요.
+
+| 항목 | 동작 | 근거 |
+|---|---|---|
+| 같은 가맹점 다시 등록 | 에러 없이 그대로 (이벤트만 다시 남음) | 모의 API `whitelistMerchant` |
+| 같은 입금 ID로 한도 두 번 추가 | 막지 않음 (두 번 더해짐). 중복 방지는 백엔드에서 | 모의 API `registerLimit` |
+| 서명 시 한도 0 | `NoLimit`이 아니라 `LimitExceeded` (충전금 > 남은 한도) | 모의 API `signCampaign` |
+| 보너스 쿠폰 발급 때 묶음 유효기간 | 확인하지 않음 (받은 쿠폰이 바로 만료 상태일 수 있음) | 모의 API `couponsForPurchase` |
+| 첫 구매 판단 | 이번 구매를 기록하기 전의 구매 이력 | 모의 API `couponsForPurchase` |
+| 충전금 확보 | 발급 때 할인액만큼 `fundReserved`, 사용 때 실제 할인액만큼 `fundUsed` (만료 쿠폰 확보분은 돌려주지 않음) | 모의 API `purchase`, `redeemCoupon` |
+| 만료 시각 | 발급 시각 + 유효일수 × 24시간까지 사용 가능 (그 시각 포함) | 6절 |
