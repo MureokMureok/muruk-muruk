@@ -4,28 +4,43 @@ import { getMyCoupons } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
+import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { dDay, mmdd, won } from '../../utils/format.js'
 
-// 탭 3개 (확정): 사용 가능 / 사용 완료 / 만료
+// 탭 3개 (확정): 사용 가능 / 사용 완료 / 만료 — 탭마다 다른 빈 상태 문구
 const TABS = [
   { key: 'AVAILABLE', label: '사용 가능', empty: '사용할 수 있는 쿠폰이 없어요' },
   { key: 'USED', label: '사용 완료', empty: '아직 사용한 쿠폰이 없어요' },
   { key: 'EXPIRED', label: '만료', empty: '만료된 쿠폰이 없어요' },
 ]
 
-// ⑥ 쿠폰함 (소비자 와이어프레임 v0)
+// 정렬 (탭을 바꿔도 유지)
+const SORTS = {
+  expiry: { label: '만료 임박순', fn: (a, b) => a.expiresAt.localeCompare(b.expiresAt) },
+  recent: { label: '최근 받은 순', fn: (a, b) => b.issuedAt.localeCompare(a.issuedAt) },
+}
+
+// C-06 쿠폰함 (목업 v3) + 쿠폰함 빈 상태
 function CouponsPage() {
   const user = getUser()
   const [tab, setTab] = useState('AVAILABLE')
+  const [sort, setSort] = useState('expiry')
   const { data: coupons } = useApi(() => getMyCoupons(user.id), [user.id])
 
   const count = (key) => (coupons || []).filter((c) => c.status === key).length
-  // 만료 임박순: 유효기간이 빠른 것부터
-  const shown = (coupons || []).filter((c) => c.status === tab).sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))
+  const shown = (coupons || []).filter((c) => c.status === tab).sort(SORTS[sort].fn)
   const current = TABS.find((t) => t.key === tab)
 
   return (
-    <PhoneScreen title={`쿠폰함 ${coupons ? coupons.length + '장' : ''}`} back={false} tabs>
+    <PhoneScreen
+      large={
+        <>
+          쿠폰함 <em>{count('AVAILABLE')}장</em>
+        </>
+      }
+      tabs
+    >
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
           <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'on' : ''} onClick={() => setTab(t.key)}>
@@ -33,28 +48,37 @@ function CouponsPage() {
           </button>
         ))}
       </div>
-      {shown.length > 0 && <p className="tiny right">만료 임박순</p>}
 
       {coupons && shown.length === 0 && (
-        <div className="empty">
-          <p className="ink">{current.empty}</p>
+        <StatusView kind="empty" title={current.empty} desc={tab === 'AVAILABLE' && <>연합 기획전 가게에서 구매하면<br />다른 가게 쿠폰을 받아요</>}>
           {tab === 'AVAILABLE' && (
-            <>
-              <p className="tiny">연합 기획전 가게에서 구매하면 자동으로 받아요</p>
-              <Link className="pill p-ghost" to="/campaign" style={{ marginTop: 14 }}>
-                진행 중인 기획전 보기
-              </Link>
-            </>
+            <Link className="btn g sm" to="/campaign" style={{ alignSelf: 'center' }}>
+              진행 중인 기획전 보기
+            </Link>
           )}
-        </div>
+        </StatusView>
       )}
 
-      <div className="stack">
-        {shown.map((c) => (
-          <CouponCard key={c.id} coupon={c} caption={`${c.source === 'CAMPAIGN' ? c.title : '가게 쿠폰'} · ${c.merchantName}`} to={`/coupons/${c.id}`} />
-        ))}
-      </div>
-      <p className="tiny">쿠폰 상태는 발급·사용 기록을 기준으로 표시돼요</p>
+      {shown.length > 0 && (
+        <>
+          <select className="sort" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="정렬">
+            {Object.entries(SORTS).map(([k, s]) => (
+              <option key={k} value={k}>
+                {s.label} ⌄
+              </option>
+            ))}
+          </select>
+          {shown.map((c) => (
+            <CouponCard
+              key={c.id}
+              coupon={c}
+              sub={`${won(c.minOrder)} 이상 · ${mmdd(c.expiresAt)}까지${c.status === 'AVAILABLE' ? ` (D-${dDay(c.expiresAt)})` : ''}`}
+              to={`/coupons/${c.id}`}
+            />
+          ))}
+          <p className="cap">쿠폰 상태는 발급·사용 기록을 기준으로 보여드려요</p>
+        </>
+      )}
     </PhoneScreen>
   )
 }

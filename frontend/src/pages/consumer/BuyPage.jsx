@@ -3,26 +3,78 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { getProduct, previewPurchase, purchase } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
-import MerchantMark from '../../components/MerchantMark.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import StatusView from '../../components/StatusView.jsx'
+import Timeline from '../../components/Timeline.jsx'
 import { useApi } from '../../hooks/useApi.js'
-import { won } from '../../utils/format.js'
+import { mmdd, won } from '../../utils/format.js'
 
-// 받는 쿠폰 카드의 맨 위 글씨
-const captionOf = (c) => (c.source === 'CAMPAIGN' ? `연합 기획전 · ${c.merchantName}` : `조건 충족 보너스 · ${c.title}`)
+// 받을 쿠폰 조건 한 줄: "15,000원 이상 · 받은 날부터 30일"
+const subOf = (c) => `${won(c.minOrder)} 이상 · ${c.validity === 'END' ? `${mmdd(c.expiresAt)}까지` : '받은 날부터 30일'}`
 
-// ③ A 가게 상품·구매 → ④ 구매 완료 + 받은 쿠폰 (소비자 와이어프레임 v0)
-// - 로그인 없이 볼 수 있고, "결제하기"를 누를 때 로그인 → 이 화면으로 복귀 (자동 구매 X, 가정 G4)
-// - 처리 중에는 블록체인 단계 대신 "확인 중"만 보여준다
+// 기획전이 진행 중이 아닐 때 안내
+const NOT_ACTIVE = {
+  PREPARING: '기획전이 아직 시작 전이라 기획전 쿠폰은 받을 수 없어요.',
+  PAUSED: '기획전이 잠시 멈춰서 기획전 쿠폰은 받을 수 없어요.',
+  ENDED: '기획전이 끝나서 기획전 쿠폰은 받을 수 없어요.',
+}
+
+// 쿠폰 발급 확인 중 (목업 상태 화면): 결과가 불확실하면 단정하지 않고 "확인하고 있어요", 다시 결제하라고 하지 않기
+function IssuePending({ merchantName, count, buttons }) {
+  return (
+    <PhoneScreen
+      title="결제 완료"
+      back={false}
+      foot={
+        buttons && (
+          <>
+            <Link className="btn" to="/coupons">
+              쿠폰함에서 확인하기
+            </Link>
+            <Link className="btn g" to="/home">
+              홈으로
+            </Link>
+          </>
+        )
+      }
+    >
+      <StatusView
+        kind="wait"
+        title="쿠폰 발급을 확인하고 있어요"
+        desc={
+          <>
+            결제는 완료됐어요.
+            <br />
+            쿠폰 발급 결과를 확인하는 중이에요.
+            <br />
+            잠시 후 쿠폰함에서 확인해 주세요.
+            <br />
+            다시 결제하지 않아도 돼요.
+          </>
+        }
+      >
+        <Timeline
+          items={[
+            { key: 1, tone: 'ok', title: `${merchantName} 결제 완료` },
+            { key: 2, tone: 'w', title: `쿠폰 ${count}장 발급 확인 중` },
+            { key: 3, tone: 'n', title: '쿠폰함에 넣기' },
+          ]}
+        />
+      </StatusView>
+    </PhoneScreen>
+  )
+}
+
+// C-03 A가게 상품·구매 → C-04 쿠폰 발급 완료 / 발급 확인 중 / 발급 실패 (목업 v3)
+// - 로그인 없이 볼 수 있고, "결제하기"를 누를 때 로그인 → 이 화면으로 복귀 (자동 구매 X)
 function BuyScreen({ merchantId }) {
   const navigate = useNavigate()
   const location = useLocation()
   const user = getUser()
   const { data } = useApi(async () => {
-    const [product, preview] = await Promise.all([getProduct(merchantId), previewPurchase(user?.id, merchantId)])
+    const [product, preview] = await Promise.all([getProduct(merchantId), previewPurchase(merchantId)])
     return { product, preview }
-  }, [merchantId, user?.id])
+  }, [merchantId])
 
   const [phase, setPhase] = useState('ready') // ready → paying → done
   const [result, setResult] = useState(null)
@@ -45,127 +97,136 @@ function BuyScreen({ merchantId }) {
 
   if (!data) return <PhoneScreen title="상품" />
   const { product, preview } = data
+  const name = product.merchantName
 
-  // ----- 결제·쿠폰 발급 확인 중 -----
-  if (phase === 'paying') {
-    return (
-      <PhoneScreen title="결제 완료" back={false}>
-        <StatusView kind="wait" title="쿠폰 발급을 확인하고 있어요" desc="결제는 완료됐어요. 쿠폰을 받는 중이에요." />
-      </PhoneScreen>
-    )
-  }
+  // ----- 결제·쿠폰 발급 확인 중 (처리하는 동안 / 시연용 "확인 중에서 멈춤") -----
+  if (phase === 'paying') return <IssuePending merchantName={name} count={preview.coupons.length} />
+  if (phase === 'done' && result.pending) return <IssuePending merchantName={name} count={result.issuedCoupons.length + result.missedCoupons.length} buttons />
 
-  // ----- ④-c 발급 실패: 결제는 됐지만 쿠폰을 못 받음 -----
-  if (phase === 'done' && result.failed) {
+  // ----- 발급 실패 (일부 또는 전부): 결제는 됐지만 못 받은 쿠폰이 있음 -----
+  if (phase === 'done' && result.missedCoupons.length > 0) {
+    const got = result.issuedCoupons
     return (
       <PhoneScreen
         title="결제 완료"
         back={false}
         foot={
           <>
-            <Link className="pill lg p-forest full" to="/coupons">
+            <Link className="btn" to="/coupons">
               쿠폰함 보기
             </Link>
-            <button className="pill lg p-ghost full" disabled title="준비 중이에요">
+            <button className="btn g" disabled title="준비 중이에요">
               고객센터 문의
             </button>
           </>
         }
       >
-        <StatusView kind="warn" sound="fail" title="쿠폰을 발급하지 못했어요" desc={`${product.merchantName} 결제는 정상적으로 완료됐어요`} />
-        <div className="card rows">
-          <div className="row">
-            <span>받지 못한 쿠폰</span>
-            <b>{result.missedCoupons.map((c) => c.merchantName).join(', ') || '없음'}</b>
-          </div>
-          <div className="row">
-            <span>사유</span>
-            <b>쿠폰 발급 처리 오류 (시연용)</b>
-          </div>
-          <div className="row">
-            <span>결제</span>
-            <b>{won(result.order.paid)} 완료</b>
-          </div>
-        </div>
-        <p className="notice gray">발급이 다시 확인되면 쿠폰함에 들어와요. 계속 안 들어오면 고객센터로 문의해 주세요.</p>
+        <StatusView kind="warn" sound="fail" title={got.length > 0 ? `쿠폰 ${result.missedCoupons.length}장을 발급하지 못했어요` : '쿠폰을 발급하지 못했어요'} desc={`${name} 결제는 정상 완료됐어요.`}>
+          {result.missedCoupons.map((m, i) => (
+            <div className="nb err col" key={i}>
+              <span>
+                받지 못한 쿠폰 <b>{m.merchantName} {won(m.value)}</b>
+              </span>
+              <span>사유: {m.reason}</span>
+            </div>
+          ))}
+          {got.length > 0 && (
+            <div className="nb ok">
+              <span>
+                받은 쿠폰{' '}
+                <b>
+                  {got.map((c) => `${c.merchantName} ${won(c.value)}`).join(', ')} ({got.length}장)
+                </b>
+              </span>
+            </div>
+          )}
+        </StatusView>
       </PhoneScreen>
     )
   }
 
-  // ----- ④ 구매 완료 + 받은 쿠폰 -----
+  // ----- C-04 쿠폰 발급 완료 -----
   if (phase === 'done') {
-    const n = result.issuedCoupons.length
+    const got = result.issuedCoupons
+    const max = got.reduce((s, c) => s + c.value, 0)
     return (
       <PhoneScreen
         title="결제 완료"
         back={false}
         foot={
           <>
-            <Link className="pill lg p-forest full" to="/coupons">
+            <Link className="btn" to="/coupons">
               쿠폰함 보기
             </Link>
-            <Link className="pill lg p-ghost full" to="/home">
+            <Link className="btn g" to="/home">
               계속 둘러보기
             </Link>
           </>
         }
       >
-        <StatusView kind="ok" sound={n > 0 ? 'issue' : 'pay'} title={n > 0 ? `쿠폰 ${n}장을 받았어요` : '결제가 완료됐어요'} desc={`${product.merchantName} 결제가 완료됐어요`} />
-        <div className="stack">
-          {result.issuedCoupons.map((c) => (
-            <CouponCard key={c.id} coupon={c} caption={captionOf(c)} />
-          ))}
-        </div>
-        {result.skipped.length > 0 && <p className="notice">쿠폰이 모두 소진돼 {result.skipped.join(', ')} 쿠폰은 받지 못했어요.</p>}
-        <p className="tiny center">구매한 {product.merchantName} 기획전 쿠폰은 받지 않아요</p>
+        <StatusView
+          kind="ok"
+          top
+          strong
+          sound={got.length > 0 ? 'issue' : 'pay'}
+          title={`${name} 결제가 완료됐어요`}
+          desc={got.length > 0 ? `쿠폰 ${got.length}장을 받았어요` : '이번 구매로 받은 쿠폰은 없어요'}
+        />
+        {got.length > 0 && (
+          <div className="grp">
+            {got.map((c) => (
+              <CouponCard key={c.id} coupon={c} />
+            ))}
+            <p className="cap center">구매한 {name} 쿠폰은 받지 않아요</p>
+          </div>
+        )}
+        {got.length > 1 && (
+          <div className="nb ok">
+            {got.length === 2 ? '두 쿠폰을' : `쿠폰 ${got.length}장을`} 모두 사용하면 최대 {won(max)} 할인받아요
+          </div>
+        )}
       </PhoneScreen>
     )
   }
 
-  // ----- ③ 상품 · 받을 쿠폰 미리보기 -----
+  // ----- C-03 상품 · 받을 쿠폰 미리보기 -----
   const n = preview.coupons.length
   return (
     <PhoneScreen
-      title={product.merchantName}
+      title={name}
       foot={
         <>
-          <span className="tiny center">{user ? '시연용 가상 결제 · 실제 결제 없음' : '결제하려면 로그인이 필요해요 · 로그인 후 이 화면으로 돌아와요'}</span>
-          <button className="pill lg p-forest full" onClick={handlePay}>
+          <span className="demo">{user ? '시연용 가상 결제예요. 실제 결제는 일어나지 않아요' : '결제하려면 로그인이 필요해요 · 로그인 후 이 화면으로 돌아와요'}</span>
+          <button className="btn" onClick={handlePay}>
             {won(product.price)} 결제하기
           </button>
         </>
       }
     >
-      <div className="product-visual" style={{ background: product.merchantColor }} aria-hidden="true">
-        <MerchantMark m={product} size="lg" />
+      <div className="shopimg" style={{ height: 150 }}>
+        상품 이미지
       </div>
       <div>
-        <span className="tiny">
-          {product.merchantName} · {product.merchantCategory}
+        <span className="cap">
+          {name} · {product.merchantCategory}
         </span>
-        <h2 className="title-lg">{product.name}</h2>
-        <div className="row-top">
-          <b className="price">{won(product.price)}</b>
-          {preview.campaignStatus === 'ACTIVE' && <span className="chip sm c-lime">연합 기획전 참여</span>}
+        <h2 style={{ fontSize: 19, fontWeight: 800, marginTop: 2 }}>{product.name}</h2>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+          <b className="ink" style={{ fontSize: 19, fontWeight: 900 }}>
+            {won(product.price)}
+          </b>
+          {preview.campaignStatus === 'ACTIVE' && <span className="chip">연합 기획전 참여</span>}
         </div>
       </div>
 
-      <section>
-        <div className="sec-h">
-          <h2>구매하면 받는 쿠폰 {n}장</h2>
-        </div>
-        {preview.campaignStatus !== 'ACTIVE' && <p className="notice">기획전이 아직 진행 중이 아니라 기획전 쿠폰은 받을 수 없어요.</p>}
-        {preview.skipped.length > 0 && <p className="notice">{preview.skipped.join(', ')} 쿠폰은 모두 소진됐어요. 쿠폰 없이 구매할 수 있어요.</p>}
-        <div className="stack">
-          {preview.coupons.map((c, i) => (
-            <CouponCard
-              key={i}
-              coupon={c}
-              caption={captionOf(c)}
-              sub={c.source === 'CAMPAIGN' ? `${c.discountType === 'RATE' ? `최대 ${won(c.maxDiscount)} · ` : ''}${won(c.minOrder)} 이상 · 받은 날부터 30일` : undefined}
-            />
-          ))}
-        </div>
+      <section className="grp">
+        <h3 className="h4">구매하면 받는 쿠폰 {n}장</h3>
+        {NOT_ACTIVE[preview.campaignStatus] && <p className="nb warn">{NOT_ACTIVE[preview.campaignStatus]}</p>}
+        {preview.missed.length > 0 && <p className="nb warn">{preview.missed.map((m) => m.merchantName).join(', ')} 쿠폰은 모두 소진됐어요. 쿠폰 없이 구매할 수 있어요.</p>}
+        {preview.coupons.map((c, i) => (
+          <CouponCard key={i} coupon={c} sub={subOf(c)} />
+        ))}
+        <p className="cap">구매한 {name} 쿠폰은 받지 않아요</p>
       </section>
     </PhoneScreen>
   )

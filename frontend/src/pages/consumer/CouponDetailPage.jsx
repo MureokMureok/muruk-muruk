@@ -3,40 +3,48 @@ import { Link, useParams } from 'react-router-dom'
 import { USE_CHECKS, calcDiscount, getCoupon, getProduct, redeemCoupon } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
-import MerchantMark from '../../components/MerchantMark.jsx'
+import Icon from '../../components/Icon.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
-import { won } from '../../utils/format.js'
+import { dDay, mdhm, mmdd, won } from '../../utils/format.js'
 
-// 오늘부터 유효기간까지 남은 날 (D-30)
-// 날짜끼리만 비교 (오늘 몇 시인지는 무시)
-function dDay(dateText) {
-  const today = new Date(new Date().toISOString().slice(0, 10))
-  return Math.max(0, Math.round((new Date(dateText) - today) / 86400000))
-}
-
-// "2026-11-01 14:02" → "11/01"
-const mmdd = (t) => (t ? t.slice(5, 10).replace('-', '/') : '')
-
-// 쿠폰 확인 결과 목록 (와이어프레임 ⑨-c): 항목마다 통과 / 거절
+// 쿠폰 확인 결과 5가지 (시연용 — 컨트랙트가 확인하는 항목을 보여줌): 항목마다 통과 / 거절
 function CheckList({ results, failedKey }) {
   return (
-    <section className="card">
-      <h3 className="h-sm">쿠폰 확인 결과</h3>
-      <div className="rows">
-        {USE_CHECKS.map((ch) => (
-          <div className="row" key={ch.key}>
-            <span>{ch.label}</span>
-            {failedKey === ch.key ? <span className="chip sm c-bad">거절</span> : results[ch.key] ? <span className="chip sm c-ok">통과</span> : <span className="chip sm c-gray">—</span>}
-          </div>
-        ))}
-      </div>
-    </section>
+    <div className="checklist">
+      <h3>쿠폰 확인 결과</h3>
+      {USE_CHECKS.map((ch) => (
+        <div key={ch.key}>
+          <span>{ch.label}</span>
+          {failedKey === ch.key ? <span className="chip r">거절</span> : results[ch.key] ? <span className="chip">통과</span> : <span className="chip g">—</span>}
+        </div>
+      ))}
+    </div>
   )
 }
 
-// ⑦ 쿠폰 상세 → ⑧ B 가게 결제(가상) → ⑨ 사용 결과 / 재사용 거절 (소비자 와이어프레임 v0)
+// 주문 금액 · 쿠폰 할인 · 결제 금액
+function Amounts({ amount, discount }) {
+  return (
+    <div>
+      <div className="line">
+        <span>주문 금액</span>
+        <span>{won(amount)}</span>
+      </div>
+      <div className="line c">
+        <span>쿠폰 할인</span>
+        <span>−{won(discount)}</span>
+      </div>
+      <div className="line t">
+        <span>결제 금액</span>
+        <span>{won(amount - discount)}</span>
+      </div>
+    </div>
+  )
+}
+
+// C-07 쿠폰 상세 → C-08 B가게 결제(가상) → C-09 사용 완료 / 사용 확인 중 / 재사용 거절 / 사용 실패 / 사용 불가 (목업 v3)
 function CouponScreen({ couponId }) {
   const user = getUser()
   const { data, reload } = useApi(async () => {
@@ -45,7 +53,7 @@ function CouponScreen({ couponId }) {
     return { coupon, product }
   }, [couponId])
 
-  // phase: detail(상세) → order(결제) → checking(확인 중) → done(사용 완료) / rejected(사용 불가)
+  // phase: detail(상세) → order(결제) → checking(확인 중) → done(사용 완료) / rejected(사용 못 함)
   const [phase, setPhase] = useState('detail')
   const [outcome, setOutcome] = useState(null)
   const busy = useRef(false) // 결제 버튼 연속 클릭 → 쿠폰 두 번 사용 시도 방지
@@ -57,7 +65,8 @@ function CouponScreen({ couponId }) {
     try {
       const r = await redeemCoupon(user.id, couponId, data.coupon.merchantId)
       setOutcome(r)
-      setPhase('done')
+      // 시연용 "사용 확인 중에서 멈춤"이면 확인 중 화면에 그대로 둔다 (처리는 끝났음 → 쿠폰함에서 사용 완료로 보임)
+      if (!r.pending) setPhase('done')
     } catch (err) {
       setOutcome(err)
       setPhase('rejected')
@@ -69,60 +78,74 @@ function CouponScreen({ couponId }) {
   if (!data) return <PhoneScreen title="쿠폰 상세" />
   const { coupon, product } = data
   if (!coupon) return <PhoneScreen title="쿠폰 상세">쿠폰을 찾을 수 없어요.</PhoneScreen>
+  const name = coupon.merchantName
 
-  // ----- 확인 중 (블록체인 단계는 보여주지 않음) -----
+  // ----- 쿠폰 사용 확인 중: 같은 쿠폰으로 다시 결제하지 않도록 -----
   if (phase === 'checking') {
     return (
-      <PhoneScreen title="사용 결과" back={false}>
-        <StatusView kind="wait" title="쿠폰 사용을 확인하고 있어요" desc="결제 결과와 쿠폰 사용 기록을 맞춰보는 중이에요" />
-        <p className="notice gray">이 화면을 닫아도 처리는 계속돼요. 결과는 쿠폰함에서 다시 확인할 수 있어요.</p>
+      <PhoneScreen
+        title="사용 결과"
+        back={false}
+        foot={
+          <Link className="btn" to="/coupons">
+            쿠폰함에서 상태 보기
+          </Link>
+        }
+      >
+        <StatusView
+          kind="wait"
+          title="쿠폰 사용을 확인하고 있어요"
+          desc={
+            <>
+              결제 결과와 쿠폰 사용 기록을
+              <br />
+              맞춰 보는 중이에요.
+              <br />
+              이 화면을 닫아도 처리는 계속돼요.
+            </>
+          }
+        >
+          <div className="nb warn">
+            <b>같은 쿠폰으로 다시 결제하지 마세요.</b>
+          </div>
+        </StatusView>
       </PhoneScreen>
     )
   }
 
-  // ----- ⑨ 사용 완료 -----
+  // ----- C-09 쿠폰 사용 완료 -----
   if (phase === 'done') {
-    const { order } = outcome
+    const { order, leftCoupons: left } = outcome
     return (
       <PhoneScreen
         title="사용 결과"
         back={false}
         foot={
           <>
-            <Link className="pill lg p-forest full" to="/coupons">
+            <Link className="btn" to="/coupons">
               쿠폰함으로
             </Link>
             {/* 시연 7장면: 같은 쿠폰을 다시 써 보면 거절 */}
-            <button className="pill lg p-ghost full" onClick={handleUse}>
+            <button className="btn g" onClick={handleUse}>
               같은 쿠폰 다시 써보기 (시연용)
             </button>
           </>
         }
       >
-        <StatusView kind="ok" sound="pay" title="쿠폰을 사용했어요" desc={`${coupon.merchantName} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
-        <CouponCard coupon={outcome.coupon} />
-        <span className="chip c-gray" style={{ justifySelf: 'center' }}>
-          사용 완료 · 다시 쓸 수 없어요
-        </span>
-        <div className="card rows">
-          <div className="row">
-            <span>할인</span>
-            <b>{won(order.discount)}</b>
-          </div>
-          <div className="row">
-            <span>결제</span>
-            <b>{won(order.paid)}</b>
-          </div>
-          <div className="row">
-            <span>할인 부담</span>
-            <b>{coupon.merchantName}</b>
-          </div>
-        </div>
+        <StatusView kind="ok" top sound="pay" title="쿠폰을 사용했어요" desc={`${name} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
+        <CouponCard coupon={outcome.coupon} sub="다시 쓸 수 없어요" />
+        <Amounts amount={order.amount} discount={order.discount} />
+        {left.length > 0 && (
+          <Link className="nb ok row" to="/coupons">
+            <span>{left.length === 1 ? `${left[0].merchantName} ${won(left[0].value)} 쿠폰이 1장 남아 있어요` : `사용할 수 있는 쿠폰이 ${left.length}장 남아 있어요`}</span>
+            <b>›</b>
+          </Link>
+        )}
       </PhoneScreen>
     )
   }
 
-  // ----- ⑨-d 사용 실패: 결제 승인 실패 (쿠폰은 그대로) -----
+  // ----- 쿠폰 사용 실패: 결제 승인 실패 (쿠폰은 그대로) -----
   if (phase === 'rejected' && outcome.code === 'PAYMENT_FAILED') {
     return (
       <PhoneScreen
@@ -130,37 +153,30 @@ function CouponScreen({ couponId }) {
         back={false}
         foot={
           <>
-            <button className="pill lg p-forest full" onClick={() => setPhase('order')}>
+            <button className="btn" onClick={() => setPhase('order')}>
               다시 결제하기
             </button>
-            <Link className="pill lg p-ghost full" to="/coupons">
+            <Link className="btn g" to="/coupons">
               쿠폰함으로
             </Link>
           </>
         }
       >
-        <StatusView kind="warn" sound="fail" title="쿠폰을 사용하지 못했어요" desc="결제 승인이 되지 않았어요" />
-        <div className="card rows">
-          <div className="row">
-            <span>쿠폰</span>
-            <b>
-              {coupon.merchantName} {coupon.discountType === 'RATE' ? `${coupon.value}%` : won(coupon.value)}
-            </b>
+        <StatusView kind="warn" sound="fail" title="쿠폰을 사용하지 못했어요" desc="결제가 승인되지 않았어요.">
+          <div className="nb ok">
+            <div>
+              <b>쿠폰은 그대로 남아 있어요</b>
+              <br />
+              다시 결제할 때 그대로 사용할 수 있어요
+            </div>
           </div>
-          <div className="row">
-            <span>쿠폰 상태</span>
-            <b>그대로 남아 있어요</b>
-          </div>
-          <div className="row">
-            <span>사유</span>
-            <b>결제 승인 실패 (시연용)</b>
-          </div>
-        </div>
+          <CouponCard coupon={coupon} />
+        </StatusView>
       </PhoneScreen>
     )
   }
 
-  // ----- ⑨-c 재사용 거절 / ⑦-b 사용 불가 -----
+  // ----- 쿠폰 재사용 거절 / 사용 불가 -----
   if (phase === 'rejected') {
     const reused = outcome.code === 'COUPON_ALREADY_USED'
     return (
@@ -169,10 +185,10 @@ function CouponScreen({ couponId }) {
         back={false}
         foot={
           <>
-            <Link className="pill lg p-forest full" to="/coupons">
+            <Link className="btn" to="/coupons">
               쿠폰함으로
             </Link>
-            <Link className="pill lg p-ghost full" to={`/coupons/${couponId}/history`}>
+            <Link className="btn g" to={`/coupons/${couponId}/history`}>
               발급·사용 기록 보기
             </Link>
           </>
@@ -182,15 +198,27 @@ function CouponScreen({ couponId }) {
           kind="bad"
           sound="fail"
           title={reused ? '이미 사용한 쿠폰이에요' : '쓸 수 없는 쿠폰이에요'}
-          desc={`${reused ? `${mmdd(outcome.usedAt)} ${outcome.merchantName}에서 사용한 쿠폰이라 쓸 수 없어요.` : outcome.message} 결제는 진행되지 않았어요.`}
-        />
-        <CouponCard coupon={{ ...coupon, status: 'USED' }} />
-        <CheckList results={outcome.checks} failedKey={outcome.failedKey} />
+          desc={
+            reused ? (
+              <>
+                {mdhm(outcome.usedAt)} {outcome.merchantName}에서 사용된 쿠폰이라
+                <br />
+                쓸 수 없어요. 결제는 진행되지 않았어요.
+              </>
+            ) : (
+              `${outcome.message} 결제는 진행되지 않았어요.`
+            )
+          }
+        >
+          <CouponCard coupon={{ ...coupon, status: 'USED' }} />
+          {/* 시연용: 5가지 확인 중 어디서 막혔는지 */}
+          <CheckList results={outcome.checks} failedKey={outcome.failedKey} />
+        </StatusView>
       </PhoneScreen>
     )
   }
 
-  // ----- ⑧ B 가게 결제 (가상) -----
+  // ----- C-08 B가게 결제 (가상) -----
   if (phase === 'order') {
     const discount = calcDiscount(coupon, product.price)
     const enough = product.price >= coupon.minOrder
@@ -198,150 +226,136 @@ function CouponScreen({ couponId }) {
       <PhoneScreen
         title="주문 결제"
         foot={
-          <button className="pill lg p-forest full" disabled={!enough} onClick={handleUse}>
-            {won(product.price - discount)} 결제하기
-          </button>
+          <>
+            <span className="demo">시연용 가상 결제예요. 실제 결제는 일어나지 않아요</span>
+            <button className="btn" disabled={!enough} onClick={handleUse}>
+              {won(product.price - discount)} 결제하기
+            </button>
+          </>
         }
       >
-        <div className="hstack">
-          <MerchantMark m={product} size="sm" />
-          <div>
-            <b className="ink">{product.merchantName}</b>
-            <span className="tiny" style={{ display: 'block' }}>
-              참여 가게 · 시연용 주문
+        <div className="grp">
+          <div className="who">
+            <span className="avatar s">{coupon.merchantShort}</span>
+            <div>
+              <b>{name}</b>
+              <br />
+              <span className="cap">참여 가게</span>
+            </div>
+          </div>
+          <div className="line">
+            <span>
+              {product.name} <span className="cap">수량 1</span>
             </span>
+            <b>{won(product.price)}</b>
           </div>
         </div>
-        <div className="card product">
-          <span className="thumb" style={{ background: product.merchantColor }} aria-hidden="true" />
-          <div className="grow">
-            <b className="ink">{product.name}</b>
-            <span className="tiny" style={{ display: 'block' }}>
-              수량 1
-            </span>
-          </div>
-          <b className="ink">{won(product.price)}</b>
-        </div>
-        <div className="card">
-          <div className="row-top">
-            <b className="ink">쿠폰</b>
-            <span className="tiny" title="쿠폰 고르기는 준비 중이에요">
+        <div className="grp">
+          <div className="sec-h">
+            <h2 className="sm">쿠폰</h2>
+            <span className="link" title="쿠폰 고르기는 준비 중이에요">
               변경
             </span>
           </div>
-          <div className="applied">
-            ✓ {coupon.merchantName} {coupon.discountType === 'RATE' ? `${coupon.value}%` : won(coupon.value)} 할인 적용
+          <div className="nb ok row">
+            <span>
+              {name} {won(coupon.value)} 할인 적용
+            </span>
+            <Icon name="check" size={18} />
           </div>
         </div>
-        <div className="card rows">
-          <div className="row">
-            <span>주문 금액</span>
-            <b>{won(product.price)}</b>
-          </div>
-          <div className="row">
-            <span>쿠폰 할인</span>
-            <b>−{won(discount)}</b>
-          </div>
-          <div className="row total">
-            <span>결제 금액</span>
-            <b>{won(product.price - discount)}</b>
-          </div>
-        </div>
-        {!enough && <p className="notice bad">최소 주문 금액 {won(coupon.minOrder)} 이상이어야 쿠폰을 쓸 수 있어요.</p>}
-        <p className="notice gray">시연용 가상 결제예요 · 쿠폰 사용 처리는 실제로 기록돼요</p>
+        <Amounts amount={product.price} discount={discount} />
+        {!enough && <p className="nb err">{won(coupon.minOrder)} 이상부터 쓸 수 있어요</p>}
+        <div className="nb warn">결제 후 쿠폰이 바로 사용 처리돼요</div>
       </PhoneScreen>
     )
   }
 
-  // ----- ⑦ 쿠폰 상세 -----
+  // ----- C-07 쿠폰 상세 / 사용 불가 쿠폰(만료) -----
   const usable = coupon.status === 'AVAILABLE'
+  const expired = coupon.status === 'EXPIRED'
   return (
     <PhoneScreen
       title="쿠폰 상세"
       foot={
         usable ? (
-          <button className="pill lg p-forest full" onClick={() => setPhase('order')}>
-            {coupon.merchantName}에서 사용하기
+          <button className="btn y" onClick={() => setPhase('order')}>
+            {name}에서 사용하기
           </button>
         ) : coupon.status === 'USED' ? (
           // 시연용: 이미 쓴 쿠폰을 다시 써서 거절 장면 보여주기
-          <button className="pill lg p-ghost full" onClick={handleUse}>
+          <button className="btn g" onClick={handleUse}>
             같은 쿠폰 다시 써보기 (시연용)
           </button>
         ) : (
-          <button className="pill lg p-forest full" disabled>
+          <button className="btn d" disabled>
             사용할 수 없는 쿠폰
           </button>
         )
       }
     >
-      {coupon.status === 'EXPIRED' && (
-        <p className="notice bad">
-          지금 쓸 수 없는 쿠폰이에요 · 유효기간이 지났어요 ({mmdd(coupon.expiresAt)} 만료)
-        </p>
-      )}
-      <CouponCard coupon={coupon} />
-      <div className="hstack">
-        <MerchantMark m={coupon} size="sm" />
-        <div>
-          <b className="ink">
-            {coupon.merchantName} · {coupon.merchantCategory}
-          </b>
-          <span className="tiny" style={{ display: 'block' }}>
-            {coupon.source === 'CAMPAIGN' ? coupon.title : '가게 쿠폰'}
-          </span>
-        </div>
-      </div>
-      <div className="card rows">
-        <div className="row">
-          <span>할인</span>
-          <b>{coupon.discountType === 'RATE' ? `${coupon.value}% (최대 ${won(coupon.maxDiscount)})` : won(coupon.value)}</b>
-        </div>
-        <div className="row">
-          <span>최소 주문</span>
-          <b>{won(coupon.minOrder)} 이상</b>
-        </div>
-        <div className="row">
-          <span>유효기간</span>
-          <b>
-            {mmdd(coupon.expiresAt)}까지{usable ? ` (D-${dDay(coupon.expiresAt)})` : ''}
-          </b>
-        </div>
-        <div className="row">
-          <span>사용처</span>
-          <b>{coupon.merchantName}</b>
-        </div>
-        <div className="row">
-          <span>사용 횟수</span>
-          <b>1회</b>
-        </div>
-        <div className="row">
-          <span>받은 경로</span>
-          <b>
-            {coupon.fromMerchantName} 구매 · {mmdd(coupon.issuedAt)}
-          </b>
-        </div>
-        {coupon.status === 'USED' && (
-          <div className="row">
-            <span>상태</span>
-            <b>사용 완료 · 다시 쓸 수 없어요</b>
+      {expired && (
+        <div className="nb err">
+          <div>
+            <b>지금 쓸 수 없는 쿠폰이에요</b>
+            <br />
+            유효기간이 지났어요 ({mmdd(coupon.expiresAt)} 만료)
           </div>
+        </div>
+      )}
+      <CouponCard coupon={coupon} large={!expired} />
+      {!expired && (
+        <div className="who">
+          <span className="avatar s">{coupon.merchantShort}</span>
+          <div>
+            <b>
+              {name} · {coupon.merchantCategory}
+            </b>
+            <br />
+            <span className="cap">{coupon.title}</span>
+          </div>
+        </div>
+      )}
+      <dl className="kv">
+        <dt>할인</dt>
+        <dd>{won(coupon.value)}</dd>
+        <dt>최소 주문</dt>
+        <dd>{won(coupon.minOrder)} 이상</dd>
+        <dt>유효기간</dt>
+        <dd>{expired ? `${mmdd(coupon.expiresAt)} 만료` : `${mmdd(coupon.expiresAt)}까지${usable ? ` (D-${dDay(coupon.expiresAt)})` : ''}`}</dd>
+        <dt>사용처</dt>
+        <dd>{name}</dd>
+        {!expired && (
+          <>
+            <dt>사용 횟수</dt>
+            <dd>1회</dd>
+            <dt>받은 경로</dt>
+            <dd>
+              {coupon.fromMerchantName} 구매 · {mmdd(coupon.issuedAt)}
+            </dd>
+          </>
         )}
-      </div>
-
-      <details className="card notes">
-        <summary>유의사항 보기</summary>
-        <ul>
-          <li>쿠폰은 현금으로 바꾸거나 나눠 쓸 수 없어요.</li>
-          <li>{coupon.merchantName}에서 {won(coupon.minOrder)} 이상 주문할 때 쓸 수 있어요.</li>
-        </ul>
-      </details>
-
-      {/* 지갑 주소 대신 '기록 확인' 링크만 (가정 G5) */}
-      <Link className="card link-row" to={`/coupons/${couponId}/history`}>
-        <span>발급·사용 기록 확인</span>
-        <span aria-hidden="true">›</span>
-      </Link>
+      </dl>
+      {!expired && (
+        <>
+          <details className="nb">
+            <summary>
+              유의사항 보기 <span>⌄</span>
+            </summary>
+            <ul>
+              {/* 인수인계 문서 [확정]: 현금화·분할 사용 불가 */}
+              <li>쿠폰은 현금으로 바꾸거나 나눠 쓸 수 없어요.</li>
+              <li>
+                {name}에서 {won(coupon.minOrder)} 이상 주문할 때 쓸 수 있어요.
+              </li>
+            </ul>
+          </details>
+          {/* 지갑 주소 대신 '기록 확인' 링크만 */}
+          <Link className="nb row" to={`/coupons/${couponId}/history`}>
+            발급·사용 기록 확인<span>›</span>
+          </Link>
+        </>
+      )}
     </PhoneScreen>
   )
 }
