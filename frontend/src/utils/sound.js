@@ -1,6 +1,6 @@
 // 효과음 — 소리 파일 없이 브라우저가 직접 소리를 만들어 낸다 (Web Audio API)
 // 사용: playSound('issue') / playSound('pay') / playSound('fail')
-// public/sounds/issue.mp3 같은 파일이 있으면 그 소리를, 없으면 아래 합성음을 낸다
+// (소리 파일 바꿔 끼우기는 뺐다 — 라이선스 걱정 없이 모두 같은 합성음, 2026-11-03)
 // - issue: 쿠폰 발급 성공 (밝게 올라가는 3음)
 // - pay:   결제·쿠폰 사용 성공 ("띵동" 2음)
 // - fail:  발급 실패·결제 실패·사용 거절 (낮게 내려가는 2음)
@@ -19,20 +19,9 @@ const SOUNDS = {
 
 let ctx = null // 소리 장치 (처음 쓸 때 한 번만 만든다)
 
-// 소리 파일로 바꿔 끼우기: frontend/public/sounds/<종류>.mp3 파일이 있으면 그 파일을 재생
-// (예: public/sounds/issue.mp3) — 없으면 아래 합성음을 낸다.
-// ※ 라이선스가 불분명한 소리 파일은 팀 저장소에 올리지 말 것 (내 PC에서만 쓰려면 .git/info/exclude에 등록)
 export function playSound(type) {
-  if (!SOUNDS[type]) return
-  const audio = new Audio(`/sounds/${type}.mp3`)
-  audio.volume = 0.8
-  // 파일이 없거나 재생 못 하면 합성음으로 대신
-  audio.play().catch(() => playSynth(type))
-}
-
-// 합성음 재생 (소리 파일이 없을 때)
-function playSynth(type) {
   const sound = SOUNDS[type]
+  if (!sound) return
   try {
     // 브라우저 정책상 사용자가 화면을 한 번이라도 누른 뒤에만 소리가 난다 (결제 버튼 클릭 등)
     ctx = ctx || new (window.AudioContext || window.webkitAudioContext)()
