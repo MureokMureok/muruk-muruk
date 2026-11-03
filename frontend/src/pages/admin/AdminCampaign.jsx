@@ -1,105 +1,269 @@
 import { useState } from 'react'
-import { benefitText, decideCampaign, getAdminCampaign } from '../../api/api.js'
-import ChainProgress from '../../components/ChainProgress.jsx'
-import { runWithSteps } from '../../utils/runWithSteps.js'
-import MerchantMark from '../../components/MerchantMark.jsx'
+import { createCampaign, getAdminCampaigns, getApprovedMerchants, setCampaignStatus } from '../../api/api.js'
 import { useApi } from '../../hooks/useApi.js'
-import { md, won } from '../../utils/format.js'
-import { CAMPAIGN_STATUS } from '../../utils/labels.js'
+import { CAMPAIGN_STATUS, nearLimit } from '../../utils/labels.js'
+import { period } from '../../utils/format.js'
 
-const STEPS = ['관리자 서명', '거래 전송', '블록 확정']
+// 새 기획전 만들기 (승인된 가게 중 2곳 이상)
+function CreateForm({ onDone, onCancel }) {
+  const { data: merchants } = useApi(() => getApprovedMerchants(), [])
+  const [form, setForm] = useState({ title: '', startDate: '', endDate: '', merchantIds: [] })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
-// 체크 항목 한 줄
-function CheckRow({ ok, label, okText = '확인', badText = '미충족' }) {
+  const toggle = (id) => setForm({ ...form, merchantIds: form.merchantIds.includes(id) ? form.merchantIds.filter((x) => x !== id) : [...form.merchantIds, id] })
+
+  async function handleCreate() {
+    setBusy(true)
+    setError('')
+    try {
+      const c = await createCampaign(form)
+      onDone(c.id)
+    } catch (err) {
+      setError(err.message)
+    }
+    setBusy(false)
+  }
+
   return (
-    <div className="row">
-      <span>{label}</span>
-      {ok ? <span className="sig">✓ {okText}</span> : <span className="chip sm c-wait">{badText}</span>}
-    </div>
+    <section className="card">
+      <h2>새 기획전 만들기</h2>
+      <div className="field">
+        <div className="lb">기획전 이름</div>
+        <div className="inp">
+          <input value={form.title} placeholder="예: 연말 꽃·과일 기획전" onChange={(e) => setForm({ ...form, title: e.target.value })} />
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="field">
+          <div className="lb">시작일</div>
+          <div className="inp">
+            <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
+          </div>
+        </div>
+        <div className="field">
+          <div className="lb">종료일</div>
+          <div className="inp">
+            <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+          </div>
+        </div>
+      </div>
+      <div className="field">
+        <div className="lb">참여 가게 (승인된 가게)</div>
+        <div className="choice">
+          {merchants?.map((m) => (
+            <button key={m.id} className={form.merchantIds.includes(m.id) ? 'on' : ''} onClick={() => toggle(m.id)}>
+              {m.name}
+            </button>
+          ))}
+        </div>
+        <p className="help">만든 뒤 각 가게가 가맹점 센터에서 쿠폰 조건을 등록해요</p>
+      </div>
+      {error && <p className="nb err">{error}</p>}
+      <div className="btns">
+        <button className="btn" disabled={busy} onClick={handleCreate}>
+          {busy ? '기록하는 중…' : '만들기'}
+        </button>
+        <button className="btn g" onClick={onCancel}>
+          취소
+        </button>
+      </div>
+    </section>
   )
 }
 
-// 기획전 승인·반려 (목업 a-console.html의 campaigns). KCP는 규칙을 못 바꾸고 승인·반려만
+// K2 연합 기획전 관리 (목업 v3 KCP 관리자)
+// 기획전을 만들고, 참여 가게의 쿠폰 조건이 모두 등록되면 시작을 승인한다. 진행 중에는 일시 중지·종료
 function AdminCampaign() {
-  const { data: c, reload } = useApi(() => getAdminCampaign(), [])
-  const [running, setRunning] = useState(false)
-  const [step, setStep] = useState(0)
+  const { data: list, reload } = useApi(() => getAdminCampaigns(), [])
+  const [selId, setSelId] = useState(null)
+  const [creating, setCreating] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  if (!list) return null
 
-  if (!c) return null
-  const signed = c.terms.filter((t) => t.signed).length
-  const allSigned = signed === c.terms.length
-  const allWhitelisted = c.terms.every((t) => t.whitelisted)
-  const locked = c.status !== 'SIGNING'
+  const c = list.find((x) => x.id === selId) ?? list[0]
   const st = CAMPAIGN_STATUS[c.status]
+  const registered = c.terms.filter((t) => t.registered).length
+  const near = c.terms.filter(nearLimit)
 
-  async function decide(approve) {
-    if (!approve && !window.confirm('기획전을 반려할까요? (시연 데이터 초기화 전까지 되돌릴 수 없어요)')) return
-    setRunning(true)
-    await runWithSteps(() => decideCampaign(approve), STEPS.length, setStep)
-    await reload()
+  // 손님 흐름에서 가장 많은 칸
+  let top = null
+  c.flow.forEach((row) =>
+    row.cells.forEach((n, i) => {
+      if (n && (!top || n > top.n)) top = { from: row.name, to: c.flow[i].name, n, r: row.merchantId, i }
+    }),
+  )
+
+  async function handleStatus(next, confirmText) {
+    if (confirmText && !window.confirm(confirmText)) return
+    setBusy(true)
+    setError('')
+    try {
+      await setCampaignStatus(c.id, next)
+      reload()
+    } catch (err) {
+      setError(err.message)
+    }
+    setBusy(false)
   }
 
   return (
     <>
-      <header className="page-h">
-        <span className="cap">KCP 관리자 · 운영 컨펌</span>
-        <h1>기획전 승인</h1>
-        <p className="subtle">가맹점 서명과 예산을 확인하고 승인·반려만 해요.</p>
-      </header>
+      <div className="ph1">
+        <div className="tt">
+          <h1>연합 기획전 관리</h1>
+          <p>기획전을 만들고, 참여 가게의 쿠폰 조건이 모두 등록되면 시작을 승인해요</p>
+        </div>
+        {!creating && (
+          <button className="btn" onClick={() => setCreating(true)}>
+            새 기획전 만들기
+          </button>
+        )}
+      </div>
 
-      <div className="cols">
-        <section className="panel">
-          <div className="panel-h">
-            <div>
-              <h2>{c.title}</h2>
-              <span className="tiny">
-                {md(c.startDate)}–{md(c.endDate)} · 참여 가게 {c.terms.length}곳
-              </span>
-            </div>
-            <span className={`chip ${st.cls}`}>{st.label}</span>
-          </div>
-          <div className="rows">
-            <CheckRow ok={allSigned} label={`참여 가게 서명 ${signed}/${c.terms.length}`} okText="모두 서명 완료" badText="서명 대기" />
-            <CheckRow ok={allWhitelisted} label="참여 가게 모두 화이트리스트" />
-            <CheckRow ok={allSigned} label="충전금 확보" badText="서명 후 확보" />
-            <CheckRow ok={locked} label="규칙 잠금" okText="온체인" badText="잠금 전" />
-          </div>
+      {creating && (
+        <CreateForm
+          onCancel={() => setCreating(false)}
+          onDone={(id) => {
+            setCreating(false)
+            setSelId(id)
+            reload()
+          }}
+        />
+      )}
 
-          {c.status === 'PENDING_APPROVAL' && !running && (
-            <div className="hstack" style={{ marginTop: 16 }}>
-              <button className="pill p-forest" onClick={() => decide(true)}>
-                승인
-              </button>
-              <button className="pill p-danger" onClick={() => decide(false)}>
-                반려
-              </button>
+      <div className="split">
+        <div className="col">
+          <section className="card">
+            <h2>기획전</h2>
+            <div className="tbl">
+              <table>
+                <thead>
+                  <tr>
+                    <th>기획전</th>
+                    <th>기간</th>
+                    <th className="num">참여 가게</th>
+                    <th className="num">조건 등록</th>
+                    <th>상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((x) => (
+                    <tr key={x.id} className={`click ${x.id === c.id ? 'sel' : ''}`} onClick={() => setSelId(x.id)}>
+                      <td>
+                        <b>{x.title}</b>
+                      </td>
+                      <td>{period(x)}</td>
+                      <td className="num">{x.terms.length}곳</td>
+                      <td className="num">
+                        {x.terms.filter((t) => t.registered).length} / {x.terms.length}
+                      </td>
+                      <td>
+                        <span className={`chip ${CAMPAIGN_STATUS[x.status].tone}`}>{CAMPAIGN_STATUS[x.status].label}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-          {c.status === 'SIGNING' && <p className="notice" style={{ marginTop: 16 }}>모든 참여 가게가 서명해야 승인할 수 있어요.</p>}
-          {running && (
-            <div className="chain-box" style={{ marginTop: 16 }}>
-              <ChainProgress steps={STEPS} step={step} />
+          </section>
+
+          <section className="card">
+            <h2>가게 간 손님 흐름</h2>
+            <div className="tbl">
+              <table>
+                <thead>
+                  <tr>
+                    <th>보낸 가게 \ 받은 가게</th>
+                    {c.flow.map((r) => (
+                      <th key={r.merchantId} className="num">
+                        {r.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {c.flow.map((row) => (
+                    <tr key={row.merchantId}>
+                      <td>
+                        <b>{row.name}</b>
+                      </td>
+                      {row.cells.map((n, i) =>
+                        n === null ? (
+                          <td key={i} className="self" />
+                        ) : (
+                          <td key={i} className="num">
+                            {top && top.r === row.merchantId && top.i === i ? <span className="chip">{n}</span> : n}
+                          </td>
+                        ),
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+            <p className="muted" style={{ fontSize: 13 }}>
+              {top ? `${top.from}에서 ${top.to}로 가는 흐름이 가장 많아요. 다음 기획전 조합에 참고하세요` : '아직 쿠폰 사용 기록이 없어요'} (숫자 = 보낸 가게 구매로 받은 쿠폰을 받은 가게에서 실제로 쓴 수)
+            </p>
+          </section>
+        </div>
+
+        <section className="card">
+          <div className="hd">
+            <h2>{c.title}</h2>
+            <span className={`chip ${st.tone}`}>{st.label}</span>
+          </div>
+          <dl className="kv">
+            <dt>기간</dt>
+            <dd>{period(c)}</dd>
+            <dt>연결 규칙</dt>
+            <dd>한 곳 구매하면 나머지 쿠폰</dd>
+            <dt>참여 가게</dt>
+            <dd>{c.terms.map((t) => t.merchantName).join(', ')}</dd>
+            <dt>쿠폰 조건</dt>
+            <dd>
+              {registered} / {c.terms.length} 등록 {registered === c.terms.length ? <span className="chip">완료</span> : <span className="chip y">대기</span>}
+            </dd>
+            <dt>한도 임박</dt>
+            <dd>
+              {near.length > 0 ? (
+                <>
+                  {near.map((t) => `${t.merchantName} (${t.issued}/${t.qtyTotal})`).join(', ')} <span className="chip y">임박</span>
+                </>
+              ) : (
+                '없음'
+              )}
+            </dd>
+          </dl>
+          {error && <p className="nb err">{error}</p>}
+          {c.status === 'PREPARING' && (
+            <>
+              {registered < c.terms.length && <p className="nb warn">조건을 등록하지 않은 가게: {c.terms.filter((t) => !t.registered).map((t) => t.merchantName).join(', ')}</p>}
+              <button className="btn blk" disabled={busy || registered < c.terms.length} onClick={() => handleStatus('ACTIVE')}>
+                {busy ? '기록하는 중…' : '시작 승인하기'}
+              </button>
+            </>
           )}
-          <p className="tiny" style={{ marginTop: 12 }}>
-            KCP는 승인·반려만 할 수 있어요. 잠긴 규칙(할인율·충전금)은 바꿀 수 없어요.
+          {c.status === 'ACTIVE' && (
+            <button className="btn g blk" disabled={busy} onClick={() => handleStatus('PAUSED')}>
+              일시 중지
+            </button>
+          )}
+          {c.status === 'PAUSED' && (
+            <button className="btn blk" disabled={busy} onClick={() => handleStatus('ACTIVE')}>
+              다시 진행
+            </button>
+          )}
+          {(c.status === 'ACTIVE' || c.status === 'PAUSED') && (
+            <button className="btn r blk" disabled={busy} onClick={() => handleStatus('ENDED', `${c.title}을(를) 종료할까요? 종료하면 다시 진행할 수 없어요.`)}>
+              종료하기
+            </button>
+          )}
+          {c.status === 'ENDED' && <p className="nb">종료된 기획전이에요. 이미 받은 쿠폰은 유효기간까지 쓸 수 있어요.</p>}
+          <p className="muted" style={{ fontSize: 12.5 }}>
+            KCP가 바꿀 수 있는 범위는 회의에서 정해요
           </p>
-        </section>
-
-        <section className="panel">
-          <h2 className="h-sm">가게별 잠긴 조건</h2>
-          {c.terms.map((t) => (
-            <div className="lrow" key={t.merchantId}>
-              <MerchantMark m={t} size="sm" />
-              <div className="meta grow">
-                <b>{t.merchantName}</b>
-                <span className="tiny">
-                  {benefitText(t)} · 충전금 {won(t.fund)}
-                </span>
-              </div>
-              {t.signed ? <span className="sig">✓</span> : <span className="chip sm c-wait">서명 전</span>}
-            </div>
-          ))}
         </section>
       </div>
     </>

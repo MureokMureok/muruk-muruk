@@ -1,70 +1,112 @@
 import { useState } from 'react'
-import { getMerchants, whitelistMerchant } from '../../api/api.js'
-import AuthScope from '../../components/AuthScope.jsx'
-import MerchantMark from '../../components/MerchantMark.jsx'
+import { getMerchants, reviewMerchant } from '../../api/api.js'
 import { useApi } from '../../hooks/useApi.js'
-import { won } from '../../utils/format.js'
+import { MERCHANT_STATUS } from '../../utils/labels.js'
+import { mmdd } from '../../utils/format.js'
 
-// 가맹점 등록: 신청 확인 → 지갑 화이트리스트 (목업 a-console.html의 merchants)
+// 타깃 카테고리: 농수산물·꽃 (인수인계 5절 [확정])
+const TARGET = ['꽃·식물', '제철 과일', '농산물', '수산·반찬']
+
+// K1 가맹점 심사 (목업 v3 KCP 관리자) — 예전 "가맹점 등록(화이트리스트)" 대신
+// 승인된 가게만 연합 기획전에 참여하고 쿠폰 조건을 등록할 수 있다
 function AdminMerchants() {
-  const { data: merchants, reload } = useApi(() => getMerchants(), [])
-  const [busy, setBusy] = useState(null) // 처리 중인 가맹점 id
+  const { data: list, reload } = useApi(() => getMerchants(), [])
+  const [selId, setSelId] = useState(null)
+  const [busy, setBusy] = useState(false)
+  if (!list) return null
 
-  async function handleWhitelist(id) {
-    setBusy(id)
-    await whitelistMerchant(id)
-    setBusy(null)
+  // 기본 선택: 심사 대기 중인 첫 가게
+  const m = list.find((x) => x.id === selId) ?? list.find((x) => x.status === 'APPLIED') ?? list[0]
+  const waiting = list.filter((x) => x.status === 'APPLIED').length
+
+  async function handleReview(approve) {
+    if (!approve && !window.confirm(`${m.name}의 참여 신청을 반려할까요?`)) return
+    setBusy(true)
+    await reviewMerchant(m.id, approve)
+    setBusy(false)
     reload()
   }
 
   return (
     <>
-      <header className="page-h">
-        <span className="cap">KCP 관리자 · 가맹점 온보딩</span>
-        <h1>가맹점 등록</h1>
-        <p className="subtle">확인 → 화이트리스트 → 입금 → 한도 등록</p>
-      </header>
-      <AuthScope />
-      <section className="panel">
-        <div className="panel-h">
-          <h2>가맹점</h2>
-          <span className="tiny">{merchants?.length ?? 0}곳</span>
+      <div className="ph1">
+        <div className="tt">
+          <h1>가맹점 심사</h1>
+          <p>승인된 가게만 연합 기획전에 참여하고 쿠폰 조건을 등록할 수 있어요</p>
         </div>
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>가맹점</th>
-              <th>업종</th>
-              <th>신청일</th>
-              <th>발행 한도</th>
-              <th>상태</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(merchants || []).map((m) => (
-              <tr key={m.id}>
-                <td>
-                  <span className="hstack">
-                    <MerchantMark m={m} size="sm" /> {m.name}
-                  </span>
-                </td>
-                <td>{m.category}</td>
-                <td>{m.appliedAt}</td>
-                <td>{m.limit ? won(m.limit) : '—'}</td>
-                <td>{m.status === 'WHITELISTED' ? <span className="chip sm c-ok">화이트리스트 등록됨</span> : <span className="chip sm c-wait">확인 대기</span>}</td>
-                <td className="right">
-                  {m.status !== 'WHITELISTED' && (
-                    <button className="pill xs p-forest" disabled={busy === m.id} onClick={() => handleWhitelist(m.id)}>
-                      {busy === m.id ? '등록 중…' : '확인 · 화이트리스트 등록'}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      </div>
+      <div className="split">
+        <section className="card">
+          <div className="hd">
+            <h2>참여 신청</h2>
+            <span className="chip g">
+              {list.length}건 · 심사 대기 {waiting}건
+            </span>
+          </div>
+          <div className="tbl">
+            <table>
+              <thead>
+                <tr>
+                  <th>가게</th>
+                  <th>업종</th>
+                  <th>신청일</th>
+                  <th>KCP 결제</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((x) => (
+                  <tr key={x.id} className={`click ${x.id === m.id ? 'sel' : ''}`} onClick={() => setSelId(x.id)}>
+                    <td>
+                      <b>{x.name}</b>
+                    </td>
+                    <td>{x.category}</td>
+                    <td>{mmdd(x.appliedAt)}</td>
+                    <td className={x.kcpPay ? '' : 'muted'}>{x.kcpPay ? '사용 중' : '미사용'}</td>
+                    <td>
+                      <span className={`chip ${MERCHANT_STATUS[x.status].tone}`}>{MERCHANT_STATUS[x.status].label}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="hd">
+            <h2>{m.name}</h2>
+            <span className={`chip ${MERCHANT_STATUS[m.status].tone}`}>{MERCHANT_STATUS[m.status].label}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span className="chip g">{m.category}</span>
+            {TARGET.includes(m.category) && <span className="chip dk">타깃 카테고리</span>}
+          </div>
+          <dl className="kv">
+            <dt>사업자 확인</dt>
+            <dd>{m.bizChecked ? '완료' : '확인 전'}</dd>
+            <dt>판매 채널</dt>
+            <dd>{m.channel}</dd>
+            <dt>KCP 결제</dt>
+            <dd>{m.kcpPay ? '사용 중' : '미사용'}</dd>
+            <dt>월 거래 규모</dt>
+            <dd>{m.scale} (예시)</dd>
+          </dl>
+          {m.status === 'APPLIED' ? (
+            <>
+              <div className="nb ok">승인하면 쿠폰을 등록할 수 있는 가게 목록에 추가돼요</div>
+              <button className="btn blk" disabled={busy} onClick={() => handleReview(true)}>
+                {busy ? '기록하는 중…' : '승인하기'}
+              </button>
+              <button className="btn r blk" disabled={busy} onClick={() => handleReview(false)}>
+                반려하기
+              </button>
+            </>
+          ) : (
+            <div className="nb">{m.status === 'APPROVED' ? '승인된 가게예요. 새 연합 기획전에 참여 가게로 넣을 수 있어요.' : '반려된 가게예요.'}</div>
+          )}
+        </section>
+      </div>
     </>
   )
 }
