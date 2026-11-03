@@ -6,7 +6,7 @@ import TabBar from '../../components/TabBar.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { period, won } from '../../utils/format.js'
 
-// 카테고리 (목업 C-01). 11/8 시연 범위 밖이라 지금은 눌러지지 않는 표시만
+// 카테고리 (목업 C-01). 누르면 그 말로 검색
 const CATEGORIES = ['꽃·식물', '제철 과일', '수산물', '농산물', '반찬']
 
 // 기획전이 진행 중이 아닐 때 배너에 붙이는 표시
@@ -22,11 +22,11 @@ function ConsumerHome() {
     <div className="phone-app">
       <main className="ct large-top" style={{ gap: 20 }}>
         <img className="logo" src="/logo.png" alt="무럭무럭" />
-        {/* 검색은 시연 범위 밖이라 비활성 */}
-        <label className="search" title="검색은 준비 중이에요">
+        {/* 누르면 검색 화면으로 (쇼핑 앱처럼 검색은 따로 된 화면에서) */}
+        <Link className="search" to="/search">
           <Icon name="search" size={18} />
-          <input placeholder="가게·상품 검색" disabled />
-        </label>
+          <span>가게·상품 검색</span>
+        </Link>
 
         {campaign && (
           <>
@@ -73,9 +73,9 @@ function ConsumerHome() {
               </div>
               <div className="chs">
                 {CATEGORIES.map((c) => (
-                  <span key={c} aria-disabled="true">
+                  <Link key={c} to={`/search?q=${encodeURIComponent(c)}`}>
                     {c}
-                  </span>
+                  </Link>
                 ))}
               </div>
             </section>

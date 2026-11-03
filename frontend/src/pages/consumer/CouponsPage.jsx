@@ -64,7 +64,7 @@ function CouponsPage() {
           <select className="sort" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="정렬">
             {Object.entries(SORTS).map(([k, s]) => (
               <option key={k} value={k}>
-                {s.label} ⌄
+                {s.label}
               </option>
             ))}
           </select>

@@ -10,6 +10,7 @@ import CouponHistoryPage from '../pages/consumer/CouponHistoryPage.jsx'
 import CouponOfferPage from '../pages/consumer/CouponOfferPage.jsx'
 import CouponsPage from '../pages/consumer/CouponsPage.jsx'
 import MyPage from '../pages/consumer/MyPage.jsx'
+import SearchPage from '../pages/consumer/SearchPage.jsx'
 import SettingsPage from '../pages/consumer/SettingsPage.jsx'
 
 // 소비자 화면 주소 목록 (휴대폰 폭) — feature/frontend-consumer 브랜치 담당
@@ -22,6 +23,8 @@ export function consumerRoutes() {
       <Route path="/home" element={<ConsumerHome />} />
       <Route path="/campaign" element={<CampaignPage />} />
       <Route path="/campaign/coupon/:merchantId" element={<CouponOfferPage />} />
+      {/* 가게·상품 검색 (?q=검색어) */}
+      <Route path="/search" element={<SearchPage />} />
       {/* 상품 화면도 볼 수 있고, 결제 버튼을 누를 때 로그인 */}
       <Route path="/campaign/buy/:merchantId" element={<BuyPage />} />
 
