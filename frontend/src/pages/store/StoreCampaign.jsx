@@ -1,196 +1,154 @@
 import { useState } from 'react'
-import { benefitText, getCampaign, getStoreDashboard, signCampaign } from '../../api/api.js'
+import { Link } from 'react-router-dom'
+import { getStoreCampaigns } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
-import ChainProgress from '../../components/ChainProgress.jsx'
-import { runWithSteps } from '../../utils/runWithSteps.js'
-import MerchantMark from '../../components/MerchantMark.jsx'
 import { useApi } from '../../hooks/useApi.js'
-import { md, won } from '../../utils/format.js'
-import { CAMPAIGN_STATUS } from '../../utils/labels.js'
+import { CAMPAIGN_STATUS, nearLimit } from '../../utils/labels.js'
+import { mdhm, period, won } from '../../utils/format.js'
 
-const STEPS = ['조건 확인', '지갑 서명', '거래 전송', '블록 확정']
+// 표의 상태 칩: 조건 등록 전 → 한도 임박 → 기획전 상태
+function termChip(c, t) {
+  if (!t.registered) return { label: '조건 등록 전', tone: 'y' }
+  if (c.status === 'ACTIVE' && nearLimit(t)) return { label: '한도 임박', tone: 'y' }
+  return CAMPAIGN_STATUS[c.status]
+}
 
-// 연합 기획전 조건 설정·서명 (목업 m-console.html의 campaign)
+// M3 연합 기획전 현황 (목업 v3 가맹점 센터)
 function StoreCampaign() {
   const user = getUser()
-  const { data, reload } = useApi(async () => {
-    const [campaign, dash] = await Promise.all([getCampaign(), getStoreDashboard(user.merchantId)])
-    return { campaign, merchant: dash.merchant }
-  }, [user.merchantId])
+  const me = user.merchantId
+  const { data: list } = useApi(() => getStoreCampaigns(me), [me])
+  const [pickId, setPickId] = useState(null) // 고른 기획전 (참여 기획전이 여럿일 때)
+  const [showHistory, setShowHistory] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
+  if (!list) return null
 
-  const [draft, setDraft] = useState(null) // 내가 고치는 조건 (서명 전)
-  const [phase, setPhase] = useState('edit')
-  const [step, setStep] = useState(0)
-  const [error, setError] = useState('')
-
-  if (!data) return null
-  const { campaign: c, merchant: m } = data
-  const mine = c.terms.find((t) => t.merchantId === user.merchantId)
-  const terms = draft ?? mine // 고치기 시작 전에는 저장된 값
-  const set = (key, value) => setDraft({ ...terms, [key]: value })
-  const signedCount = c.terms.filter((t) => t.signed).length
+  // 기본: 진행 중인 기획전, 없으면 첫 번째
+  const c = list.find((x) => x.id === pickId) ?? list.find((x) => x.status === 'ACTIVE') ?? list[0]
+  if (!c) return <p className="empty">참여 중인 기획전이 없어요</p>
   const st = CAMPAIGN_STATUS[c.status]
-
-  async function handleSign() {
-    setError('')
-    setPhase('signing')
-    try {
-      const { value, minOrder, fund } = terms
-      // 정액권만: 최대 할인액 = 할인 금액
-      await runWithSteps(() => signCampaign(user.merchantId, { discountType: 'FIXED', value, maxDiscount: value, minOrder, fund }), STEPS.length, setStep)
-      setDraft(null)
-      setPhase('done')
-      reload()
-    } catch (err) {
-      setError(err.message)
-      setPhase('edit')
-    }
-  }
-
-  const numInput = (key, label) => (
-    <div className="field">
-      <label htmlFor={`t-${key}`}>{label}</label>
-      <input id={`t-${key}`} className="input" inputMode="numeric" value={terms[key]} onChange={(e) => set(key, Number(e.target.value.replace(/\D/g, '')) || 0)} />
-    </div>
-  )
 
   return (
     <>
-      <header className="page-h">
-        <span className="cap">연합 프로모션</span>
-        <h1>{c.title}</h1>
-        <div className="statusline">
-          <span className="subtle">
-            {md(c.startDate)} – {md(c.endDate)}
-          </span>
-          <span className={`chip sm ${st.cls}`}>{st.label}</span>
-          <span className="chip sm c-line">
-            서명 {signedCount}/{c.terms.length}
-          </span>
+      {list.length > 1 && (
+        <div className="tabs">
+          {list.map((x) => (
+            <button key={x.id} className={x.id === c.id ? 'on' : ''} onClick={() => setPickId(x.id)}>
+              {x.title}
+            </button>
+          ))}
         </div>
-      </header>
+      )}
+      <div className="ph1">
+        <div className="tt">
+          <h1>
+            {c.title} <span className={`chip ${st.tone}`}>{st.label}</span>
+          </h1>
+          <p>
+            {period(c)} · 참여 가게 {c.terms.length}곳. 한 곳에서 사면 나머지 {c.terms.length - 1}곳 쿠폰이 발급돼요
+          </p>
+        </div>
+      </div>
 
-      <section className="panel">
-        <div className="panel-h">
-          <h2>참여 가게 {c.terms.length}곳</h2>
-          <span className="tiny">모든 가게가 서명하면 규칙이 잠기고 KCP 승인으로 넘어가요</span>
-        </div>
-        <div className="tblwrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>가게</th>
-                <th>할인</th>
-                <th>최소 주문</th>
-                <th>충전금</th>
-                <th>받아 줄 수 있는 쿠폰</th>
-                <th>서명</th>
-              </tr>
-            </thead>
-            <tbody>
-              {c.terms.map((t) => (
-                <tr key={t.merchantId} className={t.merchantId === user.merchantId ? 'me' : ''}>
-                  <td>
-                    <span className="hstack">
-                      <MerchantMark m={t} size="sm" /> {t.merchantName}
+      <section className="card">
+        <h2>손님이 이렇게 연결돼요</h2>
+        <div className="links">
+          {c.terms.map((t) => (
+            <div key={t.merchantId} className={t.merchantId === me ? 'me' : ''}>
+              <b>
+                {t.merchantName}에서 구매{t.merchantId === me ? ' (우리)' : ''}
+              </b>
+              <div className="gets">
+                {c.terms
+                  .filter((x) => x.merchantId !== t.merchantId)
+                  .map((x) => (
+                    <span key={x.merchantId}>
+                      {x.merchantName} {won(x.value)}
                     </span>
-                  </td>
-                  <td>{benefitText(t)}</td>
-                  <td>{won(t.minOrder)}</td>
-                  <td>{won(t.fund)}</td>
-                  <td>{Math.floor(t.fund / t.maxDiscount)}장</td>
-                  <td>{t.signed ? <span className="sig">✓ 서명 완료</span> : <span className="chip sm c-wait">서명 전</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
-      <div className="cols">
-        <section className="panel form-grid">
-          <h2 className="h-sm">우리 가게 조건</h2>
-          {mine.signed ? (
-            <>
-              <p className="notice mint">서명을 마쳤어요. 잠긴 규칙은 KCP도 바꿀 수 없어요.</p>
-              <div className="rows">
-                <div className="row">
-                  <span>할인</span>
-                  <b>{benefitText(mine)}</b>
-                </div>
-                <div className="row">
-                  <span>충전금</span>
-                  <b>{won(mine.fund)}</b>
-                </div>
-                <div className="row">
-                  <span>확보(발급된 쿠폰)</span>
-                  <b>{won(mine.fundReserved)}</b>
-                </div>
-                <div className="row">
-                  <span>실제 사용된 할인</span>
-                  <b>{won(mine.fundUsed)}</b>
-                </div>
+      <section className="card">
+        <h2>참여 가게</h2>
+        <div className="tbl">
+          <table>
+            <thead>
+              <tr>
+                <th>가게</th>
+                <th>업종</th>
+                <th>쿠폰 조건</th>
+                <th className="num">발급 / 한도</th>
+                <th className="num">사용</th>
+                <th>상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {c.terms.map((t) => {
+                const chip = termChip(c, t)
+                return (
+                  <tr key={t.merchantId} className={t.merchantId === me ? 'sel' : ''}>
+                    <td>
+                      <b>{t.merchantName}</b> {t.merchantId === me && <span className="muted">(우리)</span>}
+                    </td>
+                    <td>{t.merchantCategory}</td>
+                    <td>{t.registered ? `${won(t.value)} · ${won(t.minOrder)} 이상` : <span className="muted">—</span>}</td>
+                    <td className="num">
+                      {t.issued} / {t.qtyTotal}장
+                    </td>
+                    <td className="num">{t.used}장</td>
+                    <td>
+                      <span className={`chip ${chip.tone}`}>{chip.label}</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="nb row">
+          <span>쿠폰 조건과 발급·사용 기록은 참여 가게 모두가 같은 기록을 봐요</span>
+          <button className="ink" style={{ fontWeight: 700, whiteSpace: 'nowrap' }} onClick={() => setShowHistory(!showHistory)}>
+            조건 변경 이력 {showHistory ? '닫기' : '보기 ›'}
+          </button>
+        </div>
+        {showHistory && (
+          <div className="rows">
+            {c.history.map((h) => (
+              <div key={h.id}>
+                <b style={{ fontWeight: 600 }}>{h.detail}</b>
+                <span>
+                  {mdhm(h.at)} · {h.actor}
+                </span>
               </div>
-            </>
-          ) : (
-            <>
-              {/* [확정] 쿠폰은 정액권만 — 정률(%) 선택지 없음 */}
-              <div className="mini-grid">
-                {numInput('value', '할인 금액 (정액, 원)')}
-                {numInput('minOrder', '최소 주문 금액 (원)')}
-                {numInput('fund', '충전금 (원)')}
-              </div>
-              <p className="tiny">충전금은 발행 한도에서 확보돼요 · 남은 한도 {won(m.remaining)}</p>
-              {error && <p className="notice bad">{error}</p>}
-              {phase === 'edit' && (
-                <button className="pill lg p-forest full" disabled={c.status !== 'SIGNING'} onClick={handleSign}>
-                  이 조건으로 서명하기
-                </button>
-              )}
-            </>
-          )}
-          {phase !== 'edit' && (
-            <div className="chain-box">
-              <ChainProgress steps={STEPS} step={step} />
-            </div>
-          )}
-          {phase === 'done' && c.status === 'PENDING_APPROVAL' && <p className="notice mint">모든 가게가 서명해 규칙이 잠겼어요. KCP 승인을 기다려요.</p>}
-        </section>
+            ))}
+          </div>
+        )}
+      </section>
 
-        <section className="panel">
-          <h2 className="h-sm">진행 방식</h2>
-          <ol className="flow-list">
-            <li>
-              <span className="stepno">1</span>
-              <div>
-                <b>개설 제안</b>
-                <span className="tiny">이름·기간·참여 조건을 정해요</span>
-              </div>
-            </li>
-            <li>
-              <span className="stepno">2</span>
-              <div>
-                <b>조건 서명</b>
-                <span className="tiny">가게별 할인·충전금을 서명해요</span>
-              </div>
-            </li>
-            <li>
-              <span className="stepno">3</span>
-              <div>
-                <b>규칙 잠금</b>
-                <span className="tiny">온체인에 규칙을 기록해요</span>
-              </div>
-            </li>
-            <li>
-              <span className="stepno">4</span>
-              <div>
-                <b>KCP 승인 → 진행</b>
-                <span className="tiny">종료 후 남은 충전금은 돌려받아요</span>
-              </div>
-            </li>
+      {showGuide && (
+        <section className="card mint">
+          <h2>기획전 안내</h2>
+          <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
+            <li>KCP가 기획전을 만들고 참여 가게를 정해요</li>
+            <li>각 가게가 우리 쿠폰 조건(할인·최소 주문·유효기간·할인 한도)을 등록해요</li>
+            <li>모든 가게가 등록하면 KCP가 시작을 승인해요</li>
+            <li>손님이 한 가게에서 사면 나머지 가게 쿠폰이 자동으로 발급돼요</li>
+            <li>쿠폰이 실제로 쓰였을 때만 그 가게에 할인 부담이 생겨요 (돈을 미리 맡기지 않아요)</li>
           </ol>
-          <p className="notice gray">충전금이 부족하면 우리 가게 쿠폰만 새로 발급되지 않아요. 기획전 전체는 계속돼요.</p>
         </section>
+      )}
+
+      <div className="btns">
+        <Link className="btn" to={`/store/terms?c=${c.id}`}>
+          우리 쿠폰 조건 보기
+        </Link>
+        <button className="btn g" onClick={() => setShowGuide(!showGuide)}>
+          기획전 안내 {showGuide ? '닫기' : '보기'}
+        </button>
       </div>
     </>
   )
