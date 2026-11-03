@@ -255,7 +255,7 @@
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
   text-align: center;
-  color: rgba(22, 51, 0, 0.65);
+  color: rgba(22, 51, 0, 0.5); /* 다른 탭은 흐리게 → 지금 있는 탭(검은색)과 차이가 잘 보이게 */
   font-size: 12px;
   font-weight: 600;
   box-shadow: 0 8px 20px rgba(22, 51, 0, 0.22);
@@ -267,27 +267,13 @@
   align-items: center;
   gap: 2px;
 }
+/* 지금 있는 탭: 연두 위에서 잘 보이는 검은 글자 + 굵게 (나머지는 흐린 진녹) */
 .tab .t.active {
-  color: var(--on-brand);
+  color: #0e0f0c;
   font-weight: 800;
 }
-.tab .t.mid {
-  position: relative;
-  top: -16px;
-  color: var(--on-brand);
-}
-.tab .t.mid .o {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: #fff;
-  color: var(--on-brand);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 0 5px var(--brand), 0 6px 14px rgba(0, 0, 0, 0.2);
-}
-.tab .t.mid span:last-child {
-  margin-top: 1px;
+.tab .t.active svg {
+  stroke-width: 2.4;
 }
 
 /* 홈 맨 위 로고 · 7. 배너(연합 기획전) · 12. 검색 */
@@ -1607,12 +1593,46 @@ html[data-theme='dark'] .phone-app {
   --sel-bg: #9fe870;
   --sel-fg: #163300;
 }
+/* 로그인 화면: 연두 바탕·흰 카드 대신 다른 화면과 같은 어두운 바탕 + 어두운 카드, 제목만 연두로 */
 html[data-theme='dark'] .phone-app.login {
-  background: #1d3010; /* 로그인 화면: 연두 대신 어두운 녹색 바탕 */
-  --on-brand: #e2f6d5;
+  background: var(--bg);
+  color: var(--body);
 }
-html[data-theme='dark'] .login .logo-card {
-  background: #e2f6d5;
+html[data-theme='dark'] .login .bk {
+  background: var(--sand);
+  color: var(--ink);
+}
+html[data-theme='dark'] .login h2 {
+  color: var(--forest); /* 다크 모드의 --forest = 연두 */
+}
+html[data-theme='dark'] .login .logo-card,
+html[data-theme='dark'] .picker {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html[data-theme='dark'] .login .logo-card img {
+  filter: brightness(2.3) saturate(1.1); /* 진한 녹색 로고 글자를 밝게 */
+}
+html[data-theme='dark'] .picker button:hover {
+  background: var(--sand);
+}
+html[data-theme='dark'] .picker .avatar {
+  background: var(--mint);
+  color: var(--forest);
+}
+html[data-theme='dark'] .picker .chip {
+  background: var(--gray);
+  color: var(--body);
+}
+/* 구글 버튼 다크 버전 (구글 안내의 어두운 버튼 색) */
+html[data-theme='dark'] .google-btn {
+  background: #131314 !important;
+  color: #e3e3e3 !important;
+  box-shadow: inset 0 0 0 1px #8e918f;
+}
+html[data-theme='dark'] .login .cancel {
+  color: var(--ink);
 }
 html[data-theme='dark'] .phone-app .logo {
   filter: brightness(2.3) saturate(1.1); /* 진한 녹색 로고 글자를 밝게 */
@@ -1630,10 +1650,6 @@ html[data-theme='dark'] .cc.dim .l span.sub {
 html[data-theme='dark'] .shopimg {
   background: linear-gradient(135deg, #22381a, #1a2a14);
   color: #c9e9b4;
-}
-html[data-theme='dark'] .tab .t.mid .o {
-  background: #1a2015;
-  color: #9fe870;
 }
 html[data-theme='dark'] .switch {
   background: #3a4433;
