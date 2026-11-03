@@ -24,6 +24,7 @@ import {
   won,
 } from './core.js'
 import { SEED_VERSION, createSeed } from './seed.js'
+import { matches } from '../utils/search.js'
 
 export { ApiError, USE_CHECKS, calcDiscount }
 
@@ -229,6 +230,62 @@ export async function redeemCoupon(userId, couponId, merchantId) {
     save(db) // 거절 기록은 남긴다
     throw err
   }
+}
+
+// ---------- 검색 ----------
+
+// 검색 대상: 승인된 가게의 상품만 (심사 대기·반려된 가게는 안 보임)
+const searchable = (db) => db.products.filter((p) => findMerchant(db, p.merchantId).status === 'APPROVED')
+
+// 상품 한 개에서 검색에 쓰는 말들: 상품 이름 · 가게 이름 · 업종 · 태그
+const fieldsOf = (db, p) => {
+  const m = findMerchant(db, p.merchantId)
+  return [p.name, m.name, m.category, ...(p.tags ?? [])]
+}
+
+// GET /api/search?q=감귤 — 가게·상품 검색
+// 여러 단어로 검색하면 모든 단어가 들어간 상품만 (예: "제주 감귤")
+// 결과마다 "이 상품을 사면 받는 쿠폰" 수와 최대 할인 금액을 붙인다 (연합 기획전의 핵심을 검색에서도 보이게)
+export async function searchProducts(q) {
+  await wait(READ_MS)
+  readGuard()
+  const db = load()
+  const words = q.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
+  const now = nowText()
+  return searchable(db)
+    .filter((p) => words.every((w) => fieldsOf(db, p).some((f) => matches(f, w))))
+    .map((p) => {
+      const { issue } = couponsForPurchase(db, p.merchantId, now)
+      return {
+        ...withMerchant(db, p),
+        coupons: issue.length,
+        couponTotal: issue.reduce((s, c) => s + c.value, 0),
+        sold: db.orders.filter((o) => o.merchantId === p.merchantId).length, // 구매 많은순 정렬용
+      }
+    })
+}
+
+// GET /api/search/keywords — 자동완성 후보와 많이 찾는 검색어 순위
+export async function getSearchKeywords() {
+  await wait(READ_MS)
+  readGuard()
+  const db = load()
+  const words = new Set()
+  for (const p of searchable(db)) fieldsOf(db, p).forEach((f) => words.add(f))
+  const popular = Object.entries(db.searchCounts ?? {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([word]) => word)
+  return { suggestions: [...words], popular }
+}
+
+// POST /api/search/log — 검색할 때마다 횟수 +1 (많이 찾는 검색어 순위에 반영)
+export async function logSearch(term) {
+  const db = load()
+  db.searchCounts = db.searchCounts ?? {}
+  db.searchCounts[term] = (db.searchCounts[term] ?? 0) + 1
+  save(db)
 }
 
 // ================= 가맹점 =================
