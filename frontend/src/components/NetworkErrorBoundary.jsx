@@ -1,13 +1,16 @@
 import { Component } from 'react'
-import { Link } from 'react-router-dom'
 import { setSimulation } from '../api/api.js'
 import StatusView from './StatusView.jsx'
 import TabBar from './TabBar.jsx'
 
-// 공통 네트워크·서버 오류 화면 (소비자 와이어프레임 v0 · 상태 화면)
+// 탭으로 들어오는 화면은 오류 때도 제목을 유지 (목업 "네트워크·서버 오류": 쿠폰함 제목 + 탭)
+const TITLES = { '/coupons': '쿠폰함', '/me': 'MY' }
+
+// 공통 네트워크·서버 오류 화면 (목업 v3 상태 화면)
 // 안쪽 화면에서 데이터를 못 불러오면(useApi가 에러를 던지면) 이 화면으로 바꿔 보여준다.
 // - resetKey(지금 주소)가 바뀌면 = 다른 화면으로 이동하면 오류 표시를 지운다
 // - "다시 불러오기"를 누르면 안쪽 화면을 처음부터 다시 그려서 데이터를 다시 받는다
+// 가이드: 불러오기 실패는 빈 상태와 구분하고, 다시 불러오기를 허용
 //
 // Error Boundary는 React에서 class로만 만들 수 있다 (C++의 try-catch를 화면 단위로 거는 것과 비슷)
 class NetworkErrorBoundary extends Component {
@@ -35,17 +38,17 @@ class NetworkErrorBoundary extends Component {
     if (!this.state.error) {
       return <div key={this.state.attempt}>{this.props.children}</div>
     }
+    const title = TITLES[this.props.resetKey]
     return (
       <div className="phone-app">
-        <main className="app-body">
-          <StatusView kind="warn" title="연결이 불안정해요" desc="네트워크 상태를 확인하고 다시 시도해 주세요" />
-          <button className="pill lg p-forest full" onClick={this.retry}>
-            다시 불러오기
-          </button>
-          <Link className="text-link center" to="/home">
-            홈으로
-          </Link>
-          {this.state.error.code !== 'NETWORK' && <p className="tiny center">오류 내용: {this.state.error.message}</p>}
+        <main className="ct large-top">
+          {title && <h1 className="ttl-l">{title}</h1>}
+          <StatusView kind="offline" title="연결이 불안정해요" desc={<>쿠폰 정보를 불러오지 못했어요.<br />잠시 후 다시 시도해 주세요.</>}>
+            <button className="btn sm" style={{ alignSelf: 'center' }} onClick={this.retry}>
+              다시 불러오기
+            </button>
+          </StatusView>
+          {this.state.error.code !== 'NETWORK' && <p className="cap center">오류 내용: {this.state.error.message}</p>}
         </main>
         <TabBar />
       </div>
