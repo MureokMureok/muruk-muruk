@@ -219,7 +219,7 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
-.chs span {
+.chs > * {
   flex: none;
   height: 36px;
   display: flex;
@@ -235,11 +235,199 @@
 .sort {
   align-self: flex-end;
   border: 0;
-  background: transparent;
+  /* 브라우저 기본 화살표를 없애고 목업 모양의 작은 ⌄ 하나만 */
+  appearance: none;
+  padding-right: 16px;
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%236b6c6a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right center / 12px;
   font: inherit;
   font-size: 12.5px;
   color: var(--muted);
   cursor: pointer;
+}
+
+/* ---------- 검색 (쇼핑 앱 검색 방식) ---------- */
+.topb .search {
+  height: 44px;
+}
+.search input::-webkit-search-cancel-button {
+  display: none; /* 브라우저 기본 X 대신 아래 지우기 버튼 */
+}
+.search input:focus {
+  outline: none;
+}
+.search .clear {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gray);
+  color: var(--body);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+/* 검색어와 일치한 글자: 진녹 + 굵게 */
+mark {
+  background: transparent;
+  color: var(--forest);
+  font-weight: 800;
+}
+/* 자동완성 */
+.suggest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.suggest li {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+.suggest .pick {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  text-align: left;
+  font-size: 15px;
+  color: var(--ink);
+}
+.suggest .pick svg {
+  color: var(--muted);
+}
+.suggest .fill {
+  padding: 8px 4px 8px 12px;
+  color: var(--muted);
+  font-size: 15px;
+}
+/* 최근 검색어 */
+.rchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rchip {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 0 6px 0 14px;
+  gap: 2px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.rchip .x {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+/* 많이 찾는 검색어: 왼쪽 1~5위, 오른쪽 6~10위 */
+.rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(5, auto);
+  grid-auto-flow: column;
+  gap: 0 16px;
+}
+.rank button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  text-align: left;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+.rank i {
+  font-style: normal;
+  width: 18px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.rank li:nth-child(-n + 3) i {
+  color: var(--forest); /* 1~3위는 진녹 */
+}
+/* 검색 결과 */
+.sr-head {
+  font-size: 14px;
+}
+.sr-head b {
+  color: var(--ink);
+}
+.sr-head em {
+  font-style: normal;
+  font-weight: 800;
+  color: var(--forest);
+}
+.sr-tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.fchip {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--body);
+}
+.fchip.on {
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+  box-shadow: none;
+}
+.sr {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.sr-im {
+  width: 96px;
+  height: 96px;
+  font-size: 11px;
+}
+.sr-b {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sr-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.sr-price {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.sr-cp {
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--forest);
+}
+.tips {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--muted);
 }
 
 /* 6. 떠 있는 하단 탭: 연두 바 + 가운데 흰 원(쿠폰함) */
@@ -255,7 +443,7 @@
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
   text-align: center;
-  color: rgba(22, 51, 0, 0.65);
+  color: rgba(22, 51, 0, 0.5); /* 다른 탭은 흐리게 → 지금 있는 탭(검은색)과 차이가 잘 보이게 */
   font-size: 12px;
   font-weight: 600;
   box-shadow: 0 8px 20px rgba(22, 51, 0, 0.22);
@@ -267,27 +455,13 @@
   align-items: center;
   gap: 2px;
 }
+/* 지금 있는 탭: 연두 위에서 잘 보이는 검은 글자 + 굵게 (나머지는 흐린 진녹) */
 .tab .t.active {
-  color: var(--on-brand);
+  color: #0e0f0c;
   font-weight: 800;
 }
-.tab .t.mid {
-  position: relative;
-  top: -16px;
-  color: var(--on-brand);
-}
-.tab .t.mid .o {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: #fff;
-  color: var(--on-brand);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 0 5px var(--brand), 0 6px 14px rgba(0, 0, 0, 0.2);
-}
-.tab .t.mid span:last-child {
-  margin-top: 1px;
+.tab .t.active svg {
+  stroke-width: 2.4;
 }
 
 /* 홈 맨 위 로고 · 7. 배너(연합 기획전) · 12. 검색 */
@@ -1569,6 +1743,44 @@ details.nb ul {
     stroke-dashoffset: 0;
   }
 }
+/* 확인 중 점 3개: 1.2초마다 . → .. → ... 반복
+   첫 점은 항상 보이고, 둘째 점은 1/3 지점부터, 셋째 점은 2/3 지점부터 보인다 */
+.stb .ic .dots {
+  display: flex;
+  gap: 6px;
+}
+.stb .ic .dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.stb .ic .dots i:nth-child(2) {
+  animation: wait-dot2 1.2s infinite;
+}
+.stb .ic .dots i:nth-child(3) {
+  animation: wait-dot3 1.2s infinite;
+}
+@keyframes wait-dot2 {
+  0%,
+  33% {
+    opacity: 0;
+  }
+  34%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes wait-dot3 {
+  0%,
+  66% {
+    opacity: 0;
+  }
+  67%,
+  100% {
+    opacity: 1;
+  }
+}
 /* 휴대폰 접근성 설정에서 "동작 줄이기"를 켠 사람에게는 애니메이션 없이 바로 보여줌 */
 @media (prefers-reduced-motion: reduce) {
   .stb .ic {
@@ -1577,6 +1789,9 @@ details.nb ul {
   .mark .draw {
     animation: none;
     stroke-dashoffset: 0;
+  }
+  .stb .ic .dots i {
+    animation: none !important; /* 점 3개를 멈춘 채로 다 보여줌 */
   }
 }
 
@@ -1607,12 +1822,46 @@ html[data-theme='dark'] .phone-app {
   --sel-bg: #9fe870;
   --sel-fg: #163300;
 }
+/* 로그인 화면: 연두 바탕·흰 카드 대신 다른 화면과 같은 어두운 바탕 + 어두운 카드, 제목만 연두로 */
 html[data-theme='dark'] .phone-app.login {
-  background: #1d3010; /* 로그인 화면: 연두 대신 어두운 녹색 바탕 */
-  --on-brand: #e2f6d5;
+  background: var(--bg);
+  color: var(--body);
 }
-html[data-theme='dark'] .login .logo-card {
-  background: #e2f6d5;
+html[data-theme='dark'] .login .bk {
+  background: var(--sand);
+  color: var(--ink);
+}
+html[data-theme='dark'] .login h2 {
+  color: var(--forest); /* 다크 모드의 --forest = 연두 */
+}
+html[data-theme='dark'] .login .logo-card,
+html[data-theme='dark'] .picker {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+html[data-theme='dark'] .login .logo-card img {
+  filter: brightness(2.3) saturate(1.1); /* 진한 녹색 로고 글자를 밝게 */
+}
+html[data-theme='dark'] .picker button:hover {
+  background: var(--sand);
+}
+html[data-theme='dark'] .picker .avatar {
+  background: var(--mint);
+  color: var(--forest);
+}
+html[data-theme='dark'] .picker .chip {
+  background: var(--gray);
+  color: var(--body);
+}
+/* 구글 버튼 다크 버전 (구글 안내의 어두운 버튼 색) */
+html[data-theme='dark'] .google-btn {
+  background: #131314 !important;
+  color: #e3e3e3 !important;
+  box-shadow: inset 0 0 0 1px #8e918f;
+}
+html[data-theme='dark'] .login .cancel {
+  color: var(--ink);
 }
 html[data-theme='dark'] .phone-app .logo {
   filter: brightness(2.3) saturate(1.1); /* 진한 녹색 로고 글자를 밝게 */
@@ -1630,10 +1879,6 @@ html[data-theme='dark'] .cc.dim .l span.sub {
 html[data-theme='dark'] .shopimg {
   background: linear-gradient(135deg, #22381a, #1a2a14);
   color: #c9e9b4;
-}
-html[data-theme='dark'] .tab .t.mid .o {
-  background: #1a2015;
-  color: #9fe870;
 }
 html[data-theme='dark'] .switch {
   background: #3a4433;
