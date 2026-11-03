@@ -1,52 +1,39 @@
 // 가짜 백엔드의 "처음 상태" (시연 시작 시점의 데이터).
-// 가게·상품·쿠폰 예시는 소비자 와이어프레임 v0(Figma) 기준: 과수원집·봄꽃상회·바다찬 3곳
-// (와이어프레임 가정 G6 "기획전 가게 3곳" — 개발팀 확인 필요)
+// 가게·상품·쿠폰 예시는 새 목업 v3(소비자·가맹점 센터·KCP 관리자) 기준: 과수원집·봄꽃상회·바다찬 3곳
 //
 // 처음 상태는 두 가지 (mode)
-// - 'ready'(기본): 기획전이 이미 진행 중 → 앱을 열자마자 구매하면 쿠폰을 받을 수 있음 (팀원 확인·개발용)
-// - 'demo': 시연 8장면의 시작 상태 → ① KCP가 과수원집 입금 확인 → 한도 등록 ② 과수원집이 쿠폰 발행
-//           ③ 과수원집이 기획전 조건 서명(마지막 서명) → 규칙 잠금 → KCP 승인 ④ 소비자 구매 …
-//   그래서 과수원집만 한도 0, 서명 안 함, 기획전은 '조건 서명 중'. (이 상태에서는 아직 쿠폰이 발급되지 않음)
+// - 'ready'(기본): 기획전이 이미 진행 중 + 지난 이틀간 다른 손님들의 구매·사용 기록이 있음
+//                 → 앱을 열자마자 구매하면 쿠폰을 받고, 가맹점·KCP 화면에도 숫자가 보임
+// - 'demo': 시연 시작 상태 → ① KCP가 들꽃공방 심사 ② 과수원집이 쿠폰 조건 등록(3/3)
+//           ③ KCP가 기획전 시작 승인 ④ 소비자 구매 … (이 상태에서는 아직 쿠폰이 발급되지 않음)
+
+import { addLedger, doPurchase, doRedeem } from './core.js'
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 4
+export const SEED_VERSION = 5
 
 export function createSeed(mode = 'ready') {
-  const seed = createDemoStart()
-  return mode === 'demo' ? seed : makeReady(seed)
+  const db = createDemoStart()
+  return mode === 'demo' ? db : makeReady(db)
 }
 
-// 'ready': 시연 ①~③(한도 등록·과수원집 서명·KCP 승인)을 이미 마친 상태로 바꿈
-function makeReady(seed) {
-  const m1 = seed.merchants.find((m) => m.id === 'm1')
-  const t1 = seed.campaign.terms.find((t) => t.merchantId === 'm1')
-  m1.limit = 500000
-  m1.reserved = t1.fund // 충전금만큼 한도에서 확보
-  seed.deposits.find((d) => d.id === 'd1').status = 'REGISTERED'
-  t1.signed = true
-  seed.campaign.status = 'ACTIVE'
-  seed.ledger.push(
-    { block: 18204012, at: '2026-10-31 10:20', type: 'ADMIN', label: '한도 등록', detail: '과수원집 · 입금 500,000원 확인 → 한도 500,000원', actor: 'KCP' },
-    { block: 18204013, at: '2026-10-31 11:00', type: 'ADMIN', label: '기획전 조건 서명', detail: '과수원집 · 2,000원 할인 · 충전금 200,000원', actor: '과수원집' },
-    { block: 18204014, at: '2026-10-31 11:00', type: 'ADMIN', label: '규칙 잠금', detail: '겨울 제철 연합 기획전 · 참여 가게 3곳 서명 완료', actor: '컨트랙트' },
-    { block: 18204015, at: '2026-10-31 14:00', type: 'ADMIN', label: '기획전 승인', detail: '겨울 제철 연합 기획전', actor: 'KCP' },
-  )
-  return seed
-}
-
-// 시연 8장면의 시작 상태
+// 시연 시작 상태
 function createDemoStart() {
-  const now = new Date().toISOString()
-
-  return {
+  const db = {
     version: SEED_VERSION,
-    // 가맹점. limit = KCP가 등록한 발행 한도(입금액만큼), reserved = 쿠폰 발행·기획전 충전금으로 이미 묶인 금액
+
+    // 소비자 이름 (가게·KCP 화면에는 "지*"처럼 가려서 보여줌)
+    users: { user: '지민', u2: '서연', u3: '민호', u4: '하은', u5: '수빈' },
+
+    // 가맹점. status: APPLIED(심사 대기) → APPROVED(승인) / REJECTED(반려)
+    // 승인된 가게만 연합 기획전에 참여하고 쿠폰 조건을 등록할 수 있다 (목업 K1)
     merchants: [
-      { id: 'm1', name: '과수원집', category: '제철 과일', short: '과', color: '#ffc091', status: 'WHITELISTED', limit: 0, reserved: 0, appliedAt: '2026-10-20' },
-      { id: 'm2', name: '봄꽃상회', category: '꽃·식물', short: '봄', color: '#ffd7ef', status: 'WHITELISTED', limit: 500000, reserved: 300000, appliedAt: '2026-10-18' },
-      { id: 'm3', name: '바다찬', category: '수산·반찬', short: '바', color: '#a0e1e1', status: 'WHITELISTED', limit: 500000, reserved: 300000, appliedAt: '2026-10-19' },
-      { id: 'm4', name: '들녘농산', category: '농산물', short: '들', color: '#ffe7a3', status: 'APPLIED', limit: 0, reserved: 0, appliedAt: '2026-10-30' },
+      { id: 'm1', name: '과수원집', category: '제철 과일', short: '과', color: '#ffc091', status: 'APPROVED', appliedAt: '2026-10-20', bizChecked: true, channel: '자체 쇼핑몰', kcpPay: true, scale: '소형' },
+      { id: 'm2', name: '봄꽃상회', category: '꽃·식물', short: '봄', color: '#ffd7ef', status: 'APPROVED', appliedAt: '2026-10-20', bizChecked: true, channel: '자체 쇼핑몰', kcpPay: true, scale: '소형' },
+      { id: 'm3', name: '바다찬', category: '수산·반찬', short: '바', color: '#a0e1e1', status: 'APPROVED', appliedAt: '2026-10-21', bizChecked: true, channel: '오픈마켓 + 자체 쇼핑몰', kcpPay: true, scale: '소형' },
+      { id: 'm4', name: '들꽃공방', category: '꽃·식물', short: '들', color: '#ffe7a3', status: 'APPLIED', appliedAt: '2026-11-01', bizChecked: true, channel: '자체 쇼핑몰', kcpPay: true, scale: '소형' },
+      { id: 'm5', name: '산골농원', category: '농산물', short: '산', color: '#d5e8b5', status: 'APPLIED', appliedAt: '2026-10-31', bizChecked: true, channel: '오픈마켓', kcpPay: false, scale: '소형' },
     ],
 
     // 가게별 판매 상품 (시연용 1개씩)
@@ -54,52 +41,76 @@ function createDemoStart() {
       { merchantId: 'm1', name: '제주 제철 감귤 3kg', price: 24900 },
       { merchantId: 'm2', name: '계절 꽃다발 S', price: 25000 },
       { merchantId: 'm3', name: '손질 고등어 5팩', price: 21900 },
-      { merchantId: 'm4', name: '햇감자 2kg', price: 12900 },
+      { merchantId: 'm4', name: '드라이플라워 미니 다발', price: 18000 },
+      { merchantId: 'm5', name: '햇감자 2kg', price: 12900 },
     ],
 
-    // 예치금 입금 내역. PENDING = 입금 확인됨, 한도 등록 전
-    deposits: [
-      { id: 'd1', merchantId: 'm1', amount: 500000, at: '2026-10-31 10:12', status: 'PENDING' },
-      { id: 'd2', merchantId: 'm2', amount: 500000, at: '2026-10-21 14:02', status: 'REGISTERED' },
-      { id: 'd3', merchantId: 'm3', amount: 500000, at: '2026-10-22 09:40', status: 'REGISTERED' },
+    // 연합 기획전. status: PREPARING(준비 중 — 가게들이 쿠폰 조건 등록) → ACTIVE(진행 중) ⇄ PAUSED(일시 중지) → ENDED(종료)
+    // 가게별 조건(terms): value 할인 금액(정액만), minOrder 최소 주문, validity 유효기간(DAYS30 받은 날부터 30일 / END 기획전 종료일까지),
+    //                    cap 할인 한도(상한), registered 기획전에 등록했는지
+    campaigns: [
+      {
+        id: 'c1',
+        title: '겨울 제철 연합 기획전',
+        // 시연 기간에 '진행 중'으로 보이도록 11월 한 달 (목업 예시는 11/10~11/23)
+        startDate: '2026-11-01',
+        endDate: '2026-11-30',
+        status: 'PREPARING',
+        terms: [
+          { merchantId: 'm1', value: 2000, minOrder: 10000, validity: 'DAYS30', cap: 200000, registered: false },
+          { merchantId: 'm2', value: 3000, minOrder: 15000, validity: 'DAYS30', cap: 300000, registered: true },
+          { merchantId: 'm3', value: 3000, minOrder: 20000, validity: 'DAYS30', cap: 300000, registered: true },
+        ],
+      },
+      {
+        id: 'c2',
+        title: '연말 꽃·과일 기획전',
+        startDate: '2026-12-01',
+        endDate: '2026-12-14',
+        status: 'PREPARING',
+        terms: [
+          { merchantId: 'm2', value: 3000, minOrder: 20000, validity: 'END', cap: 150000, registered: true },
+          { merchantId: 'm1', value: 2000, minOrder: 15000, validity: 'END', cap: 100000, registered: false },
+        ],
+      },
     ],
 
-    // 연합 기획전 (1개). status: SIGNING(서명 중) → PENDING_APPROVAL(규칙 잠김, KCP 승인 대기) → ACTIVE / REJECTED
-    campaign: {
-      id: 'c1',
-      title: '겨울 제철 연합 기획전',
-      // 시연 기간에 '진행 중'으로 보이도록 11월 한 달 (와이어프레임 예시는 11/10–11/23)
-      startDate: '2026-11-01',
-      endDate: '2026-11-30',
-      validDays: 30, // 쿠폰 유효기간: 받은 날부터 30일
-      status: 'SIGNING',
-      // [확정] 쿠폰은 정액권만 (팀 결정)
-      // 가게별 조건. fund = 충전금(= 최대 할인액 × 수량), fundReserved = 발급된 쿠폰 최대 할인액만큼 미리 확보한 금액, fundUsed = 실제 쓰인 할인액
-      terms: [
-        { merchantId: 'm1', discountType: 'FIXED', value: 2000, maxDiscount: 2000, minOrder: 10000, fund: 200000, fundReserved: 0, fundUsed: 0, signed: false },
-        { merchantId: 'm2', discountType: 'FIXED', value: 3000, maxDiscount: 3000, minOrder: 15000, fund: 300000, fundReserved: 0, fundUsed: 0, signed: true },
-        { merchantId: 'm3', discountType: 'FIXED', value: 3000, maxDiscount: 3000, minOrder: 20000, fund: 300000, fundReserved: 0, fundUsed: 0, signed: true },
-      ],
-    },
-
-    // 가맹점이 직접 발행한 조건부 쿠폰 묶음
-    issuances: [],
-
-    // 소비자가 가진 쿠폰 (발급된 쿠폰 한 장 한 장)
-    coupons: [],
-
-    // 주문(모의 결제)
-    orders: [],
-
-    // 체인 기록 (모의). 실제로는 블록체인에 남는 이벤트
-    ledger: [
-      { block: 18204001, at: '2026-10-21 14:10', type: 'ADMIN', label: '가맹점 등록', detail: '봄꽃상회 지갑 화이트리스트 등록 · 한도 500,000원', actor: 'KCP' },
-      { block: 18204002, at: '2026-10-22 09:45', type: 'ADMIN', label: '가맹점 등록', detail: '바다찬 지갑 화이트리스트 등록 · 한도 500,000원', actor: 'KCP' },
-      { block: 18204003, at: '2026-10-23 10:00', type: 'ADMIN', label: '가맹점 등록', detail: '과수원집 지갑 화이트리스트 등록 (한도 등록 전)', actor: 'KCP' },
-      { block: 18204010, at: '2026-10-28 11:20', type: 'ADMIN', label: '기획전 조건 서명', detail: '봄꽃상회 · 3,000원 할인 · 충전금 300,000원', actor: '봄꽃상회' },
-      { block: 18204011, at: '2026-10-28 15:05', type: 'ADMIN', label: '기획전 조건 서명', detail: '바다찬 · 3,000원 할인 · 충전금 300,000원', actor: '바다찬' },
-    ],
-
-    createdAt: now,
+    coupons: [], // 소비자가 가진 쿠폰 (발급된 쿠폰 한 장 한 장)
+    orders: [], // 주문(모의 결제)
+    ledger: [], // 기록 (모의). 실제로는 블록체인에 남는 이벤트
   }
+
+  // 지난 관리 기록 (가맹점 승인 → 기획전 만들기 → 쿠폰 조건 등록)
+  addLedger(db, '2026-10-22 10:00', 'ADMIN', '과수원집 가맹점 승인', 'KCP', { merchantId: 'm1' })
+  addLedger(db, '2026-10-22 10:02', 'ADMIN', '봄꽃상회 가맹점 승인', 'KCP', { merchantId: 'm2' })
+  addLedger(db, '2026-10-22 10:05', 'ADMIN', '바다찬 가맹점 승인', 'KCP', { merchantId: 'm3' })
+  addLedger(db, '2026-10-27 14:00', 'ADMIN', '겨울 제철 연합 기획전 만들기 (참여 가게 3곳)', 'KCP', { campaignId: 'c1' })
+  addLedger(db, '2026-10-28 11:20', 'ADMIN', '봄꽃상회 쿠폰 조건 등록 · 3,000원 · 15,000원 이상', '봄꽃상회', { campaignId: 'c1', merchantId: 'm2' })
+  addLedger(db, '2026-10-28 15:05', 'ADMIN', '바다찬 쿠폰 조건 등록 · 3,000원 · 20,000원 이상', '바다찬', { campaignId: 'c1', merchantId: 'm3' })
+  addLedger(db, '2026-10-30 09:30', 'ADMIN', '연말 꽃·과일 기획전 만들기 (참여 가게 2곳)', 'KCP', { campaignId: 'c2' })
+  addLedger(db, '2026-10-30 16:10', 'ADMIN', '봄꽃상회 쿠폰 조건 등록 · 3,000원 · 20,000원 이상', '봄꽃상회', { campaignId: 'c2', merchantId: 'm2' })
+  return db
+}
+
+// 'ready': 시연 ①~③(심사·과수원집 조건 등록·KCP 시작 승인)을 이미 마친 상태 + 지난 이틀 기록
+function makeReady(db) {
+  const c1 = db.campaigns.find((c) => c.id === 'c1')
+  c1.terms.find((t) => t.merchantId === 'm1').registered = true
+  addLedger(db, '2026-10-31 11:00', 'ADMIN', '과수원집 쿠폰 조건 등록 · 2,000원 · 10,000원 이상', '과수원집', { campaignId: 'c1', merchantId: 'm1' })
+  c1.status = 'ACTIVE'
+  addLedger(db, '2026-11-01 09:00', 'ADMIN', '겨울 제철 연합 기획전 진행 중으로 바꿈', 'KCP', { campaignId: 'c1' })
+
+  // 다른 손님들의 지난 구매·사용 (실제 규칙 그대로 실행해서 만든다)
+  const buy = (user, merchantId, at) => doPurchase(db, user, merchantId, at).issued
+  const redeem = (user, coupons, merchantId, at) => doRedeem(db, user, coupons.find((c) => c.merchantId === merchantId).id, merchantId, at)
+  const a = buy('u2', 'm1', '2026-11-01 10:12') // 서연: 과수원집 구매 → 봄꽃상회·바다찬 쿠폰
+  const b = buy('u3', 'm3', '2026-11-01 13:40') // 민호: 바다찬 구매 → 과수원집·봄꽃상회 쿠폰
+  redeem('u2', a, 'm2', '2026-11-01 19:30')
+  const c = buy('u4', 'm2', '2026-11-02 09:05') // 하은: 봄꽃상회 구매 → 과수원집·바다찬 쿠폰
+  redeem('u3', b, 'm1', '2026-11-02 11:05')
+  const d = buy('u5', 'm1', '2026-11-02 15:42') // 수빈: 과수원집 구매
+  redeem('u4', c, 'm3', '2026-11-02 18:10')
+  redeem('u5', d, 'm2', '2026-11-02 20:11')
+  redeem('u3', b, 'm2', '2026-11-02 21:30')
+  return db
 }

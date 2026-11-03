@@ -13,5 +13,20 @@ export const md = (dateText) => {
   return `${Number(m)}/${Number(d)}`
 }
 
-// 블록 번호 18204001 → "#18,204,001"
-export const blockNo = (n) => `#${num(n)}`
+// "2026-11-01" → "11/01" (앞자리 0 유지)
+export const mmdd = (t) => (t ? t.slice(5, 10).replace('-', '/') : '')
+
+// "2026-11-03 18:20" → "11/03 18:20"
+export const mdhm = (t) => (t ? `${mmdd(t)} ${t.slice(11, 16)}` : '')
+
+// 기획전 기간 "11/1~11/30"
+export const period = (c) => `${md(c.startDate)}~${md(c.endDate)}`
+
+// 오늘부터 유효기간까지 남은 날 (D-30). 날짜끼리만 비교 (오늘 몇 시인지는 무시)
+export function dDay(dateText) {
+  const today = new Date(new Date().toLocaleString('sv-SE').slice(0, 10))
+  return Math.max(0, Math.round((new Date(dateText) - today) / 86400000))
+}
+
+// 기록 번호 줄여 보기: "0x9f3a…c23a" → "0x9f…3a"
+export const shortTx = (tx) => (tx ? `${tx.slice(0, 4)}…${tx.slice(-2)}` : '')
