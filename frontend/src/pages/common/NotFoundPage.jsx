@@ -5,14 +5,16 @@ import { Link } from 'react-router-dom'
 // 무한히 이동하지 않도록 안내 화면을 보여준다
 function NotFoundPage() {
   return (
-    <main className="phone placeholder">
-      <span className="cap">404</span>
-      <h1>화면을 찾을 수 없어요</h1>
-      <p>주소가 바뀌었거나, 이 브랜치에 아직 없는 화면이에요.</p>
-      <Link className="pill lg p-forest full" to="/login">
-        로그인 화면으로
-      </Link>
-    </main>
+    <div className="phone-app">
+      <main className="ct notfound">
+        <span className="cap">404</span>
+        <h1 className="ttl-l">화면을 찾을 수 없어요</h1>
+        <p>주소가 바뀌었거나, 이 브랜치에 아직 없는 화면이에요.</p>
+        <Link className="btn" to="/login">
+          로그인 화면으로
+        </Link>
+      </main>
+    </div>
   )
 }
 
