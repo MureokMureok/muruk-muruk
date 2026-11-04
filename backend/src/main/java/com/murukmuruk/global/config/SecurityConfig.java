@@ -42,6 +42,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()     // 로그인 API는 토큰 없이 접근
                         .requestMatchers("/actuator/health").permitAll() // 헬스체크
+                        // Swagger 화면과 API 문서 데이터 (로컬 개발용. 배포 때는 막거나 끌 것)
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())                   // 나머지는 토큰 필요
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(authenticationEntryPoint)
