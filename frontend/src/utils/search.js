@@ -52,6 +52,47 @@ export function highlight(text, q) {
   ].filter((p) => p.text)
 }
 
+// ---------- 기획전 목록(GET /api/campaigns)에서 검색하기 ----------
+// 검색 전용 API는 없다: 받아 온 목록을 상품 한 줄씩으로 펴서 프론트에서 거른다
+// 백엔드 응답의 필드 이름이 다르면 toSearchRows 안쪽만 고치면 된다
+
+// 기획전 목록 → 검색 결과 줄 (같은 상품이 기획전 두 개에 있으면 한 줄로 합침). 끝난 기획전은 뺀다
+export function toSearchRows(campaigns) {
+  const rows = new Map()
+  for (const c of campaigns) {
+    if (c.status === 'ENDED') continue
+    for (const t of c.terms) {
+      if (!t.product) continue
+      const key = `${t.merchantId}/${t.product.name}`
+      if (!rows.has(key)) {
+        rows.set(key, { key, merchantId: t.merchantId, merchantName: t.merchantName, merchantCategory: t.merchantCategory, name: t.product.name, price: t.product.price, campaigns: [], coupons: 0, couponTotal: 0 })
+      }
+      const row = rows.get(key)
+      row.campaigns.push({ id: c.id, title: c.title, status: c.status })
+      // 진행 중인 기획전에서만: 이 상품을 사면 받는 다른 가게 쿠폰 (등록됐고 남아 있는 것)
+      if (c.status === 'ACTIVE') {
+        const others = c.terms.filter((x) => x.merchantId !== t.merchantId && x.registered && x.qtyLeft > 0)
+        row.coupons += others.length
+        row.couponTotal += others.reduce((s, x) => s + x.value, 0)
+      }
+    }
+  }
+  return [...rows.values()]
+}
+
+// 검색 대상 글자: 상품명 · 참여 가게 이름 · 기획전 이름
+const fieldsOf = (row) => [row.name, row.merchantName, ...row.campaigns.map((c) => c.title)]
+
+// 여러 단어로 검색하면 모든 단어가 들어간 줄만 (예: "제주 감귤")
+export function filterRows(rows, q) {
+  const words = q.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
+  return rows.filter((row) => words.every((w) => fieldsOf(row).some((f) => matches(f, w))))
+}
+
+// 자동완성 후보: 위 세 가지 이름을 중복 없이
+export const suggestionsOf = (rows) => [...new Set(rows.flatMap(fieldsOf))]
+
 // ---------- 최근 검색어 (이 기기에만 저장 — 쇼핑 앱들과 같이 로그인과 상관없이 기기별) ----------
 const RECENT_KEY = 'muruk.recentSearches'
 const AUTOSAVE_KEY = 'muruk.recentAutosave'

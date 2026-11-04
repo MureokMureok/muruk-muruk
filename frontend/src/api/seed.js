@@ -11,7 +11,7 @@ import { addLedger, doPurchase, doRedeem } from './core.js'
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 6
+export const SEED_VERSION = 7
 
 export function createSeed(mode = 'ready') {
   const db = createDemoStart()
@@ -36,17 +36,14 @@ function createDemoStart() {
       { id: 'm5', name: '산골농원', category: '농산물', short: '산', color: '#d5e8b5', status: 'APPLIED', appliedAt: '2026-10-31', bizChecked: true, channel: '오픈마켓', kcpPay: false, scale: '소형' },
     ],
 
-    // 가게별 판매 상품 (시연용 1개씩). tags = 검색할 때 같이 찾아 주는 말 (예: "귤"로도 감귤이 나오게)
+    // 가게별 판매 상품 (시연용 1개씩).
     products: [
-      { merchantId: 'm1', name: '제주 제철 감귤 3kg', price: 24900, tags: ['귤', '과일', '제주', '겨울 과일'] },
-      { merchantId: 'm2', name: '계절 꽃다발 S', price: 25000, tags: ['꽃', '꽃다발', '선물', '생화'] },
-      { merchantId: 'm3', name: '손질 고등어 5팩', price: 21900, tags: ['생선', '수산물', '고등어', '반찬'] },
-      { merchantId: 'm4', name: '드라이플라워 미니 다발', price: 18000, tags: ['꽃', '선물', '드라이플라워'] },
-      { merchantId: 'm5', name: '햇감자 2kg', price: 12900, tags: ['감자', '농산물', '채소'] },
+      { merchantId: 'm1', name: '제주 제철 감귤 3kg', price: 24900 },
+      { merchantId: 'm2', name: '계절 꽃다발 S', price: 25000 },
+      { merchantId: 'm3', name: '손질 고등어 5팩', price: 21900 },
+      { merchantId: 'm4', name: '드라이플라워 미니 다발', price: 18000 },
+      { merchantId: 'm5', name: '햇감자 2kg', price: 12900 },
     ],
-
-    // 검색어별 검색 횟수 → "많이 찾는 검색어" 순위 (시연용 예시 숫자로 시작, 검색할 때마다 1씩 늘어남)
-    searchCounts: { 감귤: 42, 꽃다발: 35, 고등어: 28, '제철 과일': 21, 선물: 17, 반찬: 12, 생선: 9, 과일: 7, 생화: 5, 수산물: 4 },
 
     // 연합 기획전. status: PREPARING(준비 중 — 가게들이 쿠폰 조건 등록) → ACTIVE(진행 중) ⇄ PAUSED(일시 중지) → ENDED(종료)
     // 가게별 조건(terms): value 할인 금액(정액만), minOrder 최소 주문, validity 유효기간(DAYS30 받은 날부터 30일 / END 기획전 종료일까지),
