@@ -1,4 +1,4 @@
-package com.muruk.muruk;
+package com.murukmuruk.muruk;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
