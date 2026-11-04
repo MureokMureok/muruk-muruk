@@ -1,21 +1,18 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { getSearchKeywords, logSearch, searchProducts } from '../../api/api.js'
+import { getCampaigns } from '../../api/api.js'
 import Icon from '../../components/Icon.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { CAMPAIGN_STATUS } from '../../utils/labels.js'
 import { won } from '../../utils/format.js'
-import { addRecent, clearRecent, getAutosave, getRecent, highlight, matches, removeRecent, setAutosave } from '../../utils/search.js'
-
-// 홈 카테고리와 같은 목록 (검색 첫 화면의 추천 카테고리)
-const CATEGORIES = ['꽃·식물', '제철 과일', '수산물', '농산물', '반찬']
+import { addRecent, clearRecent, filterRows, getAutosave, getRecent, highlight, matches, removeRecent, setAutosave, suggestionsOf, toSearchRows } from '../../utils/search.js'
 
 // 정렬 (쇼핑 앱 검색 결과의 랭킹순·가격순과 같은 방식)
 const SORTS = {
-  rec: { label: '추천순', fn: (a, b) => b.coupons - a.coupons || b.sold - a.sold }, // 쿠폰 많이 받는 상품 먼저
+  rec: { label: '추천순', fn: (a, b) => b.coupons - a.coupons }, // 쿠폰 많이 받는 상품 먼저
   low: { label: '낮은 가격순', fn: (a, b) => a.price - b.price },
   high: { label: '높은 가격순', fn: (a, b) => b.price - a.price },
-  sold: { label: '구매 많은순', fn: (a, b) => b.sold - a.sold },
 }
 
 // 검색어와 일치한 글자만 진하게 (여러 단어면 단어마다)
@@ -27,7 +24,7 @@ function Hl({ text, q }) {
   return parts.map((p, i) => (p.hit ? <mark key={i}>{p.text}</mark> : <span key={i}>{p.text}</span>))
 }
 
-// 입력하는 동안: 자동완성 (가게·상품·업종·태그 중 일치하는 말)
+// 입력하는 동안: 자동완성 (기획전·가게·상품 이름 중 일치하는 말)
 function Suggest({ input, words, onPick, onFill }) {
   const list = words.filter((w) => matches(w, input)).slice(0, 8)
   return (
@@ -58,8 +55,8 @@ function Suggest({ input, words, onPick, onFill }) {
   )
 }
 
-// 검색어가 비어 있을 때: 최근 검색어 · 많이 찾는 검색어 · 카테고리
-function SearchHome({ recent, setRecent, popular, onPick }) {
+// 검색어가 비어 있을 때: 최근 검색어 · 기획전과 참여 가게 이름
+function SearchHome({ recent, setRecent, names, onPick }) {
   const [autosave, setAuto] = useState(getAutosave())
 
   function toggleAutosave() {
@@ -99,46 +96,29 @@ function SearchHome({ recent, setRecent, popular, onPick }) {
         </button>
       </section>
 
-      {popular.length > 0 && (
+      {names.length > 0 && (
         <section className="grp">
           <div className="sec-h">
-            <h2 className="sm">많이 찾는 검색어</h2>
+            <h2 className="sm">기획전·참여 가게</h2>
           </div>
-          <ol className="rank">
-            {popular.map((w, i) => (
-              <li key={w}>
-                <button onClick={() => onPick(w)}>
-                  <i>{i + 1}</i>
-                  {w}
-                </button>
-              </li>
+          <div className="rchips">
+            {names.map((w) => (
+              <button className="rchip plain" key={w} onClick={() => onPick(w)}>
+                {w}
+              </button>
             ))}
-          </ol>
+          </div>
         </section>
       )}
-
-      <section className="grp">
-        <div className="sec-h">
-          <h2 className="sm">카테고리</h2>
-        </div>
-        <div className="chs">
-          {CATEGORIES.map((c) => (
-            <button key={c} onClick={() => onPick(c)}>
-              {c}
-            </button>
-          ))}
-        </div>
-      </section>
     </>
   )
 }
 
 // 검색 결과 (주소 ?q=검색어 기준)
-function Results({ q, popular, onPick }) {
-  const { data } = useApi(() => searchProducts(q), [q])
+function Results({ q, rows, names, onPick }) {
   const [sort, setSort] = useState('rec')
   const [only, setOnly] = useState(false) // 쿠폰 받는 상품만
-  if (!data) return null
+  const data = filterRows(rows, q)
 
   // 검색 결과가 아예 없을 때: 무엇이 없는지 → 다시 찾는 방법 → 다른 검색어
   if (data.length === 0) {
@@ -148,13 +128,13 @@ function Results({ q, popular, onPick }) {
         <ul className="tips">
           <li>단어의 철자가 맞는지 확인해 주세요</li>
           <li>단어 수를 줄이거나 다른 말로 검색해 보세요</li>
-          <li>초성으로도 찾을 수 있어요 (예: ㄱㄱ → 감귤)</li>
+          <li>기획전·가게·상품 이름으로 찾을 수 있어요. 초성도 돼요 (예: ㄱㄱ → 감귤)</li>
         </ul>
         <section className="grp">
-          <h3 className="h4">이런 검색어는 어때요</h3>
-          <div className="chs">
-            {popular.slice(0, 5).map((w) => (
-              <button key={w} onClick={() => onPick(w)}>
+          <h3 className="h4">이렇게 찾아보세요</h3>
+          <div className="rchips">
+            {names.map((w) => (
+              <button className="rchip plain" key={w} onClick={() => onPick(w)}>
                 {w}
               </button>
             ))}
@@ -184,16 +164,22 @@ function Results({ q, popular, onPick }) {
       </div>
       {list.length === 0 && <p className="cap center">이 검색어로는 지금 쿠폰을 받는 상품이 없어요</p>}
       {list.map((p) => (
-        <Link className="sr" key={p.merchantId} to={`/campaign/buy/${p.merchantId}`}>
+        <Link className="sr" key={p.key} to={`/campaign/buy/${p.merchantId}`}>
           <div className="shopimg sr-im">상품 이미지</div>
           <div className="sr-b">
             <span className="cap">
-              <Hl text={p.merchantName} q={q} /> · <Hl text={p.merchantCategory} q={q} />
+              <Hl text={p.merchantName} q={q} /> · {p.merchantCategory}
             </span>
             <span className="sr-name">
               <Hl text={p.name} q={q} />
             </span>
             <b className="sr-price">{won(p.price)}</b>
+            {p.campaigns.map((c) => (
+              <span className="cap" key={c.id}>
+                <Hl text={c.title} q={q} />
+                {c.status !== 'ACTIVE' && ` · ${CAMPAIGN_STATUS[c.status].label}`}
+              </span>
+            ))}
             {p.coupons > 0 ? (
               <span className="sr-cp">
                 구매하면 다른 가게 쿠폰 {p.coupons}장 · 최대 {won(p.couponTotal)} 할인
@@ -208,7 +194,8 @@ function Results({ q, popular, onPick }) {
   )
 }
 
-// 가게·상품 검색 (쇼핑 앱 검색 방식: 최근 검색어 → 입력하면 자동완성 → 결과·정렬·필터, 결과 없음 안내)
+// 기획전·가게·상품 검색 (쇼핑 앱 검색 방식: 최근 검색어 → 입력하면 자동완성 → 결과·정렬·필터, 결과 없음 안내)
+// 검색 전용 API 없이 GET /api/campaigns 목록을 프론트에서 거른다
 // 로그인 없이 쓸 수 있다. 검색어는 주소(?q=)에 남아서 뒤로 가기로 이전 검색 결과에 돌아간다
 function SearchPage() {
   const navigate = useNavigate()
@@ -218,7 +205,11 @@ function SearchPage() {
   const [prevQ, setPrevQ] = useState(q)
   const [recent, setRecent] = useState(getRecent())
   const inputRef = useRef(null)
-  const { data: kw } = useApi(() => getSearchKeywords(), [])
+  // 기획전 목록을 한 번 받아 두고, 검색은 이 목록 안에서 거른다 (서버에 다시 묻지 않음)
+  const { data: campaigns } = useApi(() => getCampaigns(), [])
+  const rows = campaigns ? toSearchRows(campaigns) : null
+  // 추천으로 보여줄 이름: 기획전 이름 + 참여 가게 이름
+  const names = rows ? [...new Set(rows.flatMap((r) => [...r.campaigns.map((c) => c.title), r.merchantName]))] : []
 
   // 주소의 검색어가 바뀌면(뒤로 가기 등) 입력칸도 그 검색어로 (화면 그릴 때 바로 맞추는 React 권장 방식)
   if (q !== prevQ) {
@@ -230,7 +221,6 @@ function SearchPage() {
     const t = term.trim()
     if (!t) return
     setRecent(addRecent(t))
-    logSearch(t)
     setParams({ q: t }) // 주소가 바뀌면서 검색 결과로 (뒤로 가기 기록에도 남음)
     setInput(t)
     inputRef.current?.blur() // 휴대폰 키보드 닫기
@@ -261,7 +251,7 @@ function SearchPage() {
             autoFocus={!q}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="가게·상품 검색"
+            placeholder="기획전·가게·상품 검색"
             aria-label="검색어"
           />
           {input && (
@@ -281,11 +271,11 @@ function SearchPage() {
       </header>
       <main className="ct">
         {typing ? (
-          <Suggest input={input} words={kw?.suggestions ?? []} onPick={go} onFill={(w) => { setInput(w); inputRef.current?.focus() }} />
+          <Suggest input={input} words={rows ? suggestionsOf(rows) : []} onPick={go} onFill={(w) => { setInput(w); inputRef.current?.focus() }} />
         ) : empty ? (
-          <SearchHome recent={recent} setRecent={setRecent} popular={kw?.popular ?? []} onPick={go} />
+          <SearchHome recent={recent} setRecent={setRecent} names={names} onPick={go} />
         ) : (
-          <Results key={q} q={q} popular={kw?.popular ?? []} onPick={go} />
+          rows && <Results key={q} q={q} rows={rows} names={names} onPick={go} />
         )}
       </main>
     </div>

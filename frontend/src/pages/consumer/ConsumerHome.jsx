@@ -6,7 +6,7 @@ import TabBar from '../../components/TabBar.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { period, won } from '../../utils/format.js'
 
-// 카테고리 (목업 C-01). 누르면 그 말로 검색
+// 카테고리 (목업 C-01). 검색 대상이 기획전·가게·상품 이름이라 지금은 눌러지지 않는 표시만
 const CATEGORIES = ['꽃·식물', '제철 과일', '수산물', '농산물', '반찬']
 
 // 기획전이 진행 중이 아닐 때 배너에 붙이는 표시
@@ -25,7 +25,7 @@ function ConsumerHome() {
         {/* 누르면 검색 화면으로 (쇼핑 앱처럼 검색은 따로 된 화면에서) */}
         <Link className="search" to="/search">
           <Icon name="search" size={18} />
-          <span>가게·상품 검색</span>
+          <span>기획전·가게·상품 검색</span>
         </Link>
 
         {campaign && (
@@ -73,9 +73,9 @@ function ConsumerHome() {
               </div>
               <div className="chs">
                 {CATEGORIES.map((c) => (
-                  <Link key={c} to={`/search?q=${encodeURIComponent(c)}`}>
+                  <span key={c} aria-disabled="true">
                     {c}
-                  </Link>
+                  </span>
                 ))}
               </div>
             </section>
