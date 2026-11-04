@@ -1,4 +1,4 @@
-package com.muruk.muruk;
+package com.murukmuruk;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

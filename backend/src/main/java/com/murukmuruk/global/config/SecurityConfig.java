@@ -1,4 +1,4 @@
-package com.muruk.muruk.global.config;
+package com.murukmuruk.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
