@@ -25,7 +25,7 @@ export const period = (c) => `${md(c.startDate)}~${md(c.endDate)}`
 // 오늘부터 유효기간까지 남은 날 (D-30). 날짜끼리만 비교 (오늘 몇 시인지는 무시)
 export function dDay(dateText) {
   const today = new Date(new Date().toLocaleString('sv-SE').slice(0, 10))
-  return Math.max(0, Math.round((new Date(dateText) - today) / 86400000))
+  return Math.max(0, Math.round((new Date(dateText.slice(0, 10)) - today) / 86400000))
 }
 
 // 기록 번호 줄여 보기: "0x9f3a…c23a" → "0x9f…3a"

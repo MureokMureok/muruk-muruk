@@ -4,6 +4,7 @@ import Icon from '../../components/Icon.jsx'
 import { SproutOverlay } from '../../components/SproutLoading.jsx'
 import { GOOGLE_CLIENT_ID, renderGoogleButton } from '../../auth/googleSignIn.js'
 import { homePathFor, loginWithGoogle, loginWithIdToken } from '../../auth/mockAuth.js'
+import { safeNext } from '../../auth/safeNext.js'
 
 // 로그인 화면 (목업 v3 C-05: 연두 바탕 + 로고 카드) — [확정] 소비자·가맹점·KCP 관리자 모두 구글 로그인
 // 구글 로그인 → 데이터베이스에 있는 계정이면 역할 화면(소비자 홈 / 가맹점 센터 / KCP 관리자)으로, 없으면 회원가입으로
@@ -13,7 +14,7 @@ function LoginPage() {
   const navigate = useNavigate()
   // ?next=/주소 가 붙어 있으면 로그인 후 그 화면으로 돌아간다 (로그인이 필요한 화면에서 넘어온 경우)
   const [searchParams] = useSearchParams()
-  const next = searchParams.get('next')
+  const next = safeNext(searchParams.get('next'))
 
   const [emailOpen, setEmailOpen] = useState(false) // 임시 이메일 입력칸을 보여줄지
   const [email, setEmail] = useState('')

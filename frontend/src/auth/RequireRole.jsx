@@ -8,7 +8,7 @@ function RequireRole({ role }) {
   const location = useLocation()
   const user = getUser()
   if (!user) {
-    const next = encodeURIComponent(location.pathname)
+    const next = encodeURIComponent(location.pathname + location.search)
     return <Navigate to={`/login?next=${next}`} replace />
   }
   if (user.role !== role) return <Navigate to={homePathFor(user.role)} replace />

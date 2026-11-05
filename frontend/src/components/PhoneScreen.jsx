@@ -7,17 +7,18 @@ import TabBar from './TabBar.jsx'
 // - title: 상단 바 제목
 // - large: 상단 바 대신 내용 맨 위에 큰 제목 (쿠폰함·MY처럼 탭으로 들어오는 화면)
 // - back: 뒤로가기 버튼 (결과 화면은 false — 실수로 되돌아가지 않게)
+// - onBack: 뒤로가기 동작을 바꿀 때 (한 주소 안에서 단계가 나뉜 화면)
 // - foot: 화면 아래 고정 버튼들 (예: 결제하기)
 // - tabs: 아래 떠 있는 탭 표시
 // - 내용(children)을 안 넘기면 불러오는 중으로 보고 새싹이를 보여준다 (300ms 넘게 걸릴 때만)
-function PhoneScreen({ title, large, back = true, foot, tabs = false, className = '', children }) {
+function PhoneScreen({ title, large, back = true, onBack, foot, tabs = false, className = '', children }) {
   const navigate = useNavigate()
   return (
     <div className={`phone-app ${className}`}>
       {!large && (
         <header className="topb">
           {back && (
-            <button className="bk" aria-label="뒤로" onClick={() => navigate(-1)}>
+            <button className="bk" aria-label="뒤로" onClick={onBack ?? (() => navigate(-1))}>
               <Icon name="back" size={18} />
             </button>
           )}
