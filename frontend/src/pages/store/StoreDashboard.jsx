@@ -5,6 +5,7 @@ import Icon from '../../components/Icon.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { CAMPAIGN_STATUS } from '../../utils/labels.js'
 import { mdhm, period, shortTx, won } from '../../utils/format.js'
+import { SproutLoading } from '../../components/SproutLoading.jsx'
 
 // 최근 기록 한 줄: 종류별 점 색·제목·설명
 function logItem(l, merchantName) {
@@ -21,7 +22,7 @@ function logItem(l, merchantName) {
 function StoreDashboard() {
   const user = getUser()
   const { data: d } = useApi(() => getStoreDashboard(user.merchantId), [user.merchantId])
-  if (!d) return null
+  if (!d) return <SproutLoading delay />
 
   const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0)
 

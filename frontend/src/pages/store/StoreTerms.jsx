@@ -7,6 +7,7 @@ import Icon from '../../components/Icon.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { CAMPAIGN_STATUS, VALIDITY } from '../../utils/labels.js'
 import { num, won } from '../../utils/format.js'
+import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
 
 // 숫자 입력칸: 쉼표를 붙여 보여주고, 숫자만 받아서 돌려준다 ("15,000" ↔ 15000)
 function NumInput({ value, onChange, unit, label, disabled }) {
@@ -50,6 +51,7 @@ function TermsForm({ campaign: c, me, onSaved }) {
 
   return (
     <>
+      {busy && <SproutOverlay delay growing title="쿠폰 조건을 기록하고 있어요" />}
       <div className="ph1">
         <div className="tt">
           <h1>
@@ -174,7 +176,7 @@ function StoreTerms() {
   const me = user.merchantId
   const [params, setParams] = useSearchParams()
   const { data: list, reload } = useApi(() => getStoreCampaigns(me), [me])
-  if (!list) return null
+  if (!list) return <SproutLoading delay />
   if (list.length === 0) return <p className="empty">참여 중인 기획전이 없어요</p>
 
   // 기본: 조건 등록이 필요한 기획전(준비 중) → 없으면 첫 번째

@@ -2,6 +2,7 @@ import { getBurden } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
 import { useApi } from '../../hooks/useApi.js'
 import { mdhm, shortTx, won } from '../../utils/format.js'
+import { SproutLoading } from '../../components/SproutLoading.jsx'
 
 // 사용 내역을 CSV 파일로 내려받기 (엑셀에서 한글이 깨지지 않게 앞에 BOM 표시를 붙임)
 function downloadCsv(rows) {
@@ -20,7 +21,7 @@ function downloadCsv(rows) {
 function StoreBurden() {
   const user = getUser()
   const { data: b } = useApi(() => getBurden(user.merchantId), [user.merchantId])
-  if (!b) return null
+  if (!b) return <SproutLoading delay />
 
   return (
     <>

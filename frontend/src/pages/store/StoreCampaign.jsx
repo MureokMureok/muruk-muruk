@@ -5,6 +5,7 @@ import { getUser } from '../../auth/mockAuth.js'
 import { useApi } from '../../hooks/useApi.js'
 import { CAMPAIGN_STATUS, nearLimit } from '../../utils/labels.js'
 import { mdhm, period, won } from '../../utils/format.js'
+import { SproutLoading } from '../../components/SproutLoading.jsx'
 
 // 표의 상태 칩: 조건 등록 전 → 한도 임박 → 기획전 상태
 function termChip(c, t) {
@@ -21,7 +22,7 @@ function StoreCampaign() {
   const [pickId, setPickId] = useState(null) // 고른 기획전 (참여 기획전이 여럿일 때)
   const [showHistory, setShowHistory] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
-  if (!list) return null
+  if (!list) return <SproutLoading delay />
 
   // 기본: 진행 중인 기획전, 없으면 첫 번째
   const c = list.find((x) => x.id === pickId) ?? list.find((x) => x.status === 'ACTIVE') ?? list[0]
