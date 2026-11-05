@@ -13,8 +13,8 @@ function csvCell(value) {
 
 // 사용 내역을 CSV 파일로 내려받기 (엑셀에서 한글이 깨지지 않게 앞에 BOM 표시를 붙임)
 function downloadCsv(rows) {
-  const head = ['날짜', '손님', '어디서 온 손님', '결제 금액', '할인', '기록 번호']
-  const lines = rows.map((r) => [mdhm(r.at), r.customer, r.source, r.amount, r.discount, r.tx].map(csvCell).join(','))
+  const head = ['날짜', '쿠폰 ID', '손님', '어디서 온 손님', '결제 금액', '할인', 'tx 해시']
+  const lines = rows.map((r) => [mdhm(r.at), `#${r.tokenId}`, r.customer, r.source, r.amount, r.discount, r.tx].map(csvCell).join(','))
   const blob = new Blob(['﻿' + [head.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -75,17 +75,19 @@ function StoreBurden() {
               <thead>
                 <tr>
                   <th>날짜</th>
+                  <th>쿠폰 ID</th>
                   <th>손님</th>
                   <th>어디서 온 손님</th>
                   <th className="num">결제 금액</th>
                   <th className="num">할인</th>
-                  <th>기록 번호</th>
+                  <th>tx 해시</th>
                 </tr>
               </thead>
               <tbody>
                 {b.rows.map((r) => (
                   <tr key={r.id}>
                     <td>{mdhm(r.at)}</td>
+                    <td className="mono">#{r.tokenId}</td>
                     <td>{r.customer}</td>
                     <td>
                       <span className="chip">{r.source}</span>
