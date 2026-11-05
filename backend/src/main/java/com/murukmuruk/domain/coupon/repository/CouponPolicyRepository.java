@@ -1,10 +1,16 @@
 package com.murukmuruk.domain.coupon.repository;
 
+import com.murukmuruk.domain.coupon.dto.CouponPolicyRow;
 import com.murukmuruk.domain.coupon.entity.CouponPolicy;
+import com.murukmuruk.domain.coupon.enums.ReceiveType;
+import com.murukmuruk.domain.merchant.enums.MerchantStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.List;
 
 public interface CouponPolicyRepository extends JpaRepository<CouponPolicy, Long> {
 
@@ -16,4 +22,20 @@ public interface CouponPolicyRepository extends JpaRepository<CouponPolicy, Long
     @Query(value = "UPDATE coupon_policy SET issued_count = issued_count + 1, updated_at = CURRENT_TIMESTAMP(6) "
             + "WHERE id = :id AND issued_count < quantity", nativeQuery = true)
     int increaseIssuedCount(@Param("id") Long id);
+
+    /**
+     * 지금 받을 수 있는 쿠폰: 받는 조건이 DIRECT, 가맹점이 ACTIVE, 수량이 남아 있는 것.
+     * id 내림차순, 커서보다 작은 id만 조회한다.
+     */
+    @Query("select new com.murukmuruk.domain.coupon.dto.CouponPolicyRow("
+            + "p.id, p.name, m.id, m.name, m.category, p.discountAmount, p.minOrderAmount, "
+            + "p.validDays, p.quantity - p.issuedCount) "
+            + "from CouponPolicy p join Merchant m on m.id = p.merchantId "
+            + "where p.receiveType = :receiveType and m.status = :merchantStatus "
+            + "and p.issuedCount < p.quantity and p.id < :cursor "
+            + "order by p.id desc")
+    List<CouponPolicyRow> findClaimable(@Param("receiveType") ReceiveType receiveType,
+                                        @Param("merchantStatus") MerchantStatus merchantStatus,
+                                        @Param("cursor") long cursor,
+                                        Pageable pageable);
 }

@@ -80,7 +80,7 @@ public class CouponClaimService {
             throw new BusinessException(ErrorCode.CHAIN_ERROR); // 롤백됨
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         LocalDateTime expiresAt = now.plusDays(validDays);
         Coupon coupon;
         try {
