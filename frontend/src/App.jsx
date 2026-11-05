@@ -15,7 +15,7 @@ function App() {
       {/* 앱 시작 화면: 뒤에서 첫 화면을 그리는 동안 위를 덮고 있다가 사라진다 */}
       <SplashScreen />
       <Routes>
-        {/* 시작 주소: 홈. 와이어프레임 v0 확정 정책 — 비회원도 둘러보고, 로그인은 구매·쿠폰함·MY 때 */}
+        {/* 시작 주소: 홈. 비회원도 둘러볼 수 있다 (처음 실행 때의 로그인 화면은 utils/startup.js, 닫으면 홈) */}
         <Route path="/" element={<Navigate to="/home" replace />} />
         {/* 로그인 (모든 역할 공통, [확정] 구글 로그인) */}
         <Route path="/login" element={<LoginPage />} />
