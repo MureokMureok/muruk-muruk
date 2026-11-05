@@ -4,6 +4,7 @@ import com.murukmuruk.domain.auth.client.GoogleIdTokenVerifier;
 import com.murukmuruk.domain.auth.client.GoogleUserInfo;
 import com.murukmuruk.domain.auth.enums.Role;
 import com.murukmuruk.domain.auth.support.JwtTokenProvider;
+import com.murukmuruk.domain.merchant.dto.MerchantLoginResponse;
 import com.murukmuruk.domain.merchant.dto.MerchantSignUpRequest;
 import com.murukmuruk.domain.merchant.dto.MerchantSignUpResponse;
 import com.murukmuruk.domain.merchant.entity.Merchant;
@@ -61,5 +62,28 @@ public class MerchantAuthService {
         // 5. 가맹점 토큰 발급: sub = merchantId, role = MERCHANT (기존 메서드를 그대로 사용)
         String accessToken = jwtTokenProvider.createAccessToken(merchant.getId(), Role.MERCHANT);
         return MerchantSignUpResponse.of(accessToken, merchant);
+    }
+
+    /**
+     * 가맹점 로그인.
+     * 사용자 로그인과 달리 자동 가입하지 않는다: 가맹점은 업종·사업자번호가 필요해서 가입 신청 화면을 거쳐야 하기 때문.
+     * APPLIED(승인 대기)도 로그인은 허용한다: 승인됐는지 확인할 수 있어야 하므로.
+     */
+    public MerchantLoginResponse login(String idToken) {
+        // 1. 구글 토큰 검증 (실패하면 401)
+        GoogleUserInfo googleUser = googleIdTokenVerifier.verify(idToken);
+
+        // 2. 가맹점 조회. 없으면 404 → 프론트가 가입 신청 화면으로 보낸다
+        Merchant merchant = merchantRepository.findByGoogleSub(googleUser.sub())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "가입 신청 내역이 없는 계정입니다."));
+
+        // 3. 정지된 가맹점은 거부 (403)
+        if (merchant.isSuspended()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "일시 정지된 가맹점입니다.");
+        }
+
+        // 4. 가맹점 토큰 발급
+        String accessToken = jwtTokenProvider.createAccessToken(merchant.getId(), Role.MERCHANT);
+        return MerchantLoginResponse.of(accessToken, merchant);
     }
 }
