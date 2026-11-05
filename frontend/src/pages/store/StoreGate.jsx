@@ -57,6 +57,8 @@ function StoreGate({ menu, soon }) {
       <main className="ct">
         {rejected ? (
           <StatusView kind="warn" title="참여 신청이 반려됐어요" desc={`${merchant.name}은(는) 지금 연합 기획전에 참여할 수 없어요.`} />
+        ) : merchant.status === 'SUSPENDED' ? (
+          <StatusView kind="warn" title="가맹점 이용이 일시 정지됐어요" desc={`${merchant.name} 이용을 다시 시작하려면 KCP에 문의해 주세요.`} />
         ) : (
           <StatusView kind="wait" title="KCP가 심사하고 있어요" desc={`${merchant.name} 참여 신청을 확인하는 중이에요. 승인되면 가맹점 센터를 쓸 수 있어요.`}>
             <Timeline

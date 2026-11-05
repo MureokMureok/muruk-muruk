@@ -29,7 +29,10 @@ function TermsForm({ campaign: c, me, onSaved }) {
   const [msg, setMsg] = useState(null) // { ok, text }
 
   const locked = c.status !== 'PREPARING' // [가정] 시작된 기획전은 조건을 바꿀 수 없음
-  const set = (key) => (v) => setForm({ ...form, [key]: v })
+  const set = (key) => (v) => {
+    setMsg(null)
+    setForm({ ...form, [key]: v })
+  }
   const others = c.terms.filter((x) => x.merchantId !== me).map((x) => x.merchantName)
   const qty = form.value > 0 ? Math.floor(form.cap / form.value) : 0
   const minBad = form.minOrder < form.value
@@ -159,9 +162,11 @@ function TermsForm({ campaign: c, me, onSaved }) {
               <button className="btn blk" disabled={busy || minBad} onClick={() => handleSave(true)}>
                 {busy ? '기록하는 중…' : t.registered ? '바꾼 조건으로 다시 등록하기' : '기획전에 등록하기'}
               </button>
-              <button className="btn g blk" disabled={busy} onClick={() => handleSave(false)}>
-                임시 저장
-              </button>
+              {!t.registered && (
+                <button className="btn g blk" disabled={busy} onClick={() => handleSave(false)}>
+                  임시 저장
+                </button>
+              )}
             </>
           )}
         </div>

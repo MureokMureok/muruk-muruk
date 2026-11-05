@@ -1,6 +1,7 @@
 import { Route } from 'react-router-dom'
 import RequireRole from '../auth/RequireRole.jsx'
 import { ROLES } from '../auth/mockAuth.js'
+import RouteErrorShell from '../components/RouteErrorShell.jsx'
 import StoreBurden from '../pages/store/StoreBurden.jsx'
 import StoreCampaign from '../pages/store/StoreCampaign.jsx'
 import StoreDashboard from '../pages/store/StoreDashboard.jsx'
@@ -19,12 +20,14 @@ const STORE_MENU = [
 // App.jsx가 이 목록을 불러서 붙인다
 export function storeRoutes() {
   return (
-    <Route element={<RequireRole role={ROLES.STORE} />}>
-      <Route path="/store" element={<StoreGate menu={STORE_MENU} soon="일반 쿠폰 발행" />}>
-        <Route index element={<StoreDashboard />} />
-        <Route path="campaign" element={<StoreCampaign />} />
-        <Route path="terms" element={<StoreTerms />} />
-        <Route path="burden" element={<StoreBurden />} />
+    <Route element={<RouteErrorShell />}>
+      <Route element={<RequireRole role={ROLES.STORE} />}>
+        <Route path="/store" element={<StoreGate menu={STORE_MENU} soon="일반 쿠폰 발행" />}>
+          <Route index element={<StoreDashboard />} />
+          <Route path="campaign" element={<StoreCampaign />} />
+          <Route path="terms" element={<StoreTerms />} />
+          <Route path="burden" element={<StoreBurden />} />
+        </Route>
       </Route>
     </Route>
   )

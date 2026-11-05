@@ -4,10 +4,17 @@ import { useApi } from '../../hooks/useApi.js'
 import { mdhm, shortTx, won } from '../../utils/format.js'
 import { SproutLoading } from '../../components/SproutLoading.jsx'
 
+// 쉼표·따옴표로 칸이 밀리지 않게 감싸고, 가게 이름이 엑셀 수식으로 실행되지 않게 앞에 '를 붙인다
+function csvCell(value) {
+  const text = String(value ?? '')
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
+}
+
 // 사용 내역을 CSV 파일로 내려받기 (엑셀에서 한글이 깨지지 않게 앞에 BOM 표시를 붙임)
 function downloadCsv(rows) {
   const head = ['날짜', '손님', '어디서 온 손님', '결제 금액', '할인', '기록 번호']
-  const lines = rows.map((r) => [mdhm(r.at), r.customer, `${r.from} 구매`, r.amount, r.discount, r.tx].join(','))
+  const lines = rows.map((r) => [mdhm(r.at), r.customer, `${r.from} 구매`, r.amount, r.discount, r.tx].map(csvCell).join(','))
   const blob = new Blob(['﻿' + [head.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
