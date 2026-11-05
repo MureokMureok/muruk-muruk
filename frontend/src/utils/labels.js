@@ -19,7 +19,10 @@ export const MERCHANT_STATUS = {
 // 기록 종류
 export const LEDGER_TYPE = {
   ISSUE: { label: '발급', tone: '' },
+  CONFIRM: { label: '구매 확정', tone: '' },
+  APPLY: { label: '결제 적용', tone: 'y' },
   USE: { label: '사용', tone: 'g' },
+  REFUND: { label: '취소·환불', tone: 'y' },
   REJECT: { label: '거절', tone: 'r' },
   ADMIN: { label: '관리', tone: 'b' },
 }
