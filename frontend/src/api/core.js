@@ -40,6 +40,14 @@ function newTx() {
   return h
 }
 
+// 쿠폰 번호. 컨트랙트의 tokenId처럼 1부터 늘어나고 소멸해도 다시 쓰지 않는다
+const nextTokenId = (db) => db.coupons.length + 1
+
+// 이 쿠폰의 상태를 마지막으로 바꾼 기록의 번호. 거절은 상태를 바꾸지 않으므로 뺀다
+export function latestTx(db, couponId) {
+  return db.ledger.findLast((l) => l.type !== 'REJECT' && (l.couponId === couponId || l.couponIds?.includes(couponId)))?.tx
+}
+
 export const findMerchant = (db, id) => db.merchants.find((m) => m.id === id)
 export const findCampaign = (db, id) => db.campaigns.find((c) => c.id === id)
 export const nameOf = (db, merchantId) => findMerchant(db, merchantId)?.name ?? ''
@@ -107,7 +115,7 @@ export function doPurchase(db, userId, merchantId, at, { failFirst = false } = {
   if (failFirst && issue.length > 0) missed.unshift({ ...issue.shift(), reason: '발급 처리 중 문제가 생겼어요' })
 
   const issued = issue.map((x) => {
-    const coupon = { ...x, id: newId('cp'), ownerId: userId, status: 'LOCKED', issuedAt: at, fromMerchantId: merchantId, orderId: order.id }
+    const coupon = { ...x, id: newId('cp'), tokenId: nextTokenId(db), ownerId: userId, status: 'LOCKED', issuedAt: at, fromMerchantId: merchantId, orderId: order.id }
     db.coupons.push(coupon)
     return coupon
   })
@@ -150,7 +158,7 @@ export function doClaim(db, userId, policyId, at) {
   if (!policy || findMerchant(db, policy.merchantId)?.status !== 'APPROVED') throw new ApiError('POLICY_NOT_FOUND', '받을 수 없는 쿠폰이에요.')
   if (claimedOf(db, policyId).some((c) => c.ownerId === userId)) throw new ApiError('ALREADY_CLAIMED', '이미 받은 쿠폰이에요.')
   if (policyStats(db, policy).qtyLeft === 0) throw new ApiError('SOLD_OUT', '쿠폰이 모두 소진됐어요.')
-  const coupon = { id: newId('cp'), policyId, title: policy.name, merchantId: policy.merchantId, value: policy.value, minOrder: policy.minOrder, expiresAt: addDays(dateOf(at), policy.validDays), ownerId: userId, status: 'AVAILABLE', issuedAt: at }
+  const coupon = { id: newId('cp'), tokenId: nextTokenId(db), policyId, title: policy.name, merchantId: policy.merchantId, value: policy.value, minOrder: policy.minOrder, expiresAt: addDays(dateOf(at), policy.validDays), ownerId: userId, status: 'AVAILABLE', issuedAt: at }
   db.coupons.push(coupon)
   const shop = nameOf(db, policy.merchantId)
   addLedger(db, at, 'ISSUE', `${shop} 일반 쿠폰 받기 · ${policy.name}`, shop, { merchantId: policy.merchantId, userId, couponIds: [coupon.id], claimed: true })

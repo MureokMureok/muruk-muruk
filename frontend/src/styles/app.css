@@ -99,6 +99,9 @@
   box-shadow: 0 -1px 0 var(--line), 0 -6px 16px rgba(22, 51, 0, 0.05);
   z-index: 3;
 }
+.cta.flat {
+  box-shadow: none;
+}
 .cta .btn {
   width: 100%;
 }
@@ -2080,10 +2083,81 @@ html[data-theme='dark'] .sprout-overlay {
   }
 }
 
+.confirm-back {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(14, 15, 12, 0.5);
+}
+.confirm-box {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 360px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.confirm-box p {
+  margin: 0;
+  line-height: 1.5;
+}
+.confirm-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* 2.5초: hooks/useToast.js의 TOAST_MS와 같은 값 */
+.toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  z-index: 55;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  transform: translateX(-50%);
+  animation: toast-life 2.5s both;
+}
+@keyframes toast-life {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  8%,
+  88% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
+/* 66자리 tx 해시가 휴대폰 폭을 넘지 않게 줄을 바꾼다 */
+.tx-full {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
 /* 휴대폰 접근성 설정에서 "동작 줄이기"를 켠 사람에게는 애니메이션 없이 바로 보여줌 */
 @media (prefers-reduced-motion: reduce) {
   .splash,
   .splash *,
+  .toast,
   .sprout-svg * {
     animation: none !important;
     transition: none !important;

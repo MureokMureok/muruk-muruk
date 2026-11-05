@@ -21,6 +21,7 @@ import {
   doRedeem,
   findCampaign,
   findMerchant,
+  latestTx,
   maskUser,
   nameOf,
   policyStats,
@@ -252,7 +253,7 @@ export async function purchase(userId, merchantId) {
 function couponView(db, c) {
   const status = c.status === 'AVAILABLE' && c.expiresAt < today() ? 'EXPIRED' : c.status
   // issuedTogether: 같은 구매로 받은 쿠폰 수 (주문을 취소하면 함께 사라진다고 안내할 때 씀)
-  return { ...withMerchant(db, c), status, fromMerchantName: nameOf(db, c.fromMerchantId), issuedTogether: c.orderId ? db.coupons.filter((x) => x.orderId === c.orderId).length : 1 }
+  return { ...withMerchant(db, c), status, lastTx: latestTx(db, c.id), fromMerchantName: nameOf(db, c.fromMerchantId), issuedTogether: c.orderId ? db.coupons.filter((x) => x.orderId === c.orderId).length : 1 }
 }
 
 // 지금 바로 쓸 수 있는 내 쿠폰
@@ -487,7 +488,7 @@ export async function getBurden(merchantId) {
       // 환불 후 다시 쓴 쿠폰은 주문이 여러 개일 수 있어 구매 확정된 주문을 찾는다
       const o = db.orders.find((x) => x.couponId === c.id && x.status === 'CONFIRMED')
       const log = db.ledger.find((l) => l.type === 'USE' && l.couponId === c.id)
-      return { id: c.id, at: c.usedAt, customer: maskUser(db, c.ownerId), source: c.policyId ? '직접 받기' : `${nameOf(db, c.fromMerchantId)} 구매`, amount: o.amount, discount: c.discount, tx: log?.tx }
+      return { id: c.id, tokenId: c.tokenId, at: c.usedAt, customer: maskUser(db, c.ownerId), source: c.policyId ? '직접 받기' : `${nameOf(db, c.fromMerchantId)} 구매`, amount: o.amount, discount: c.discount, tx: log?.tx }
     })
     .sort((a, b) => b.at.localeCompare(a.at))
   // 새로 온 손님: 우리 가게 첫 주문이 쿠폰을 쓴 주문인 손님

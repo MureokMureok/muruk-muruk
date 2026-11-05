@@ -105,7 +105,7 @@ function ConsumerSignup({ google, next, onBack }) {
         <main className="ct">
           <StatusView kind="ok" title="가입이 끝났어요" desc={`${name.trim()}님, 쿠폰 지갑이 자동으로 만들어졌어요.`} />
         </main>
-        <div className="cta">
+        <div className="cta flat">
           <Link className="btn" to={next || '/home'} replace>
             시작하기
           </Link>
@@ -138,7 +138,7 @@ function ConsumerSignup({ google, next, onBack }) {
         <Consent value={consent} onChange={setConsent} />
         {error && <p className="nb err">{error}</p>}
       </main>
-      <div className="cta">
+      <div className="cta flat">
         {busy && <SproutOverlay delay title="쿠폰 지갑을 준비하고 있어요" sub="거의 다 됐어요" />}
         <button className="btn" disabled={busy || !name.trim() || !consent.terms || !consent.privacy} onClick={handleSubmit}>
           {busy ? '가입하는 중…' : '가입하기'}
@@ -186,7 +186,7 @@ function MerchantSignup({ onBack }) {
             />
           </StatusView>
         </main>
-        <div className="cta">
+        <div className="cta flat">
           <Link className="btn" to="/store" replace>
             가맹점 센터로
           </Link>
@@ -207,7 +207,7 @@ function MerchantSignup({ onBack }) {
         <Consent value={consent} onChange={setConsent} />
         {error && <p className="nb err">{error}</p>}
       </main>
-      <div className="cta">
+      <div className="cta flat">
         {busy && <SproutOverlay delay title="가맹점 신청을 보내고 있어요" />}
         <button className="btn" disabled={busy || !ready} onClick={handleSubmit}>
           {busy ? '신청하는 중…' : '참여 신청하기'}
