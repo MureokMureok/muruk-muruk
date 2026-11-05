@@ -12,7 +12,9 @@ import { useApi } from '../../hooks/useApi.js'
 function StoreGate({ menu, soon }) {
   const navigate = useNavigate()
   const user = getUser()
-  const { data: merchant, loading, reload } = useApi(() => getMerchant(user.merchantId), [user.merchantId])
+  // 진짜 백엔드로 로그인했으면 merchantStatus가 있다 (백엔드 값 APPLIED / ACTIVE / SUSPENDED)
+  const real = Boolean(user.merchantStatus)
+  const { data: merchant, loading, reload } = useApi(() => (real ? Promise.resolve({ name: user.name, status: user.merchantStatus }) : getMerchant(user.merchantId)), [real, user.name, user.merchantStatus, user.merchantId])
   const missing = !loading && !merchant // 시연 데이터를 처음으로 되돌려 가게가 사라진 경우
 
   useEffect(() => {
@@ -27,6 +29,24 @@ function StoreGate({ menu, soon }) {
   if (loading && !merchant) return null
   if (missing) return <Navigate to="/login" replace />
   if (merchant.status === 'APPROVED') return <ConsoleLayout variant="store" menu={menu} soon={soon} />
+  // 승인된 진짜 가맹점: 가맹점 센터 화면은 아직 모의 데이터라 가게 정보가 맞지 않는다. 화면을 연결할 때까지 안내만
+  if (merchant.status === 'ACTIVE') {
+    return (
+      <div className="phone-app">
+        <header className="topb">
+          <h1>가맹점 센터</h1>
+        </header>
+        <main className="ct">
+          <StatusView kind="empty" title="승인된 가맹점이에요" desc={`${merchant.name} 가맹점 센터 화면을 서버와 연결하는 중이에요.`} />
+        </main>
+        <div className="cta">
+          <button className="btn g" onClick={handleLogout}>
+            로그아웃
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const rejected = merchant.status === 'REJECTED'
   return (
@@ -50,7 +70,7 @@ function StoreGate({ menu, soon }) {
         )}
       </main>
       <div className="cta">
-        {!rejected && (
+        {!rejected && !real && (
           <button className="btn" onClick={reload}>
             심사 결과 다시 확인
           </button>
