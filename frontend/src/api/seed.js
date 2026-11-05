@@ -11,7 +11,7 @@ import { addLedger, doConfirm, doPurchase, doRedeem } from './core.js'
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 9
+export const SEED_VERSION = 10
 
 export function createSeed(mode = 'ready') {
   const db = createDemoStart()
