@@ -1,175 +1,248 @@
-// 2단계: 연합 기획전 생성 → 가게별 서명 → 전원 서명 시 규칙 잠금 → KCP 승인·반려 (시연 ①·③)
+// 2단계: 연합 기획전 만들기 → 쿠폰 조건 등록 → 시작·일시 중지·종료 (KCP K2 · 가맹점 M2 · 모의 API)
 import { expect } from "chai";
 import {
   withMerchants,
-  withSignedCampaign,
+  withCampaign,
+  withTerms,
+  withActiveCampaign,
+  time,
   CAMPAIGN,
-  VALID_DAYS,
   ORCHARD,
   FLOWER,
   SEA,
+  WILDFLOWER,
+  DAY,
   TERMS,
   CampaignStatus,
+  Validity,
 } from "./helpers.js";
 
-describe("2단계 기획전", function () {
-  it("KCP가 3곳 기획전을 만들면 서명 중 상태로 시작한다", async function () {
-    const { coupon } = await withMerchants();
-    await expect(coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER, SEA], VALID_DAYS))
-      .to.emit(coupon, "CampaignCreated")
-      .withArgs(CAMPAIGN, [ORCHARD, FLOWER, SEA], VALID_DAYS);
+describe("2단계 연합 기획전", function () {
+  describe("기획전 만들기", function () {
+    it("승인된 가게 3곳으로 만들면 준비 중으로 시작한다", async function () {
+      const { coupon } = await withMerchants();
+      const now = BigInt(await time.latest());
+      await expect(coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER, SEA], now, now + 30n * DAY))
+        .to.emit(coupon, "CampaignCreated")
+        .withArgs(CAMPAIGN, [ORCHARD, FLOWER, SEA], now, now + 30n * DAY);
 
-    const [status, merchantIds, validDays] = await coupon.campaignOf(CAMPAIGN);
-    expect(status).to.equal(CampaignStatus.Signing);
-    expect(merchantIds).to.deep.equal([ORCHARD, FLOWER, SEA]);
-    expect(validDays).to.equal(30n);
-  });
+      const [status, ids, startsAt, endsAt] = await coupon.campaignOf(CAMPAIGN);
+      expect(status).to.equal(CampaignStatus.Preparing);
+      expect(ids).to.deep.equal([ORCHARD, FLOWER, SEA]);
+      expect(endsAt - startsAt).to.equal(30n * DAY);
+    });
 
-  it("등록 안 된 가게는 기획전에 넣을 수 없다", async function () {
-    const { coupon } = await withMerchants();
-    await expect(coupon.createCampaign(CAMPAIGN, [ORCHARD, 99n], VALID_DAYS))
-      .to.be.revertedWithCustomError(coupon, "NotWhitelisted")
-      .withArgs(99n);
-  });
+    it("승인되지 않은 가게(심사 대기·반려)는 넣을 수 없다", async function () {
+      const { coupon } = await withMerchants();
+      await expect(coupon.createCampaign(CAMPAIGN, [ORCHARD, WILDFLOWER], 0, 1))
+        .to.be.revertedWithCustomError(coupon, "NotApproved")
+        .withArgs(WILDFLOWER);
 
-  it("같은 번호의 기획전은 두 번 만들 수 없다", async function () {
-    const { coupon } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS);
-    await expect(coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS)).to.be.revertedWithCustomError(
-      coupon,
-      "CampaignExists",
-    );
-  });
-
-  it("기획전 번호 0, 빈 가게 목록, 유효기간 0일, 같은 가게 중복은 거절된다", async function () {
-    const { coupon } = await withMerchants();
-    for (const args of [
-      [0n, [ORCHARD], VALID_DAYS],
-      [CAMPAIGN, [], VALID_DAYS],
-      [CAMPAIGN, [ORCHARD], 0],
-      [CAMPAIGN, [ORCHARD, ORCHARD], VALID_DAYS],
-    ]) {
-      await expect(coupon.createCampaign(...args)).to.be.revertedWithCustomError(coupon, "InvalidAmount");
-    }
-  });
-
-  it("가게가 서명하면 충전금만큼 남은 한도가 묶인다", async function () {
-    const { coupon, backend } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER, SEA], VALID_DAYS);
-
-    const t = TERMS[ORCHARD];
-    await expect(coupon.connect(backend).signCampaign(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.fund))
-      .to.emit(coupon, "CampaignSigned")
-      .withArgs(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.fund);
-
-    const [m, remaining] = await coupon.merchantOf(ORCHARD);
-    expect(m.reserved).to.equal(200_000n);
-    expect(remaining).to.equal(300_000n);
-
-    const term = await coupon.termOf(CAMPAIGN, ORCHARD);
-    expect(term.signed).to.equal(true);
-    expect(term.amount).to.equal(2_000n);
-  });
-
-  it("3곳이 모두 서명하면 규칙이 잠기고 KCP 승인 대기가 된다", async function () {
-    const { coupon, backend } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER, SEA], VALID_DAYS);
-    for (const id of [ORCHARD, FLOWER]) {
-      const t = TERMS[id];
-      await expect(coupon.connect(backend).signCampaign(CAMPAIGN, id, t.amount, t.minOrder, t.fund)).to.not.emit(
+      await coupon.reviewMerchant(WILDFLOWER, false);
+      await expect(coupon.createCampaign(CAMPAIGN, [ORCHARD, WILDFLOWER], 0, 1)).to.be.revertedWithCustomError(
         coupon,
-        "CampaignLocked",
+        "NotApproved",
       );
-    }
-    const t = TERMS[SEA];
-    await expect(coupon.connect(backend).signCampaign(CAMPAIGN, SEA, t.amount, t.minOrder, t.fund))
-      .to.emit(coupon, "CampaignLocked")
-      .withArgs(CAMPAIGN);
+    });
 
-    const [status] = await coupon.campaignOf(CAMPAIGN);
-    expect(status).to.equal(CampaignStatus.PendingApproval);
+    it("참여 가게 2곳 미만, 종료가 시작보다 앞섬, 같은 가게 중복, 번호 0은 거절된다", async function () {
+      const { coupon } = await withMerchants();
+      const bad = [
+        [CAMPAIGN, [ORCHARD], 0, 1],
+        [CAMPAIGN, [ORCHARD, FLOWER], 10, 9],
+        [CAMPAIGN, [ORCHARD, ORCHARD], 0, 1],
+        [0n, [ORCHARD, FLOWER], 0, 1],
+      ];
+      for (const args of bad) {
+        await expect(coupon.createCampaign(...args)).to.be.revertedWithCustomError(coupon, "InvalidCampaign");
+      }
+    });
+
+    it("같은 번호로 두 번 만들 수 없고, 백엔드는 만들 수 없다", async function () {
+      const { coupon, backend } = await withCampaign();
+      await expect(coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], 0, 1))
+        .to.be.revertedWithCustomError(coupon, "CampaignExists")
+        .withArgs(CAMPAIGN);
+      await expect(coupon.connect(backend).createCampaign(2n, [ORCHARD, FLOWER], 0, 1)).to.be.revertedWithCustomError(
+        coupon,
+        "AccessControlUnauthorizedAccount",
+      );
+    });
   });
 
-  it("규칙이 잠긴 뒤에는 누구도 조건을 바꿀 수 없다", async function () {
-    const { coupon, backend } = await withSignedCampaign();
-    await expect(
-      coupon.connect(backend).signCampaign(CAMPAIGN, ORCHARD, 9_000n, 0n, 0n),
-    ).to.be.revertedWithCustomError(coupon, "CampaignNotSigning");
+  describe("쿠폰 조건 등록 (M2)", function () {
+    it("등록하면 최대 발급 수 = 할인 한도 ÷ 할인 금액이 계산되고 기록이 남는다", async function () {
+      const { coupon, backend } = await withCampaign();
+      const t = TERMS[FLOWER];
+      await expect(coupon.connect(backend).registerTerms(CAMPAIGN, FLOWER, t.amount, t.minOrder, t.validity, t.cap))
+        .to.emit(coupon, "TermsRegistered")
+        .withArgs(CAMPAIGN, FLOWER, 3_000n, 15_000n, Validity.Days30, 300_000n, 100n);
+
+      const term = await coupon.termOf(CAMPAIGN, FLOWER);
+      expect(term.registered).to.equal(true);
+      expect(term.maxIssue).to.equal(100n); // 300,000 ÷ 3,000
+    });
+
+    it("나누어떨어지지 않으면 내림한다 (100,000 ÷ 3,000 = 33장)", async function () {
+      const { coupon, backend } = await withCampaign();
+      await coupon.connect(backend).registerTerms(CAMPAIGN, FLOWER, 3_000n, 15_000n, Validity.Days30, 100_000n);
+      expect((await coupon.termOf(CAMPAIGN, FLOWER)).maxIssue).to.equal(33n);
+    });
+
+    it("준비 중에는 다시 등록해서 바꿀 수 있다 (변경 이력은 이벤트로 남음)", async function () {
+      const { coupon, backend } = await withCampaign();
+      const op = coupon.connect(backend);
+      await op.registerTerms(CAMPAIGN, FLOWER, 3_000n, 15_000n, Validity.Days30, 300_000n);
+      await expect(op.registerTerms(CAMPAIGN, FLOWER, 2_000n, 10_000n, Validity.CampaignEnd, 100_000n)).to.emit(
+        coupon,
+        "TermsRegistered",
+      );
+      const term = await coupon.termOf(CAMPAIGN, FLOWER);
+      expect(term.amount).to.equal(2_000n);
+      expect(term.validity).to.equal(Validity.CampaignEnd);
+      expect(term.maxIssue).to.equal(50n);
+    });
+
+    it("입력 검증: 할인 0원, 최소 주문 < 할인 금액, 할인 한도 < 할인 금액은 거절 (같으면 허용)", async function () {
+      const { coupon, backend } = await withCampaign();
+      const op = coupon.connect(backend);
+      for (const [amount, minOrder, cap] of [
+        [0n, 15_000n, 300_000n],
+        [3_000n, 2_999n, 300_000n],
+        [3_000n, 15_000n, 2_999n],
+      ]) {
+        await expect(op.registerTerms(CAMPAIGN, FLOWER, amount, minOrder, Validity.Days30, cap)).to.be.revertedWithCustomError(
+          coupon,
+          "InvalidTerms",
+        );
+      }
+      await op.registerTerms(CAMPAIGN, FLOWER, 3_000n, 3_000n, Validity.Days30, 3_000n);
+      expect((await coupon.termOf(CAMPAIGN, FLOWER)).maxIssue).to.equal(1n);
+    });
+
+    it("없는 기획전, 참여하지 않은 가게는 등록할 수 없다", async function () {
+      const { coupon, backend } = await withCampaign();
+      const op = coupon.connect(backend);
+      await expect(op.registerTerms(9n, FLOWER, 3_000n, 15_000n, 0, 300_000n))
+        .to.be.revertedWithCustomError(coupon, "CampaignNotFound")
+        .withArgs(9n);
+      await expect(op.registerTerms(CAMPAIGN, WILDFLOWER, 3_000n, 15_000n, 0, 300_000n))
+        .to.be.revertedWithCustomError(coupon, "NotInCampaign")
+        .withArgs(CAMPAIGN, WILDFLOWER);
+    });
+
+    it("시작된 기획전의 조건은 바꿀 수 없다 (LOCKED)", async function () {
+      const { coupon, backend } = await withActiveCampaign();
+      await expect(coupon.connect(backend).registerTerms(CAMPAIGN, FLOWER, 1_000n, 15_000n, 0, 300_000n))
+        .to.be.revertedWithCustomError(coupon, "TermsLocked")
+        .withArgs(CAMPAIGN);
+    });
+
+    it("조건 등록은 백엔드만 할 수 있다", async function () {
+      const { coupon, kcp, alice } = await withCampaign();
+      for (const who of [kcp, alice]) {
+        await expect(
+          coupon.connect(who).registerTerms(CAMPAIGN, FLOWER, 3_000n, 15_000n, 0, 300_000n),
+        ).to.be.revertedWithCustomError(coupon, "AccessControlUnauthorizedAccount");
+      }
+    });
   });
 
-  it("같은 가게는 두 번 서명할 수 없다", async function () {
-    const { coupon, backend } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS);
-    const t = TERMS[ORCHARD];
-    await coupon.connect(backend).signCampaign(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.fund);
-    await expect(coupon.connect(backend).signCampaign(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.fund))
-      .to.be.revertedWithCustomError(coupon, "AlreadySigned")
-      .withArgs(CAMPAIGN, ORCHARD);
-  });
+  describe("시작 승인 · 일시 중지 · 종료 (K2)", function () {
+    it("조건이 모두 등록돼야 시작할 수 있다 (NOT_READY)", async function () {
+      const { coupon, backend } = await withCampaign();
+      const t = TERMS[ORCHARD];
+      await coupon.connect(backend).registerTerms(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.validity, t.cap);
+      await expect(coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Active))
+        .to.be.revertedWithCustomError(coupon, "NotReady")
+        .withArgs(CAMPAIGN);
+    });
 
-  it("충전금이 남은 한도보다 크면 서명할 수 없다", async function () {
-    const { coupon, backend } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS);
-    await expect(coupon.connect(backend).signCampaign(CAMPAIGN, ORCHARD, 2_000n, 10_000n, 600_000n))
-      .to.be.revertedWithCustomError(coupon, "LimitExceeded")
-      .withArgs(ORCHARD, 600_000n, 500_000n);
-  });
+    it("준비 중 → 진행 중 → 일시 중지 → 다시 진행 → 종료, 바뀔 때마다 기록이 남는다", async function () {
+      const { coupon } = await withTerms();
+      const steps = [
+        [CampaignStatus.Preparing, CampaignStatus.Active],
+        [CampaignStatus.Active, CampaignStatus.Paused],
+        [CampaignStatus.Paused, CampaignStatus.Active],
+        [CampaignStatus.Active, CampaignStatus.Ended],
+      ];
+      for (const [from, to] of steps) {
+        await expect(coupon.setCampaignStatus(CAMPAIGN, to))
+          .to.emit(coupon, "CampaignStatusChanged")
+          .withArgs(CAMPAIGN, from, to);
+        expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(to);
+      }
+    });
 
-  it("참여하지 않은 가게나 없는 기획전에는 서명할 수 없다", async function () {
-    const { coupon, backend } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS);
-    await expect(coupon.connect(backend).signCampaign(CAMPAIGN, SEA, 3_000n, 0n, 0n)).to.be.revertedWithCustomError(
-      coupon,
-      "NotInCampaign",
-    );
-    await expect(coupon.connect(backend).signCampaign(7n, ORCHARD, 3_000n, 0n, 0n)).to.be.revertedWithCustomError(
-      coupon,
-      "CampaignNotFound",
-    );
-  });
+    it("일시 중지에서 바로 종료할 수 있다", async function () {
+      const { coupon } = await withActiveCampaign();
+      await coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Paused);
+      await coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Ended);
+      expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Ended);
+    });
 
-  it("할인 금액 0원으로는 서명할 수 없다", async function () {
-    const { coupon, backend } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS);
-    await expect(coupon.connect(backend).signCampaign(CAMPAIGN, ORCHARD, 0n, 0n, 0n)).to.be.revertedWithCustomError(
-      coupon,
-      "InvalidAmount",
-    );
-  });
+    it("허용되지 않은 전환은 거절된다 (INVALID_STATUS)", async function () {
+      const { coupon } = await withTerms();
+      const S = CampaignStatus;
+      // 준비 중에서는 진행 중으로만
+      for (const to of [S.Paused, S.Ended, S.Preparing, S.None]) {
+        await expect(coupon.setCampaignStatus(CAMPAIGN, to)).to.be.revertedWithCustomError(coupon, "InvalidStatus");
+      }
+      await coupon.setCampaignStatus(CAMPAIGN, S.Active);
+      for (const to of [S.Active, S.Preparing]) {
+        await expect(coupon.setCampaignStatus(CAMPAIGN, to)).to.be.revertedWithCustomError(coupon, "InvalidStatus");
+      }
+      await coupon.setCampaignStatus(CAMPAIGN, S.Ended);
+      // 종료 뒤에는 아무 데로도
+      for (const to of [S.Active, S.Paused, S.Ended]) {
+        await expect(coupon.setCampaignStatus(CAMPAIGN, to)).to.be.revertedWithCustomError(coupon, "InvalidStatus");
+      }
+    });
 
-  it("KCP가 승인하면 진행 중, 반려하면 반려 상태가 된다", async function () {
-    const a = await withSignedCampaign();
-    await expect(a.coupon.decideCampaign(CAMPAIGN, true)).to.emit(a.coupon, "CampaignDecided").withArgs(CAMPAIGN, true);
-    expect((await a.coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Active);
+    it("종료 시각이 지나면 자동으로 종료로 보이고, 다시 진행할 수 없다", async function () {
+      const { coupon, endsAt } = await withActiveCampaign();
+      await time.increaseTo(endsAt + 1n);
+      expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Ended);
+      await expect(coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Paused)).to.be.revertedWithCustomError(
+        coupon,
+        "InvalidStatus",
+      );
+    });
 
-    const b = await withSignedCampaign();
-    await b.coupon.decideCampaign(CAMPAIGN, false);
-    expect((await b.coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Rejected);
-  });
+    it("종료 시각 정각까지는 진행 중이고, 1초 지나면 종료로 보인다", async function () {
+      const { coupon, endsAt } = await withActiveCampaign();
+      await time.increaseTo(endsAt);
+      expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Active);
+      await time.increaseTo(endsAt + 1n);
+      expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Ended);
+    });
 
-  it("서명이 덜 끝났거나 이미 결정된 기획전은 승인할 수 없다", async function () {
-    const { coupon, backend } = await withMerchants();
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS);
-    await expect(coupon.decideCampaign(CAMPAIGN, true)).to.be.revertedWithCustomError(coupon, "CampaignNotPending");
+    it("일시 중지 중에 종료 시각이 지나면 자동 종료 — 다시 진행도, 종료 처리도 할 수 없다", async function () {
+      const { coupon, endsAt } = await withActiveCampaign();
+      await coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Paused);
+      await time.increaseTo(endsAt + 1n);
+      expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Ended);
+      for (const to of [CampaignStatus.Active, CampaignStatus.Ended]) {
+        await expect(coupon.setCampaignStatus(CAMPAIGN, to)).to.be.revertedWithCustomError(coupon, "InvalidStatus");
+      }
+    });
 
-    for (const id of [ORCHARD, FLOWER]) {
-      const t = TERMS[id];
-      await coupon.connect(backend).signCampaign(CAMPAIGN, id, t.amount, t.minOrder, t.fund);
-    }
-    await coupon.decideCampaign(CAMPAIGN, true);
-    await expect(coupon.decideCampaign(CAMPAIGN, false)).to.be.revertedWithCustomError(coupon, "CampaignNotPending");
-  });
+    it("종료 시각이 지난 준비 중 기획전은 시작 승인할 수 없다 (기록에 없는 '시작'이 남지 않게)", async function () {
+      const { coupon, endsAt } = await withTerms();
+      await time.increaseTo(endsAt + 1n);
+      await expect(coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Active))
+        .to.be.revertedWithCustomError(coupon, "InvalidStatus")
+        .withArgs(CAMPAIGN);
+    });
 
-  it("기획전 생성·승인은 KCP만, 서명은 백엔드만 할 수 있다", async function () {
-    const { coupon, kcp, backend } = await withMerchants();
-    await expect(
-      coupon.connect(backend).createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS),
-    ).to.be.revertedWithCustomError(coupon, "AccessControlUnauthorizedAccount");
-
-    await coupon.createCampaign(CAMPAIGN, [ORCHARD, FLOWER], VALID_DAYS);
-    await expect(coupon.connect(kcp).signCampaign(CAMPAIGN, ORCHARD, 2_000n, 0n, 0n)).to.be.revertedWithCustomError(
-      coupon,
-      "AccessControlUnauthorizedAccount",
-    );
+    it("없는 기획전은 바꿀 수 없고, 상태 변경은 KCP만 할 수 있다", async function () {
+      const { coupon, backend } = await withTerms();
+      await expect(coupon.setCampaignStatus(9n, CampaignStatus.Active))
+        .to.be.revertedWithCustomError(coupon, "CampaignNotFound")
+        .withArgs(9n);
+      await expect(
+        coupon.connect(backend).setCampaignStatus(CAMPAIGN, CampaignStatus.Active),
+      ).to.be.revertedWithCustomError(coupon, "AccessControlUnauthorizedAccount");
+    });
   });
 });

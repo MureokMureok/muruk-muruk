@@ -1,55 +1,84 @@
-// 시연 흐름 전체를 처음부터 끝까지 한 번에 (frontend/README.md 시연 장면 순서)
+// 시연 8장면을 처음부터 끝까지 한 번에 (frontend/README.md "시연 8장면 순서", 11/3) + 발급·사용 락업
+// 시작 상태 = seed.js "시연 시작 상태": 기획전 준비 중, 봄꽃상회·바다찬은 조건 등록, 과수원집만 미등록
 import { expect } from "chai";
-import { deploy, ref, CAMPAIGN, ORCHARD, FLOWER, SEA, TERMS, ReceiveRule, CampaignStatus, Reason, Status, nextRef } from "./helpers.js";
+import {
+  deploy,
+  time,
+  ref,
+  CAMPAIGN,
+  ORCHARD,
+  FLOWER,
+  SEA,
+  WILDFLOWER,
+  DAY,
+  TERMS,
+  MerchantStatus,
+  CampaignStatus,
+  Status,
+  Reason,
+} from "./helpers.js";
 
-describe("시연 시나리오 전체", function () {
-  it("등록 → 한도 → 기획전 서명·잠금·승인 → 구매 시 쿠폰 발급 → 사용 → 재사용 거절 → 정산", async function () {
+describe("시연 시나리오 전체 (8장면)", function () {
+  it("심사 → 조건 등록 → 시작 승인 → 구매 발급 → 쿠폰함 → 사용 → 재사용 거절 → 할인 부담·기록 조회", async function () {
     const { coupon, kcp, backend, alice } = await deploy();
     const op = coupon.connect(backend);
+    const asKcp = coupon.connect(kcp);
 
-    // ① KCP: 가맹점 등록, 입금 확인 → 한도
-    for (const id of [ORCHARD, FLOWER, SEA]) {
-      await coupon.connect(kcp).whitelistMerchant(id);
-      await coupon.connect(kcp).addLimit(id, 500_000n, ref(`deposit-${id}`));
-    }
-    await coupon.connect(kcp).createCampaign(CAMPAIGN, [ORCHARD, FLOWER, SEA], 30);
-
-    // ② 가맹점: 첫 구매 쿠폰 직접 발행
-    await op.createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef());
-
-    // ③ 가맹점 3곳 서명 → 규칙 잠금 → KCP 승인
-    for (const id of [ORCHARD, FLOWER, SEA]) {
+    // 시작 상태 만들기
+    for (const id of [ORCHARD, FLOWER, SEA]) await asKcp.reviewMerchant(id, true);
+    const now = BigInt(await time.latest());
+    await asKcp.createCampaign(CAMPAIGN, [ORCHARD, FLOWER, SEA], now, now + 30n * DAY);
+    for (const id of [FLOWER, SEA]) {
       const t = TERMS[id];
-      await op.signCampaign(CAMPAIGN, id, t.amount, t.minOrder, t.fund);
+      await op.registerTerms(CAMPAIGN, id, t.amount, t.minOrder, t.validity, t.cap);
     }
-    expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.PendingApproval);
-    await coupon.connect(kcp).decideCampaign(CAMPAIGN, true);
 
-    // ④ 소비자: 과수원집 감귤 24,900원 구매 → 봄꽃상회·바다찬 쿠폰 + 과수원집 첫 구매 쿠폰
-    await op.issueForPurchase(CAMPAIGN, ORCHARD, alice.address, 24_900n, ref("order-1"));
+    // 1 KCP: 들꽃공방 참여 신청 승인
+    await asKcp.reviewMerchant(WILDFLOWER, true);
+    expect(await coupon.merchantOf(WILDFLOWER)).to.equal(MerchantStatus.Approved);
+
+    // 2 과수원집: 쿠폰 조건 등록 (3/3)
+    const t = TERMS[ORCHARD];
+    await op.registerTerms(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.validity, t.cap);
+
+    // 3 KCP: 시작 승인 → 진행 중
+    await asKcp.setCampaignStatus(CAMPAIGN, CampaignStatus.Active);
+    expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Active);
+
+    // 4 지민: 과수원집 감귤 결제 → 다른 가게 쿠폰 2장 (확정 대기) → 구매 확정 → 사용 가능
+    await op.issueForPurchase(CAMPAIGN, ORCHARD, alice.address, ref("order-1"));
     const ids = await coupon.issuedFor(ref("order-1"));
-    expect(ids).to.have.length(3);
-    const owners = await Promise.all(ids.map((id) => coupon.couponOf(id)));
-    expect(owners.map((c) => c.merchantId)).to.deep.equal([FLOWER, SEA, ORCHARD]);
+    for (const id of ids) expect(await coupon.statusOf(id)).to.equal(Status.Pending);
+    await op.confirmPurchase(ref("order-1"));
+    const coupons = await Promise.all(ids.map((id) => coupon.couponOf(id)));
+    expect(coupons.map((c) => c.merchantId)).to.deep.equal([FLOWER, SEA]);
 
-    // ⑥ 소비자: 봄꽃상회 꽃다발 25,000원 → 3,000원 할인, 소각
+    // 5 쿠폰함: 2장 모두 사용 가능
+    for (const id of ids) expect(await coupon.statusOf(id)).to.equal(Status.Available);
+
+    // 6 봄꽃상회 꽃다발 25,000원 → 결제 시작(쿠폰 잠금) → 결제 확정 → 3,000원 할인 (22,000원 결제), 소각
     const flower = ids[0];
-    await op.redeem(flower, alice.address, FLOWER, 25_000n, ref("pay-1"));
+    await op.lockForPayment(flower, alice.address, FLOWER, 25_000n, ref("pay-1"));
+    expect(await coupon.statusOf(flower)).to.equal(Status.InUse);
+    await op.confirmPayment(ref("pay-1"));
     expect(await coupon.statusOf(flower)).to.equal(Status.Used);
+    expect((await coupon.couponOf(flower)).discount).to.equal(3_000n);
 
-    // ⑦ 같은 쿠폰 재사용 → 거절 (쿠폰 상태 변화 없음)
-    await expect(op.redeem(flower, alice.address, FLOWER, 25_000n, ref("pay-2")))
+    // 7 같은 쿠폰 다시 써보기 → 거절 (쿠폰 상태 변화 없음)
+    await expect(op.lockForPayment(flower, alice.address, FLOWER, 25_000n, ref("pay-2")))
       .to.emit(coupon, "RedeemRejected")
-      .withArgs(flower, alice.address, Reason.AlreadyUsed, ref("pay-2"));
+      .withArgs(flower, alice.address, FLOWER, Reason.AlreadyUsed, ref("pay-2"));
 
-    // ⑧ 정산·체인 기록
-    const flowerTerm = await coupon.termOf(CAMPAIGN, FLOWER);
-    expect(flowerTerm.fundReserved).to.equal(3_000n); // 발급된 쿠폰만큼 확보
-    expect(flowerTerm.fundUsed).to.equal(3_000n); // 실제 사용 = 봄꽃상회 부담
-    expect((await coupon.termOf(CAMPAIGN, SEA)).fundUsed).to.equal(0n);
+    // 8 봄꽃상회 할인 부담 = 쓰인 만큼만, KCP 기록 조회
+    const f = await coupon.termOf(CAMPAIGN, FLOWER);
+    expect([f.issuedCount, f.maxIssue, f.usedCount, f.burden]).to.deep.equal([1n, 100n, 1n, 3_000n]);
+    expect((await coupon.termOf(CAMPAIGN, SEA)).burden).to.equal(0n);
 
-    const [orchard, orchardRemaining] = await coupon.merchantOf(ORCHARD);
-    expect(orchard.reserved).to.equal(200_000n + 50_000n); // 충전금 + 직접 발행분
-    expect(orchardRemaining).to.equal(250_000n);
+    const issued = await coupon.queryFilter(coupon.filters.CouponIssued());
+    const used = await coupon.queryFilter(coupon.filters.CouponRedeemed());
+    const rejected = await coupon.queryFilter(coupon.filters.RedeemRejected());
+    expect([issued.length, used.length, rejected.length]).to.deep.equal([2, 1, 1]);
+    expect(used[0].args.orderAmount).to.equal(25_000n); // M4 "쿠폰으로 생긴 매출"
+    expect(used[0].args.fromMerchantId).to.equal(ORCHARD); // K2 손님 흐름: 과수원집 → 봄꽃상회
   });
 });

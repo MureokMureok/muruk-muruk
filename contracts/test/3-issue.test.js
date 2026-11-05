@@ -1,202 +1,295 @@
-// 3단계: 쿠폰 발급 — 가맹점 직접 발행 묶음 등록, 구매 시 기획전·보너스 쿠폰 발급, 양도 불가 (시연 ②·④)
+// 3단계: 구매 시 쿠폰 발급 + 발급 락업 (소비자 ③ ④ · 모의 API couponsForPurchase · 공동구매 설계안 "결제 때 잠김 발급 → 구매 확정 후 해제")
 import { expect } from "chai";
 import {
-  withMerchants,
-  withSignedCampaign,
+  withTerms,
   withActiveCampaign,
   buy,
+  buyConfirmed,
   ref,
+  time,
+  days30From,
   CAMPAIGN,
   ORCHARD,
   FLOWER,
   SEA,
-  FIELD,
+  WILDFLOWER,
+  DAY,
   TERMS,
-  ReceiveRule,
+  CampaignStatus,
+  Validity,
   Status,
-  nextRef,
+  Reason,
+  OrderStatus,
 } from "./helpers.js";
 
-const DAY = 24n * 60n * 60n;
-
 describe("3단계 쿠폰 발급", function () {
-  describe("가맹점 직접 발행 쿠폰 등록", function () {
-    it("할인액 × 수량만큼 남은 한도가 묶인다", async function () {
-      const { coupon, backend } = await withMerchants();
-      await expect(
-        coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef()),
-      )
-        .to.emit(coupon, "IssuanceCreated")
-        .withArgs(1n, ORCHARD, 1_000n, 50n, 50_000n);
+  it("과수원집에서 사면 봄꽃상회·바다찬 쿠폰 2장, 과수원집 쿠폰은 받지 않는다", async function () {
+    const { coupon, backend, alice } = await withActiveCampaign();
+    const ids = await buy(coupon, backend, alice, ORCHARD, "order-1");
+    expect(ids).to.have.length(2);
 
-      const [, remaining] = await coupon.merchantOf(ORCHARD);
-      expect(remaining).to.equal(450_000n);
-      const s = await coupon.issuanceOf(1n);
-      expect(s.qty).to.equal(50n);
-      expect(s.issuedCount).to.equal(0n);
+    const [flower, sea] = await Promise.all(ids.map((id) => coupon.couponOf(id)));
+    expect(flower.merchantId).to.equal(FLOWER);
+    expect(flower.amount).to.equal(3_000n);
+    expect(flower.minOrder).to.equal(15_000n);
+    expect(flower.fromMerchantId).to.equal(ORCHARD); // 어디서 온 손님 (M4)
+    expect(flower.campaignId).to.equal(CAMPAIGN);
+    expect(flower.orderRef).to.equal(ref("order-1"));
+    expect(sea.merchantId).to.equal(SEA);
+
+    for (const id of ids) {
+      expect(await coupon.balanceOf(alice.address, id)).to.equal(1n);
+      expect(await coupon.ownerOfCoupon(id)).to.equal(alice.address);
+    }
+    expect((await coupon.termOf(CAMPAIGN, FLOWER)).issuedCount).to.equal(1n);
+    expect((await coupon.termOf(CAMPAIGN, ORCHARD)).issuedCount).to.equal(0n);
+  });
+
+  it("발급마다 기록(CouponIssued)이 남는다", async function () {
+    const { coupon, backend, alice } = await withActiveCampaign();
+    await coupon.connect(backend).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, ref("order-1"));
+    const logs = await coupon.queryFilter(coupon.filters.CouponIssued());
+    expect(logs.map((l) => l.args.merchantId)).to.deep.equal([FLOWER, SEA]);
+    expect(logs[0].args.orderRef).to.equal(ref("order-1"));
+    expect(logs[0].args.fromMerchantId).to.equal(ORCHARD);
+    expect(logs[0].args.campaignId).to.equal(CAMPAIGN);
+    expect(logs[0].args.to).to.equal(alice.address);
+    expect(logs[0].args.expiresAt).to.equal((await coupon.couponOf(logs[0].args.tokenId)).expiresAt);
+  });
+
+  describe("발급 락업 (구매 확정 전에는 못 씀)", function () {
+    it("발급 직후에는 확정 대기 — 사용 검사에서 NotConfirmed", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      const [flower] = await buy(coupon, backend, alice, ORCHARD, "order-1");
+      expect(await coupon.statusOf(flower)).to.equal(Status.Pending);
+      expect(await coupon.check(flower, alice.address, FLOWER, 25_000n)).to.equal(Reason.NotConfirmed);
+      const order = await coupon.orderOf(ref("order-1"));
+      expect([order.status, order.campaignId, order.buyer]).to.deep.equal([OrderStatus.Pending, CAMPAIGN, alice.address]);
     });
 
-    it("한도가 없는 가게는 발행할 수 없다", async function () {
-      const { coupon, backend } = await withMerchants();
-      await coupon.whitelistMerchant(9n);
-      await expect(
-        coupon.connect(backend).createIssuance(9n, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1, nextRef()),
-      ).to.be.revertedWithCustomError(coupon, "NoLimit");
+    it("구매 확정하면 그 주문의 쿠폰이 모두 사용 가능해지고 기록이 남는다", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      const ids = await buy(coupon, backend, alice, ORCHARD, "order-1");
+      await expect(coupon.connect(backend).confirmPurchase(ref("order-1")))
+        .to.emit(coupon, "PurchaseConfirmed")
+        .withArgs(ref("order-1"), 2n)
+        .and.to.emit(coupon, "CouponActivated");
+      for (const id of ids) expect(await coupon.statusOf(id)).to.equal(Status.Available);
+      expect(await coupon.check(ids[0], alice.address, FLOWER, 25_000n)).to.equal(Reason.Ok);
+      expect((await coupon.orderOf(ref("order-1"))).status).to.equal(OrderStatus.Confirmed);
     });
 
-    it("남은 한도를 넘으면 발행할 수 없다", async function () {
-      const { coupon, backend } = await withMerchants();
-      await expect(coupon.connect(backend).createIssuance(ORCHARD, 10_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 51, nextRef()))
-        .to.be.revertedWithCustomError(coupon, "LimitExceeded")
-        .withArgs(ORCHARD, 510_000n, 500_000n);
+    it("유효기간은 발급일 기준 그대로 — 확정이 늦어도 바뀌지 않는다", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      const [flower] = await buy(coupon, backend, alice, ORCHARD, "order-1");
+      const before = (await coupon.couponOf(flower)).expiresAt;
+      await time.increase(5n * DAY);
+      await coupon.connect(backend).confirmPurchase(ref("order-1"));
+      const c = await coupon.couponOf(flower);
+      expect(c.expiresAt).to.equal(before);
+      expect(c.expiresAt).to.equal(days30From(c.issuedAt));
     });
 
-    it("할인액·수량·유효기간이 0이면 거절된다", async function () {
-      const { coupon, backend } = await withMerchants();
-      for (const [amount, days, qty] of [
-        [0n, 14, 1],
-        [1_000n, 14, 0],
-        [1_000n, 0, 1],
-      ]) {
-        await expect(
-          coupon.connect(backend).createIssuance(ORCHARD, amount, 0n, ReceiveRule.MinAmount, 0n, days, qty, nextRef()),
-        ).to.be.revertedWithCustomError(coupon, "InvalidAmount");
+    it("확정 전에 유효기간이 지나면 확정 직후 바로 만료 상태", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      const [flower] = await buy(coupon, backend, alice, ORCHARD, "order-1");
+      await time.increaseTo((await coupon.couponOf(flower)).expiresAt + 1n);
+      await coupon.connect(backend).confirmPurchase(ref("order-1"));
+      expect(await coupon.statusOf(flower)).to.equal(Status.Expired);
+    });
+
+    it("구매 취소(확정 전 환불)하면 쿠폰은 무효·소각되고 그 가게 발급 수가 돌아온다", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      const ids = await buy(coupon, backend, alice, ORCHARD, "order-1");
+      await expect(coupon.connect(backend).cancelPurchase(ref("order-1")))
+        .to.emit(coupon, "PurchaseCancelled")
+        .withArgs(ref("order-1"), 2n)
+        .and.to.emit(coupon, "CouponVoided");
+
+      for (const id of ids) {
+        expect(await coupon.statusOf(id)).to.equal(Status.Voided);
+        expect(await coupon.balanceOf(alice.address, id)).to.equal(0n);
+        expect(await coupon.ownerOfCoupon(id)).to.equal(alice.address); // 기록은 남음
+      }
+      expect(await coupon.check(ids[0], alice.address, FLOWER, 25_000n)).to.equal(Reason.Voided);
+      expect((await coupon.termOf(CAMPAIGN, FLOWER)).issuedCount).to.equal(0n);
+      expect((await coupon.orderOf(ref("order-1"))).status).to.equal(OrderStatus.Cancelled);
+    });
+
+    it("취소로 돌아온 발급 수는 다른 손님에게 다시 나갈 수 있다", async function () {
+      // 봄꽃상회 최대 1장
+      const terms = { ...TERMS, [FLOWER]: { ...TERMS[FLOWER], cap: 3_000n } };
+      const { coupon, backend, alice, bob } = await withActiveCampaign(terms);
+      await buy(coupon, backend, alice, ORCHARD, "order-1");
+      expect(await buy(coupon, backend, bob, ORCHARD, "order-2")).to.have.length(1); // 바다찬만
+      await coupon.connect(backend).cancelPurchase(ref("order-1"));
+      const again = await buy(coupon, backend, bob, ORCHARD, "order-3");
+      expect((await coupon.couponOf(again[0])).merchantId).to.equal(FLOWER);
+    });
+
+    it("확정·취소는 확정 대기 주문에서 한 번만 (OrderNotPending)", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      const op = coupon.connect(backend);
+      await buy(coupon, backend, alice, ORCHARD, "order-1");
+      await op.confirmPurchase(ref("order-1"));
+      for (const fn of ["confirmPurchase", "cancelPurchase"]) {
+        await expect(op[fn](ref("order-1")))
+          .to.be.revertedWithCustomError(coupon, "OrderNotPending")
+          .withArgs(ref("order-1"));
+      }
+      await buy(coupon, backend, alice, ORCHARD, "order-2");
+      await op.cancelPurchase(ref("order-2"));
+      await expect(op.confirmPurchase(ref("order-2"))).to.be.revertedWithCustomError(coupon, "OrderNotPending");
+      await expect(op.confirmPurchase(ref("no-order"))).to.be.revertedWithCustomError(coupon, "OrderNotPending");
+    });
+
+    it("구매 확정 후 환불은 이 컨트랙트 범위 밖 — 확정된 주문은 취소할 수 없다", async function () {
+      const { coupon, backend, alice } = await withActiveCampaign();
+      await buyConfirmed(coupon, backend, alice, ORCHARD, "order-1");
+      await expect(coupon.connect(backend).cancelPurchase(ref("order-1"))).to.be.revertedWithCustomError(
+        coupon,
+        "OrderNotPending",
+      );
+    });
+
+    it("구매 확정·취소는 백엔드만 할 수 있다", async function () {
+      const { coupon, backend, kcp, alice } = await withActiveCampaign();
+      await buy(coupon, backend, alice, ORCHARD, "order-1");
+      for (const who of [kcp, alice]) {
+        for (const fn of ["confirmPurchase", "cancelPurchase"]) {
+          await expect(coupon.connect(who)[fn](ref("order-1"))).to.be.revertedWithCustomError(
+            coupon,
+            "AccessControlUnauthorizedAccount",
+          );
+        }
       }
     });
   });
 
-  describe("구매 시 기획전 쿠폰", function () {
-    it("과수원집에서 사면 봄꽃상회·바다찬 쿠폰 2장이 발급된다", async function () {
-      const { coupon, backend, alice } = await withActiveCampaign();
-      const ids = await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1");
-
-      expect(ids).to.deep.equal([1n, 2n]);
-      const c1 = await coupon.couponOf(1n);
-      const c2 = await coupon.couponOf(2n);
-      expect([c1.merchantId, c2.merchantId]).to.deep.equal([FLOWER, SEA]);
-      expect(c1.fromMerchantId).to.equal(ORCHARD);
-      expect(c1.amount).to.equal(3_000n);
-      expect(c1.minOrder).to.equal(15_000n);
-      expect(c1.expiresAt - c1.issuedAt).to.equal(30n * DAY);
-
-      expect(await coupon.balanceOf(alice.address, 1n)).to.equal(1n);
-      expect(await coupon.ownerOfCoupon(1n)).to.equal(alice.address);
-      expect(await coupon.statusOf(1n)).to.equal(Status.Available);
-      expect((await coupon.termOf(CAMPAIGN, FLOWER)).fundReserved).to.equal(3_000n);
-    });
-
-    it("발급 이벤트에 주문 번호와 구매 가게가 남는다", async function () {
-      const { coupon, backend, alice } = await withActiveCampaign();
-      const tx = coupon.connect(backend).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, 24_900n, ref("order-1"));
-      await expect(tx).to.emit(coupon, "CouponIssued");
-      const receipt = await (await tx).wait();
-      const ev = receipt.logs.map((l) => coupon.interface.parseLog(l)).find((e) => e?.name === "CouponIssued");
-      expect(ev.args.to).to.equal(alice.address);
-      expect(ev.args.fromMerchantId).to.equal(ORCHARD);
-      expect(ev.args.orderRef).to.equal(ref("order-1"));
-    });
-
-    it("KCP 승인 전(서명 단계)에는 기획전 쿠폰이 나오지 않는다", async function () {
-      const { coupon, backend, alice } = await withSignedCampaign();
-      expect(await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1")).to.deep.equal([]);
-    });
-
-    it("기획전에 참여하지 않은 가게에서 사면 기획전 쿠폰이 나오지 않는다", async function () {
-      const { coupon, backend, alice } = await withActiveCampaign();
-      expect(await buy(coupon, backend, alice, FIELD, 30_000n, "order-1")).to.deep.equal([]);
-    });
-
-    it("충전금이 떨어진 가게 쿠폰만 빠지고 나머지는 발급된다 (쏠림 대응)", async function () {
-      // 바다찬 충전금 = 쿠폰 1장 분량
-      const terms = { ...TERMS, [SEA]: { amount: 3_000n, minOrder: 20_000n, fund: 3_000n } };
-      const { coupon, backend, alice, bob } = await withActiveCampaign(terms);
-
-      expect(await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1")).to.have.length(2);
-
-      await expect(coupon.connect(backend).issueForPurchase(CAMPAIGN, ORCHARD, bob.address, 24_900n, ref("order-2")))
-        .to.emit(coupon, "IssueSkipped")
-        .withArgs(ref("order-2"), SEA);
-      const ids = await coupon.issuedFor(ref("order-2"));
-      expect(ids).to.have.length(1);
-      expect((await coupon.couponOf(ids[0])).merchantId).to.equal(FLOWER);
-    });
-
-    it("같은 주문으로 두 번 발급할 수 없다 (새로고침 방지)", async function () {
-      const { coupon, backend, alice } = await withActiveCampaign();
-      await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1");
-      await expect(
-        coupon.connect(backend).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, 24_900n, ref("order-1")),
-      ).to.be.revertedWithCustomError(coupon, "OrderAlreadyIssued");
-    });
-
-    it("기획전 번호 0이면 기획전 쿠폰 없이 구매만 기록된다", async function () {
-      const { coupon, backend, alice } = await withActiveCampaign();
-      expect(await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1", 0n)).to.deep.equal([]);
-      expect(await coupon.hasPurchased(alice.address, ORCHARD)).to.equal(true);
-    });
+  it("유효기간 '받은 날부터 30일'은 30일째 되는 날 23:59:59(KST)까지", async function () {
+    const { coupon, backend, alice } = await withActiveCampaign();
+    const [id] = await buy(coupon, backend, alice, ORCHARD, "order-1");
+    const c = await coupon.couponOf(id);
+    expect(c.expiresAt).to.equal(days30From(c.issuedAt));
   });
 
-  describe("구매 시 보너스 쿠폰 (가맹점 직접 발행)", function () {
-    it("첫 구매 쿠폰은 그 가게 첫 구매 때만 받는다", async function () {
-      const { coupon, backend, alice } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef());
-
-      expect(await coupon.hasPurchased(alice.address, ORCHARD)).to.equal(false);
-      const first = await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1", 0n);
-      expect(first).to.have.length(1);
-      const c = await coupon.couponOf(first[0]);
-      expect(c.merchantId).to.equal(ORCHARD); // 산 가게에서 쓰는 쿠폰
-      expect(c.issuanceId).to.equal(1n);
-
-      expect(await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-2", 0n)).to.deep.equal([]);
-      expect((await coupon.issuanceOf(1n)).issuedCount).to.equal(1n);
+  // 공식을 다시 쓰지 않고 정답을 직접 적어서 검사 (KST 날짜 경계: 23:59:59 발급 / 00:00:00 발급)
+  // 테스트끼리 체인 시간을 공유하므로 날짜는 앞 테스트보다 늦게 둔다
+  const utc = (s) => BigInt(Date.parse(s) / 1000);
+  for (const [issued, expected, label] of [
+    ["2030-03-10T14:59:59Z", "2030-04-09T14:59:59Z", "3/10 23:59:59 KST 발급 → 4/9 23:59:59 KST"],
+    ["2030-05-20T15:00:00Z", "2030-06-20T14:59:59Z", "5/21 00:00:00 KST 발급 → 6/20 23:59:59 KST"],
+  ]) {
+    it(`30일 만료 정답 확인: ${label}`, async function () {
+      const { coupon, backend, alice } = await withActiveCampaign(TERMS, { endsAt: utc("2031-01-01T00:00:00Z") });
+      await time.setNextBlockTimestamp(utc(issued));
+      const [id] = await buy(coupon, backend, alice, ORCHARD, "order-1");
+      const c = await coupon.couponOf(id);
+      expect(c.issuedAt).to.equal(utc(issued));
+      expect(c.expiresAt).to.equal(utc(expected));
     });
+  }
 
-    it("받는 조건 금액보다 적게 사면 받지 못한다", async function () {
-      const { coupon, backend, alice } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 30_000n, 14, 50, nextRef());
-      expect(await buy(coupon, backend, alice, ORCHARD, 29_999n, "order-1", 0n)).to.deep.equal([]);
-      expect(await buy(coupon, backend, alice, ORCHARD, 30_000n, "order-2", 0n)).to.have.length(1);
-    });
-
-    it("수량이 다 떨어지면 더 발급되지 않는다", async function () {
-      const { coupon, backend, alice, bob } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 1, nextRef());
-      expect(await buy(coupon, backend, alice, ORCHARD, 10_000n, "order-1", 0n)).to.have.length(1);
-      expect(await buy(coupon, backend, bob, ORCHARD, 10_000n, "order-2", 0n)).to.deep.equal([]);
-    });
-
-    it("보너스 쿠폰 유효기간은 발행 묶음 기준이다", async function () {
-      const { coupon, backend, alice } = await withMerchants();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 0n, ReceiveRule.MinAmount, 0n, 14, 5, nextRef());
-      const [id] = await buy(coupon, backend, alice, ORCHARD, 10_000n, "order-1", 0n);
-      expect((await coupon.couponOf(id)).expiresAt).to.equal((await coupon.issuanceOf(1n)).expiresAt);
-    });
-
-    it("기획전 쿠폰과 보너스 쿠폰을 함께 받을 수 있다", async function () {
-      const { coupon, backend, alice } = await withActiveCampaign();
-      await coupon.connect(backend).createIssuance(ORCHARD, 1_000n, 5_000n, ReceiveRule.FirstPurchase, 10_000n, 14, 50, nextRef());
-      expect(await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1")).to.have.length(3);
-    });
+  it("유효기간 '기획전 종료일까지'면 기획전 종료 시각이 만료 시각이 된다", async function () {
+    const terms = { ...TERMS, [FLOWER]: { ...TERMS[FLOWER], validity: Validity.CampaignEnd } };
+    const { coupon, backend, alice, endsAt } = await withActiveCampaign(terms);
+    const ids = await buy(coupon, backend, alice, ORCHARD, "order-1");
+    expect((await coupon.couponOf(ids[0])).expiresAt).to.equal(endsAt);
+    const sea = await coupon.couponOf(ids[1]); // 바다찬은 받은 날부터 30일 그대로
+    expect(sea.expiresAt).to.equal(days30From(sea.issuedAt));
   });
 
-  describe("양도 불가", function () {
-    it("소비자는 쿠폰을 다른 사람에게 보낼 수 없다", async function () {
-      const { coupon, backend, alice, bob } = await withActiveCampaign();
-      await buy(coupon, backend, alice, ORCHARD, 24_900n, "order-1");
-      await expect(
-        coupon.connect(alice).safeTransferFrom(alice.address, bob.address, 1n, 1n, "0x"),
-      ).to.be.revertedWithCustomError(coupon, "TransferDisabled");
-      await expect(
-        coupon.connect(alice).safeBatchTransferFrom(alice.address, bob.address, [1n], [1n], "0x"),
-      ).to.be.revertedWithCustomError(coupon, "TransferDisabled");
-    });
+  it("할인 한도까지 다 발급된 가게 쿠폰만 빠지고 기록이 남는다 (④-c '모두 소진')", async function () {
+    // 봄꽃상회 한도 6,000원 → 최대 2장
+    const terms = { ...TERMS, [FLOWER]: { ...TERMS[FLOWER], cap: 6_000n } };
+    const { coupon, backend, alice, bob } = await withActiveCampaign(terms);
 
-    it("쿠폰 발급은 백엔드만 할 수 있다", async function () {
-      const { coupon, alice } = await withActiveCampaign();
+    await buy(coupon, backend, alice, ORCHARD, "order-1");
+    await buy(coupon, backend, bob, SEA, "order-2");
+
+    const orderRef = ref("order-3");
+    await expect(coupon.connect(backend).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, orderRef))
+      .to.emit(coupon, "IssueSkipped")
+      .withArgs(orderRef, FLOWER);
+
+    const ids = await coupon.issuedFor(orderRef);
+    expect(ids).to.have.length(1); // 바다찬 1장만
+    expect((await coupon.couponOf(ids[0])).merchantId).to.equal(SEA);
+
+    const t = await coupon.termOf(CAMPAIGN, FLOWER);
+    expect(t.issuedCount).to.equal(2n);
+    expect(t.maxIssue).to.equal(2n);
+  });
+
+  it("같은 주문으로 두 번 발급할 수 없다 (새로고침·재요청 방지)", async function () {
+    const { coupon, backend, alice } = await withActiveCampaign();
+    await buy(coupon, backend, alice, ORCHARD, "order-1");
+    await expect(coupon.connect(backend).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, ref("order-1")))
+      .to.be.revertedWithCustomError(coupon, "OrderAlreadyIssued")
+      .withArgs(ref("order-1"));
+  });
+
+  it("같은 소비자가 다시 사면 또 받는다 (구매할 때마다)", async function () {
+    const { coupon, backend, alice } = await withActiveCampaign();
+    await buy(coupon, backend, alice, ORCHARD, "order-1");
+    const again = await buy(coupon, backend, alice, ORCHARD, "order-2");
+    expect(again).to.have.length(2);
+    expect((await coupon.termOf(CAMPAIGN, FLOWER)).issuedCount).to.equal(2n);
+  });
+
+  it("준비 중·일시 중지·종료된 기획전에서는 쿠폰이 나오지 않는다 (주문은 기록됨)", async function () {
+    const ctx = await withTerms();
+    const { coupon, backend, alice } = ctx;
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-preparing")).to.have.length(0);
+
+    await coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Active);
+    await coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Paused);
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-paused")).to.have.length(0);
+
+    await coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Active);
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-active")).to.have.length(2);
+
+    await coupon.setCampaignStatus(CAMPAIGN, CampaignStatus.Ended);
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-ended")).to.have.length(0);
+
+    // 쿠폰이 안 나간 주문도 같은 번호로 다시 부를 수 없다
+    await expect(
+      coupon.connect(backend).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, ref("o-paused")),
+    ).to.be.revertedWithCustomError(coupon, "OrderAlreadyIssued");
+  });
+
+  it("종료 시각이 지나면 KCP가 종료하지 않아도 발급이 멈춘다 (K2 자동 종료)", async function () {
+    const { coupon, backend, alice, endsAt } = await withActiveCampaign();
+    await time.setNextBlockTimestamp(endsAt); // 다음 거래가 정확히 종료 시각에 들어가게
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-last")).to.have.length(2); // 종료 시각까지는 발급
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-late")).to.have.length(0); // 1초 뒤 블록
+  });
+
+  it("참여하지 않은 가게 구매, 없는 기획전 번호로는 쿠폰이 나오지 않는다", async function () {
+    const { coupon, backend, alice } = await withActiveCampaign();
+    expect(await buy(coupon, backend, alice, WILDFLOWER, "o-1")).to.have.length(0);
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-2", 9n)).to.have.length(0);
+    expect(await buy(coupon, backend, alice, ORCHARD, "o-3", 0n)).to.have.length(0);
+  });
+
+  it("쿠폰은 다른 사람에게 넘길 수 없다 (양도 불가, 승인받은 사람도)", async function () {
+    const { coupon, backend, alice, bob } = await withActiveCampaign();
+    const [id] = await buyConfirmed(coupon, backend, alice, ORCHARD, "order-1");
+    await expect(
+      coupon.connect(alice).safeTransferFrom(alice.address, bob.address, id, 1, "0x"),
+    ).to.be.revertedWithCustomError(coupon, "TransferDisabled");
+    await coupon.connect(alice).setApprovalForAll(bob.address, true);
+    await expect(
+      coupon.connect(bob).safeTransferFrom(alice.address, bob.address, id, 1, "0x"),
+    ).to.be.revertedWithCustomError(coupon, "TransferDisabled");
+  });
+
+  it("발급은 백엔드만 할 수 있다", async function () {
+    const { coupon, kcp, alice } = await withActiveCampaign();
+    for (const who of [kcp, alice]) {
       await expect(
-        coupon.connect(alice).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, 24_900n, ref("x")),
+        coupon.connect(who).issueForPurchase(CAMPAIGN, ORCHARD, alice.address, ref("o")),
       ).to.be.revertedWithCustomError(coupon, "AccessControlUnauthorizedAccount");
-    });
+    }
   });
 });

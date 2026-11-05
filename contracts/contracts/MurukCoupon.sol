@@ -5,47 +5,47 @@ import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IMurukCoupon} from "./interfaces/IMurukCoupon.sol";
 
-/// @title MurukCoupon — 무럭무럭 연합 기획전 쿠폰 구현
-/// @notice 동작 기준은 INTERFACE.md와 프론트 모의 API(feature/frontend 브랜치 frontend/src/api/api.js).
+/// @title MurukCoupon — 무럭무럭 연합 기획전 쿠폰 구현 (v3: 발급·사용 락업)
+/// @notice 동작 기준은 INTERFACE.md, 프론트 모의 API(11/3 core.js · api.js), Figma 와이어프레임, KCP 미팅 "락업".
 ///         ADMIN = KCP 관리자, OPERATOR = 백엔드 서버 지갑.
 contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    /// @notice 가게당 진행 중인 직접 발행 묶음 상한. 구매 한 번에 확인하는 묶음 수(가스)를 묶어 둔다.
-    uint256 public constant MAX_ACTIVE_ISSUANCES = 20;
+    /// @notice 유효기간 "받은 날부터 30일" (모의 API DAYS30) — 발급일 기준
+    uint256 public constant VALID_DAYS = 30;
+    /// @notice 기획전 참여 가게 수 상한. 구매 1건에 (가게 수 - 1)장을 발급하므로 블록 가스 한도(1,200만) 안에 들게 묶어 둔다
+    uint256 public constant MAX_CAMPAIGN_MERCHANTS = 20;
+    /// @dev 날짜 경계를 한국 시간으로 계산하기 위한 차이 (UTC+9)
+    uint256 private constant KST_OFFSET = 9 hours;
 
     /// @dev 기획전 저장용. 화면에는 campaignOf로 나눠서 돌려준다.
     struct CampaignData {
         CampaignStatus status;
-        uint32 validDays;
-        uint32 signedCount;
+        uint64 startsAt;
+        uint64 endsAt;
         uint256[] merchantIds;
     }
 
-    // 가맹점·한도
-    mapping(uint256 merchantId => Merchant) private _merchants;
+    // 가맹점 심사
+    mapping(uint256 merchantId => MerchantStatus) private _merchants;
 
-    // 기획전
+    // 기획전과 가게별 조건
     mapping(uint256 campaignId => CampaignData) private _campaigns;
-    mapping(uint256 campaignId => mapping(uint256 merchantId => CampaignTerm)) private _terms;
+    mapping(uint256 campaignId => mapping(uint256 merchantId => Term)) private _terms;
     mapping(uint256 campaignId => mapping(uint256 merchantId => bool)) private _inCampaign;
-
-    // 직접 발행
-    uint256 private _lastIssuanceId;
-    mapping(uint256 issuanceId => Issuance) private _issuances;
-    mapping(uint256 merchantId => uint256[]) private _issuancesOf; // 진행 중인 묶음만 (소진·만료되면 빠짐)
-    mapping(bytes32 requestRef => uint256 issuanceId) private _issuanceFor;
 
     // 쿠폰 (tokenId 1장 = 쿠폰 1장)
     uint256 private _lastTokenId;
     mapping(uint256 tokenId => Coupon) private _coupons;
-    mapping(uint256 tokenId => address) private _couponOwner; // 사용(소각) 뒤에도 기록으로 남김
+    mapping(uint256 tokenId => address) private _couponOwner; // 사용(소각)·무효 뒤에도 기록으로 남김
 
-    // 구매 기록
-    mapping(bytes32 orderRef => bool) private _orderDone;
+    // 발급 주문 (발급 락업)
+    mapping(bytes32 orderRef => Order) private _orders;
     mapping(bytes32 orderRef => uint256[]) private _issuedFor;
-    mapping(address buyer => mapping(uint256 merchantId => bool)) private _purchased;
+
+    // 쿠폰 결제 (사용 락업, 결제 1건 = 쿠폰 1장)
+    mapping(bytes32 payRef => Payment) private _payments;
 
     /// @param admin KCP 관리자 지갑 (역할 관리 권한도 가짐)
     /// @param operator 백엔드 서버 지갑
@@ -56,278 +56,225 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         _grantRole(OPERATOR_ROLE, operator);
     }
 
-    // ───────────── 1단계: 가맹점·한도 ─────────────
+    // ───────────── 1단계: 가맹점 심사 (K1) ─────────────
 
-    function whitelistMerchant(uint256 merchantId) external onlyRole(ADMIN_ROLE) {
-        _merchants[merchantId].whitelisted = true;
-        emit MerchantWhitelisted(merchantId);
+    function reviewMerchant(uint256 merchantId, bool approve) external onlyRole(ADMIN_ROLE) {
+        if (_merchants[merchantId] != MerchantStatus.None) revert NotPending(merchantId);
+        _merchants[merchantId] = approve ? MerchantStatus.Approved : MerchantStatus.Rejected;
+        emit MerchantReviewed(merchantId, approve);
     }
 
-    function addLimit(uint256 merchantId, uint256 amount, bytes32 depositRef) external onlyRole(ADMIN_ROLE) {
-        Merchant storage m = _merchants[merchantId];
-        if (!m.whitelisted) revert NotWhitelisted(merchantId);
-        if (amount == 0) revert InvalidAmount();
-
-        m.limit += amount;
-        emit LimitAdded(merchantId, amount, m.limit, depositRef);
+    function merchantOf(uint256 merchantId) external view returns (MerchantStatus) {
+        return _merchants[merchantId];
     }
 
-    function merchantOf(uint256 merchantId) external view returns (Merchant memory m, uint256 remaining) {
-        m = _merchants[merchantId];
-        remaining = m.limit - m.reserved;
-    }
+    // ───────────── 2단계: 연합 기획전 (K2 · M2 · M3) ─────────────
 
-    /// @dev 남은 한도에서 금액을 묶는다 (기획전 충전금·직접 발행분 공통)
-    function _reserve(uint256 merchantId, uint256 amount) private {
-        Merchant storage m = _merchants[merchantId];
-        uint256 remaining = m.limit - m.reserved;
-        if (amount > remaining) revert LimitExceeded(merchantId, amount, remaining);
-        m.reserved += amount;
-    }
-
-    // ───────────── 2단계: 기획전 ─────────────
-
-    function createCampaign(uint256 campaignId, uint256[] calldata merchantIds, uint32 validDays)
+    function createCampaign(uint256 campaignId, uint256[] calldata merchantIds, uint64 startsAt, uint64 endsAt)
         external
         onlyRole(ADMIN_ROLE)
     {
-        // campaignId 0은 issueForPurchase에서 "기획전 없음"이라 쓸 수 없다
-        if (campaignId == 0 || merchantIds.length == 0 || validDays == 0) revert InvalidAmount();
+        // campaignId 0은 쓰지 않는다 (없는 기획전과 구분)
+        if (campaignId == 0 || merchantIds.length < 2 || endsAt < startsAt) revert InvalidCampaign();
+        if (merchantIds.length > MAX_CAMPAIGN_MERCHANTS) revert TooManyMerchants(MAX_CAMPAIGN_MERCHANTS);
         CampaignData storage c = _campaigns[campaignId];
         if (c.status != CampaignStatus.None) revert CampaignExists(campaignId);
 
         for (uint256 i = 0; i < merchantIds.length; i++) {
             uint256 id = merchantIds[i];
-            if (!_merchants[id].whitelisted) revert NotWhitelisted(id);
-            if (_inCampaign[campaignId][id]) revert InvalidAmount(); // 같은 가게 중복
+            if (_merchants[id] != MerchantStatus.Approved) revert NotApproved(id);
+            if (_inCampaign[campaignId][id]) revert InvalidCampaign(); // 같은 가게 중복
             _inCampaign[campaignId][id] = true;
         }
 
-        c.status = CampaignStatus.Signing;
-        c.validDays = validDays;
+        c.status = CampaignStatus.Preparing;
+        c.startsAt = startsAt;
+        c.endsAt = endsAt;
         c.merchantIds = merchantIds;
-        emit CampaignCreated(campaignId, merchantIds, validDays);
+        emit CampaignCreated(campaignId, merchantIds, startsAt, endsAt);
     }
 
-    function signCampaign(uint256 campaignId, uint256 merchantId, uint256 amount, uint256 minOrder, uint256 fund)
-        external
-        onlyRole(OPERATOR_ROLE)
-    {
+    function registerTerms(
+        uint256 campaignId,
+        uint256 merchantId,
+        uint256 amount,
+        uint256 minOrder,
+        Validity validity,
+        uint256 cap
+    ) external onlyRole(OPERATOR_ROLE) {
         CampaignData storage c = _campaigns[campaignId];
         if (c.status == CampaignStatus.None) revert CampaignNotFound(campaignId);
         if (!_inCampaign[campaignId][merchantId]) revert NotInCampaign(campaignId, merchantId);
-        if (c.status != CampaignStatus.Signing) revert CampaignNotSigning(campaignId);
+        if (c.status != CampaignStatus.Preparing) revert TermsLocked(campaignId);
+        if (amount == 0 || minOrder < amount || cap < amount) revert InvalidTerms();
 
-        CampaignTerm storage t = _terms[campaignId][merchantId];
-        if (t.signed) revert AlreadySigned(campaignId, merchantId);
-        if (amount == 0) revert InvalidAmount();
-
-        _reserve(merchantId, fund);
+        Term storage t = _terms[campaignId][merchantId];
         t.amount = amount;
         t.minOrder = minOrder;
-        t.fund = fund;
-        t.signed = true;
-        emit CampaignSigned(campaignId, merchantId, amount, minOrder, fund);
-
-        // 참여 가게 전원이 서명하면 규칙 잠금 → KCP 승인 대기
-        c.signedCount += 1;
-        if (c.signedCount == c.merchantIds.length) {
-            c.status = CampaignStatus.PendingApproval;
-            emit CampaignLocked(campaignId);
-        }
+        t.validity = validity;
+        t.cap = cap;
+        t.maxIssue = cap / amount; // 최대 발급 수 = 할인 한도 ÷ 할인 금액 (M2 요약)
+        t.registered = true;
+        emit TermsRegistered(campaignId, merchantId, amount, minOrder, validity, cap, t.maxIssue);
     }
 
-    function decideCampaign(uint256 campaignId, bool approve) external onlyRole(ADMIN_ROLE) {
+    function setCampaignStatus(uint256 campaignId, CampaignStatus next) external onlyRole(ADMIN_ROLE) {
         CampaignData storage c = _campaigns[campaignId];
-        if (c.status != CampaignStatus.PendingApproval) revert CampaignNotPending(campaignId);
-        c.status = approve ? CampaignStatus.Active : CampaignStatus.Rejected;
-        emit CampaignDecided(campaignId, approve);
-        if (!approve) _releaseFunds(campaignId, c);
-    }
+        if (c.status == CampaignStatus.None) revert CampaignNotFound(campaignId);
+        // 종료 시각이 지났으면 이미 끝난 기획전 — 준비 중이었더라도 시작할 수 없다 (K2 "기간이 끝나면 자동 종료")
+        if (block.timestamp > c.endsAt) revert InvalidStatus(campaignId);
+        CampaignStatus current = c.status;
 
-    function cancelCampaign(uint256 campaignId) external onlyRole(ADMIN_ROLE) {
-        CampaignData storage c = _campaigns[campaignId];
-        if (c.status != CampaignStatus.Signing && c.status != CampaignStatus.PendingApproval) {
-            revert CampaignNotCancellable(campaignId);
+        bool allowed;
+        if (current == CampaignStatus.Preparing) {
+            allowed = next == CampaignStatus.Active;
+        } else if (current == CampaignStatus.Active) {
+            allowed = next == CampaignStatus.Paused || next == CampaignStatus.Ended;
+        } else if (current == CampaignStatus.Paused) {
+            allowed = next == CampaignStatus.Active || next == CampaignStatus.Ended;
         }
-        c.status = CampaignStatus.Cancelled;
-        emit CampaignCancelled(campaignId);
-        _releaseFunds(campaignId, c);
-    }
+        if (!allowed) revert InvalidStatus(campaignId);
 
-    /// @dev 반려·취소 시 서명한 가게들의 충전금을 한도로 돌려준다. 쿠폰이 발급되기 전 상태에서만 호출된다.
-    function _releaseFunds(uint256 campaignId, CampaignData storage c) private {
-        for (uint256 i = 0; i < c.merchantIds.length; i++) {
-            uint256 mId = c.merchantIds[i];
-            CampaignTerm storage t = _terms[campaignId][mId];
-            if (!t.signed || t.fund == 0) continue;
-            _merchants[mId].reserved -= t.fund;
-            emit FundReleased(campaignId, mId, t.fund);
+        // 시작 승인은 참여 가게 조건이 모두 등록돼야 한다
+        if (current == CampaignStatus.Preparing) {
+            for (uint256 i = 0; i < c.merchantIds.length; i++) {
+                if (!_terms[campaignId][c.merchantIds[i]].registered) revert NotReady(campaignId);
+            }
         }
+
+        c.status = next;
+        emit CampaignStatusChanged(campaignId, current, next);
     }
 
     function campaignOf(uint256 campaignId)
         external
         view
-        returns (CampaignStatus status, uint256[] memory merchantIds, uint32 validDays)
+        returns (CampaignStatus status, uint256[] memory merchantIds, uint64 startsAt, uint64 endsAt)
     {
         CampaignData storage c = _campaigns[campaignId];
-        return (c.status, c.merchantIds, c.validDays);
+        return (_effectiveStatus(c), c.merchantIds, c.startsAt, c.endsAt);
     }
 
-    function termOf(uint256 campaignId, uint256 merchantId) external view returns (CampaignTerm memory) {
+    function termOf(uint256 campaignId, uint256 merchantId) external view returns (Term memory) {
         return _terms[campaignId][merchantId];
     }
 
-    // ───────────── 3단계: 쿠폰 발급 ─────────────
-
-    function createIssuance(
-        uint256 merchantId,
-        uint256 amount,
-        uint256 minOrder,
-        ReceiveRule receiveRule,
-        uint256 receiveMin,
-        uint32 validDays,
-        uint32 qty,
-        bytes32 requestRef
-    ) external onlyRole(OPERATOR_ROLE) returns (uint256 issuanceId) {
-        if (requestRef == bytes32(0)) revert InvalidRef();
-        if (_issuanceFor[requestRef] != 0) revert IssuanceAlreadyCreated(requestRef);
-        if (amount == 0 || qty == 0 || validDays == 0) revert InvalidAmount();
-        if (_merchants[merchantId].limit == 0) revert NoLimit(merchantId);
-
-        _pruneIssuances(merchantId);
-        if (_issuancesOf[merchantId].length >= MAX_ACTIVE_ISSUANCES) {
-            revert TooManyIssuances(merchantId, MAX_ACTIVE_ISSUANCES);
+    /// @dev 진행 중·일시 중지라도 종료 시각이 지났으면 종료로 본다 (K2 "기간이 끝나면 자동 종료")
+    function _effectiveStatus(CampaignData storage c) private view returns (CampaignStatus) {
+        if ((c.status == CampaignStatus.Active || c.status == CampaignStatus.Paused) && block.timestamp > c.endsAt) {
+            return CampaignStatus.Ended;
         }
-
-        uint256 total = amount * qty;
-        _reserve(merchantId, total);
-
-        issuanceId = ++_lastIssuanceId;
-        Issuance storage s = _issuances[issuanceId];
-        s.merchantId = merchantId;
-        s.amount = amount;
-        s.minOrder = minOrder;
-        s.receiveRule = receiveRule;
-        s.receiveMin = receiveMin;
-        s.expiresAt = uint64(block.timestamp + uint256(validDays) * 1 days);
-        s.qty = qty;
-        _issuancesOf[merchantId].push(issuanceId);
-        _issuanceFor[requestRef] = issuanceId;
-
-        emit IssuanceCreated(issuanceId, merchantId, amount, qty, total);
+        return c.status;
     }
 
-    function issueForPurchase(uint256 campaignId, uint256 buyMerchantId, address to, uint256 orderAmount, bytes32 orderRef)
+    // ───────────── 3단계: 쿠폰 발급 + 발급 락업 (③ ④) ─────────────
+
+    function issueForPurchase(uint256 campaignId, uint256 buyMerchantId, address to, bytes32 orderRef)
         external
         onlyRole(OPERATOR_ROLE)
         returns (uint256[] memory tokenIds)
     {
         if (to == address(0)) revert InvalidAddress();
         if (orderRef == bytes32(0)) revert InvalidRef();
-        if (_orderDone[orderRef]) revert OrderAlreadyIssued(orderRef);
-        _orderDone[orderRef] = true;
-
-        // 첫 구매 판단은 이번 구매를 기록하기 전에 한다
-        bool boughtBefore = _purchased[to][buyMerchantId];
-        _purchased[to][buyMerchantId] = true;
+        Order storage o = _orders[orderRef];
+        if (o.status != OrderStatus.None) revert OrderAlreadyIssued(orderRef);
+        o.status = OrderStatus.Pending;
+        o.campaignId = campaignId;
+        o.buyer = to;
 
         uint256[] storage issued = _issuedFor[orderRef];
+        CampaignData storage c = _campaigns[campaignId];
 
-        // 1) 기획전 쿠폰: 진행 중인 기획전에 구매 가게가 참여 중이면, 나머지 가게 쿠폰 1장씩
-        if (campaignId != 0) {
-            CampaignData storage c = _campaigns[campaignId];
-            if (c.status == CampaignStatus.Active && _inCampaign[campaignId][buyMerchantId]) {
-                uint64 expiresAt = uint64(block.timestamp + uint256(c.validDays) * 1 days);
-                for (uint256 i = 0; i < c.merchantIds.length; i++) {
-                    uint256 mId = c.merchantIds[i];
-                    if (mId == buyMerchantId) continue;
+        // 진행 중이고 구매 가게가 참여 중일 때만 — 나머지 참여 가게 쿠폰 1장씩 (확정 대기로)
+        if (_effectiveStatus(c) == CampaignStatus.Active && _inCampaign[campaignId][buyMerchantId]) {
+            for (uint256 i = 0; i < c.merchantIds.length; i++) {
+                uint256 mId = c.merchantIds[i];
+                if (mId == buyMerchantId) continue; // 구매한 가게 쿠폰은 받지 않는다
 
-                    CampaignTerm storage t = _terms[campaignId][mId];
-                    // 충전금이 부족하면 그 가게 쿠폰만 빠진다 (쏠림 대응)
-                    if (t.fund - t.fundReserved < t.amount) {
-                        emit IssueSkipped(orderRef, mId);
-                        continue;
-                    }
-                    t.fundReserved += t.amount;
-                    Coupon memory cp;
-                    cp.source = CouponSource.Campaign;
-                    cp.campaignId = campaignId;
-                    cp.merchantId = mId;
-                    cp.fromMerchantId = buyMerchantId;
-                    cp.amount = t.amount;
-                    cp.minOrder = t.minOrder;
-                    cp.expiresAt = expiresAt;
-                    issued.push(_mintCoupon(to, cp, orderRef));
+                Term storage t = _terms[campaignId][mId];
+                // 할인 한도까지 다 발급됐으면 그 가게 쿠폰만 빠진다 (④-c)
+                if (t.issuedCount >= t.maxIssue) {
+                    emit IssueSkipped(orderRef, mId);
+                    continue;
                 }
+                t.issuedCount += 1;
+                issued.push(_mintCoupon(to, campaignId, mId, buyMerchantId, t, orderRef));
             }
         }
-
-        // 2) 보너스 쿠폰: 구매 가게가 직접 발행한 묶음 중 받는 조건을 채우고 수량이 남은 것
-        _pruneIssuances(buyMerchantId);
-        uint256[] storage ids = _issuancesOf[buyMerchantId];
-        for (uint256 i = 0; i < ids.length; i++) {
-            Issuance storage s = _issuances[ids[i]];
-            if (orderAmount < s.receiveMin) continue;
-            if (s.receiveRule == ReceiveRule.FirstPurchase && boughtBefore) continue;
-
-            s.issuedCount += 1;
-            Coupon memory cp;
-            cp.source = CouponSource.Issuance;
-            cp.issuanceId = ids[i];
-            cp.merchantId = buyMerchantId;
-            cp.fromMerchantId = buyMerchantId;
-            cp.amount = s.amount;
-            cp.minOrder = s.minOrder;
-            cp.expiresAt = s.expiresAt;
-            issued.push(_mintCoupon(to, cp, orderRef));
-        }
-
         return issued;
     }
 
-    /// @dev 쿠폰 1장 발급: 기록 저장 → ERC-1155 토큰 1개 발행 → 이벤트
-    function _mintCoupon(address to, Coupon memory cp, bytes32 orderRef) private returns (uint256 tokenId) {
-        tokenId = ++_lastTokenId;
-        cp.issuedAt = uint64(block.timestamp);
-        _coupons[tokenId] = cp;
-        _couponOwner[tokenId] = to;
+    function confirmPurchase(bytes32 orderRef) external onlyRole(OPERATOR_ROLE) {
+        Order storage o = _orders[orderRef];
+        if (o.status != OrderStatus.Pending) revert OrderNotPending(orderRef);
+        o.status = OrderStatus.Confirmed;
 
-        _mint(to, tokenId, 1, "");
-        emit CouponIssued(tokenId, cp.merchantId, to, cp.source, cp.fromMerchantId, orderRef, cp.expiresAt);
-    }
-
-    /// @dev 진행 중 목록에서 수량이 다 떨어졌거나 유효기간이 지난 묶음을 뺀다 (swap-and-pop).
-    ///      목록이 상한(20개) 안에서만 유지되므로 구매 한 번의 가스가 묶인다.
-    function _pruneIssuances(uint256 merchantId) private {
-        uint256[] storage ids = _issuancesOf[merchantId];
-        uint256 i = 0;
-        while (i < ids.length) {
-            Issuance storage s = _issuances[ids[i]];
-            if (s.issuedCount >= s.qty || block.timestamp > s.expiresAt) {
-                ids[i] = ids[ids.length - 1];
-                ids.pop();
-            } else {
-                i++;
-            }
+        // 유효기간은 발급 때 이미 정해져 있다 (받은 날부터 30일). 확정은 사용 가능으로 바꾸기만 한다
+        uint256[] storage ids = _issuedFor[orderRef];
+        for (uint256 i = 0; i < ids.length; i++) {
+            Coupon storage cp = _coupons[ids[i]];
+            cp.state = CouponState.Available;
+            emit CouponActivated(ids[i], cp.expiresAt);
         }
+        emit PurchaseConfirmed(orderRef, ids.length);
     }
 
-    function issuanceOf(uint256 issuanceId) external view returns (Issuance memory) {
-        return _issuances[issuanceId];
-    }
+    function cancelPurchase(bytes32 orderRef) external onlyRole(OPERATOR_ROLE) {
+        Order storage o = _orders[orderRef];
+        if (o.status != OrderStatus.Pending) revert OrderNotPending(orderRef);
+        o.status = OrderStatus.Cancelled;
 
-    function issuanceFor(bytes32 requestRef) external view returns (uint256) {
-        return _issuanceFor[requestRef];
+        uint256[] storage ids = _issuedFor[orderRef];
+        for (uint256 i = 0; i < ids.length; i++) {
+            Coupon storage cp = _coupons[ids[i]];
+            cp.state = CouponState.Voided;
+            _terms[cp.campaignId][cp.merchantId].issuedCount -= 1; // 쓰일 수 없게 된 쿠폰은 발급 수에서 뺀다
+            _burn(o.buyer, ids[i], 1);
+            emit CouponVoided(ids[i]);
+        }
+        emit PurchaseCancelled(orderRef, ids.length);
     }
 
     function issuedFor(bytes32 orderRef) external view returns (uint256[] memory) {
         return _issuedFor[orderRef];
     }
 
-    function hasPurchased(address buyer, uint256 merchantId) external view returns (bool) {
-        return _purchased[buyer][merchantId];
+    function orderOf(bytes32 orderRef) external view returns (Order memory) {
+        return _orders[orderRef];
+    }
+
+    /// @dev 쿠폰 1장 발급 (확정 대기): 기록 저장 → ERC-1155 토큰 1개 발행 → 이벤트
+    function _mintCoupon(
+        address to,
+        uint256 campaignId,
+        uint256 merchantId,
+        uint256 fromMerchantId,
+        Term storage t,
+        bytes32 orderRef
+    ) private returns (uint256 tokenId) {
+        // 유효기간: 받은 날부터 30일 / 기획전 종료 시각까지 (발급 때 정해짐)
+        uint64 expiresAt = t.validity == Validity.CampaignEnd ? _campaigns[campaignId].endsAt : _days30();
+        tokenId = ++_lastTokenId;
+        Coupon storage cp = _coupons[tokenId];
+        cp.campaignId = campaignId;
+        cp.merchantId = merchantId;
+        cp.fromMerchantId = fromMerchantId;
+        cp.amount = t.amount;
+        cp.minOrder = t.minOrder;
+        cp.orderRef = orderRef;
+        cp.issuedAt = uint64(block.timestamp);
+        cp.expiresAt = expiresAt;
+        cp.state = CouponState.Pending;
+        _couponOwner[tokenId] = to;
+
+        _mint(to, tokenId, 1, "");
+        emit CouponIssued(tokenId, merchantId, to, campaignId, fromMerchantId, orderRef, expiresAt);
+    }
+
+    /// @dev 받은 날(KST)부터 30일째 되는 날 23:59:59 KST (모의 API: 발급일 + 30일, 마지막 날까지 사용 가능)
+    function _days30() private view returns (uint64) {
+        uint256 dayStart = ((block.timestamp + KST_OFFSET) / 1 days) * 1 days; // KST 기준 오늘 0시 (KST 시각값)
+        return uint64(dayStart + (VALID_DAYS + 1) * 1 days - 1 - KST_OFFSET);
     }
 
     /// @dev 양도 불가: 발급(from = 0)과 소각(to = 0)만 허용한다
@@ -336,38 +283,68 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         super._update(from, to, ids, values);
     }
 
-    // ───────────── 4단계: 쿠폰 사용 ─────────────
+    // ───────────── 4단계: 쿠폰 사용 + 사용 락업 (⑦ ⑧ ⑨) ─────────────
 
-    function redeem(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount, bytes32 orderRef)
+    function lockForPayment(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount, bytes32 payRef)
         external
         onlyRole(OPERATOR_ROLE)
-        returns (bool ok, Reason reason, uint256 discount)
+        returns (bool ok, Reason reason)
     {
+        if (payRef == bytes32(0)) revert InvalidRef();
+        Payment storage p = _payments[payRef];
+        // 한 결제에는 쿠폰 1장만 (취소된 결제는 다시 쓸 수 있음)
+        if (p.status == PaymentStatus.Locked || p.status == PaymentStatus.Confirmed) revert PaymentExists(payRef);
+
         reason = _check(tokenId, owner, merchantId, orderAmount);
         if (reason != Reason.Ok) {
             // 거절도 체인에 남기고, 쿠폰 상태는 그대로 둔다
-            emit RedeemRejected(tokenId, owner, reason, orderRef);
-            return (false, reason, 0);
+            emit RedeemRejected(tokenId, owner, merchantId, reason, payRef);
+            return (false, reason);
         }
 
+        _coupons[tokenId].state = CouponState.Locked;
+        p.status = PaymentStatus.Locked;
+        p.tokenId = tokenId;
+        p.merchantId = merchantId;
+        p.orderAmount = orderAmount;
+        emit CouponLocked(tokenId, merchantId, owner, orderAmount, payRef);
+        return (true, Reason.Ok);
+    }
+
+    function confirmPayment(bytes32 payRef) external onlyRole(OPERATOR_ROLE) returns (uint256 discount) {
+        Payment storage p = _payments[payRef];
+        if (p.status != PaymentStatus.Locked) revert PaymentNotLocked(payRef);
+        p.status = PaymentStatus.Confirmed;
+
+        uint256 tokenId = p.tokenId;
         Coupon storage cp = _coupons[tokenId];
-        // 정액권: 주문 금액보다 크면 주문 금액까지만 (모의 API calcDiscount와 같음)
-        discount = cp.amount < orderAmount ? cp.amount : orderAmount;
-        cp.used = true;
+        // 정액권: 주문 금액보다 크면 주문 금액까지만 (모의 API calcDiscount).
+        // 조건 등록 때 최소 주문 ≥ 할인 금액을 강제하므로 지금 규칙에서는 항상 할인 금액이 된다
+        discount = cp.amount < p.orderAmount ? cp.amount : p.orderAmount;
+        cp.state = CouponState.Used;
         cp.usedAt = uint64(block.timestamp);
+        cp.discount = discount;
 
-        // 할인 비용은 사용처 가게 부담 → 정산용 사용액에 더한다
-        if (cp.source == CouponSource.Campaign) {
-            _terms[cp.campaignId][cp.merchantId].fundUsed += discount;
-        } else {
-            Issuance storage s = _issuances[cp.issuanceId];
-            s.usedCount += 1;
-            s.usedAmount += discount;
-        }
+        // 할인 부담 = 쓰인 쿠폰의 할인액, 사용처 가게 부담 (M4)
+        Term storage t = _terms[cp.campaignId][cp.merchantId];
+        t.usedCount += 1;
+        t.burden += discount;
 
+        address owner = _couponOwner[tokenId];
         _burn(owner, tokenId, 1);
-        emit CouponRedeemed(tokenId, merchantId, owner, discount, orderRef);
-        return (true, Reason.Ok, discount);
+        emit CouponRedeemed(tokenId, cp.merchantId, owner, cp.fromMerchantId, discount, p.orderAmount, payRef);
+    }
+
+    function cancelPayment(bytes32 payRef) external onlyRole(OPERATOR_ROLE) {
+        Payment storage p = _payments[payRef];
+        if (p.status != PaymentStatus.Locked) revert PaymentNotLocked(payRef);
+        p.status = PaymentStatus.Cancelled;
+        _coupons[p.tokenId].state = CouponState.Available;
+        emit CouponUnlocked(p.tokenId, payRef);
+    }
+
+    function paymentOf(bytes32 payRef) external view returns (Payment memory) {
+        return _payments[payRef];
     }
 
     function check(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount)
@@ -390,29 +367,36 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         merchantOk = cp.merchantId == merchantId;
         inPeriod = block.timestamp <= cp.expiresAt;
         minOrderOk = orderAmount >= cp.minOrder;
-        unused = !cp.used;
+        unused = cp.state == CouponState.Available;
     }
 
-    /// @dev ⑨-c 화면 순서대로 첫 번째로 실패한 항목을 돌려준다
+    /// @dev 첫 번째로 실패한 항목을 돌려준다. ⑨-c 5항목 순서 사이에 락업 상태 검사가 끼어 있다
     function _check(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount)
         private
         view
         returns (Reason)
     {
-        (bool isOwner, bool merchantOk, bool inPeriod, bool minOrderOk, bool unused) =
-            checkAll(tokenId, owner, merchantId, orderAmount);
+        (bool isOwner, bool merchantOk, bool inPeriod, bool minOrderOk,) = checkAll(tokenId, owner, merchantId, orderAmount);
+        CouponState state = _coupons[tokenId].state;
         if (!isOwner) return Reason.NotOwner;
         if (!merchantOk) return Reason.WrongMerchant;
+        if (state == CouponState.Voided) return Reason.Voided;
+        if (state == CouponState.Pending) return Reason.NotConfirmed;
         if (!inPeriod) return Reason.Expired;
         if (!minOrderOk) return Reason.BelowMinOrder;
-        if (!unused) return Reason.AlreadyUsed;
+        if (state == CouponState.Used) return Reason.AlreadyUsed;
+        if (state == CouponState.Locked) return Reason.InUse;
         return Reason.Ok;
     }
 
     function statusOf(uint256 tokenId) external view returns (Status) {
         Coupon storage cp = _coupons[tokenId];
         if (cp.issuedAt == 0) return Status.None;
-        if (cp.used) return Status.Used;
+        CouponState s = cp.state;
+        if (s == CouponState.Pending) return Status.Pending;
+        if (s == CouponState.Locked) return Status.InUse;
+        if (s == CouponState.Used) return Status.Used;
+        if (s == CouponState.Voided) return Status.Voided;
         if (block.timestamp > cp.expiresAt) return Status.Expired;
         return Status.Available;
     }
