@@ -1,12 +1,14 @@
-// 모의 로그인 — 백엔드 로그인 API가 나오기 전까지 쓰는 가짜 로그인.
-// 화면 코드는 이 파일의 함수(loginWithGoogle, getUser, logout)만 부른다.
-// 나중에 백엔드와 연결할 때는 이 파일 안쪽만 바꾸면 화면은 그대로 둘 수 있다.
+// 로그인 상태 관리. 화면 코드는 이 파일의 함수만 부른다.
+// - 진짜 백엔드 모드: VITE_API_BASE_URL과 VITE_GOOGLE_CLIENT_ID가 모두 있을 때. 구글 ID 토큰을 백엔드로 보낸다
+// - 모의 모드: 그 외. 모의 데이터베이스(api/seed.js의 accounts)에서 이메일을 찾는다 (시연·개발용)
 //
 // [확정] 소비자·가맹점·KCP 관리자 모두 구글 로그인 (팀 결정)
-// 실제로는 구글 계정으로 로그인하면 백엔드가 가입 여부와 역할(소비자/가맹점/KCP)을 알려줄 예정.
-// 지금은 구글 연동 전이라 "시연용 구글 계정" 중 하나를 고르는 방식으로 흉내 낸다.
 
-import { findAccount, signUpConsumer, signUpMerchant } from '../api/api.js'
+import { ensureMockUser, findAccount, signUpConsumer, signUpMerchant } from '../api/api.js'
+import { API_BASE, clearToken, request, setToken } from '../api/http.js'
+import { GOOGLE_CLIENT_ID, readIdToken } from './googleSignIn.js'
+
+export const USE_BACKEND = Boolean(API_BASE && GOOGLE_CLIENT_ID)
 
 // 역할 이름 (화면 이동 기준)
 export const ROLES = {
@@ -15,20 +17,8 @@ export const ROLES = {
   KCP: 'kcp',           // KCP 관리자
 }
 
-// 시연용 구글 계정 (가짜). 이메일은 예시용 주소(example.com)
-// 앞의 5개는 무럭무럭 계정이 있고(api/seed.js의 accounts), 뒤의 2개는 가입 전이라 회원가입으로 간다
-export const GOOGLE_ACCOUNTS = [
-  { id: 'user', name: '지민', email: 'jimin@example.com' },
-  { id: 'store', name: '과수원집', email: 'orchard@example.com' },
-  { id: 'store2', name: '봄꽃상회', email: 'flower@example.com' },
-  { id: 'store3', name: '바다찬', email: 'sea@example.com' },
-  { id: 'kcp', name: 'KCP 운영팀', email: 'ops@example.com' },
-  { id: 'new1', name: '하늘', email: 'haneul@example.com' },
-  { id: 'new2', name: '도윤', email: 'doyun@example.com' },
-]
-
 // 로그인한 사람 정보를 브라우저에 저장할 때 쓰는 이름표
-// (JWT를 어디에 둘지는 백엔드와 정해야 함 — 지금은 임시로 localStorage)
+// (토큰은 api/http.js에 따로 저장)
 const STORAGE_KEY = 'muruk.user'
 const PENDING_KEY = 'muruk.pendingGoogle'
 
@@ -40,16 +30,66 @@ function save(user) {
 // 무럭무럭 계정 → 로그인 상태로 저장
 const saveAccount = (a) => save({ id: a.id, name: a.name, email: a.email, role: a.role, merchantId: a.merchantId, provider: 'google' })
 
-// 구글 로그인 (모의): 고른 구글 계정의 이메일이 데이터베이스에 있는지 확인
+// 구글 로그인 후 계정 확인: 구글 이메일이 데이터베이스에 있는지 본다
+// - google: { sub(구글 고유 ID, 임시 입력일 때는 없음), email, name }
 // - 있으면 { registered: true, user } → 역할 화면으로
 // - 없으면 { registered: false } → 회원가입으로 (구글 정보만 잠깐 기억, 아직 로그인 상태 아님)
-export async function loginWithGoogle(accountId) {
-  const g = GOOGLE_ACCOUNTS.find((x) => x.id === accountId)
-  if (!g) throw new Error('계정을 찾을 수 없어요.')
-  const account = await findAccount(g.email)
+export async function loginWithGoogle(google) {
+  const account = await findAccount(google.email)
   if (account) return { registered: true, user: saveAccount(account) }
-  sessionStorage.setItem(PENDING_KEY, JSON.stringify(g))
+  sessionStorage.setItem(PENDING_KEY, JSON.stringify({ id: `g-${google.sub ?? google.email}`, name: google.name, email: google.email }))
   return { registered: false }
+}
+
+// ---------- 진짜 백엔드 로그인 ----------
+// 백엔드 주소가 역할별로 나뉘어 있어서 차례로 물어본다 (API 명세서)
+// 1) 관리자: 허용 목록에 없으면 403 2) 가맹점: 가입 전이면 404 3) 소비자: 처음이면 이 호출로 계정이 만들어지고 isNewUser
+// 관리자·가맹점 로그인이 아직 구현 전이어도 404로 응답하므로 소비자 단계로 넘어간다
+async function tryLogin(path, idToken, notThisRole) {
+  try {
+    return await request('POST', path, { idToken })
+  } catch (err) {
+    if (notThisRole.includes(err.status)) return null
+    throw err
+  }
+}
+
+const emailOf = (idToken) => readIdToken(idToken).email
+
+function saveLogin(accessToken, user) {
+  setToken(accessToken)
+  return save({ ...user, provider: 'google' })
+}
+
+function saveConsumer({ accessToken, userId, name }, email) {
+  ensureMockUser(userId, name) // 쿠폰·주문은 아직 모의 데이터라 거기에도 이름을 알려 둠
+  return saveLogin(accessToken, { id: userId, name, email, role: ROLES.CONSUMER })
+}
+
+function saveMerchant({ accessToken, merchantId, name, status }, email) {
+  return saveLogin(accessToken, { id: `merchant-${merchantId}`, name, email, role: ROLES.STORE, merchantId, merchantStatus: status })
+}
+
+async function loginWithBackend(idToken) {
+  const email = emailOf(idToken)
+
+  const admin = await tryLogin('/api/admin/auth/google', idToken, [403, 404])
+  if (admin) return { registered: true, user: saveLogin(admin.accessToken, { id: 'kcp', name: admin.name, email: admin.email, role: ROLES.KCP }) }
+
+  const merchant = await tryLogin('/api/merchants/auth/google', idToken, [404])
+  if (merchant) return { registered: true, user: saveMerchant(merchant, email) }
+
+  const consumer = await request('POST', '/api/auth/google', { idToken })
+  if (!consumer.isNewUser) return { registered: true, user: saveConsumer(consumer, email) }
+
+  // 처음 온 사람: 이용자·가맹점을 고를 때까지 로그인 상태로 두지 않는다
+  sessionStorage.setItem(PENDING_KEY, JSON.stringify({ name: consumer.name, email, idToken, consumer }))
+  return { registered: false }
+}
+
+// 구글 버튼에서 받은 ID 토큰으로 로그인
+export function loginWithIdToken(idToken) {
+  return USE_BACKEND ? loginWithBackend(idToken) : loginWithGoogle(readIdToken(idToken))
 }
 
 // 회원가입 중인 구글 계정. 없으면 null (새로고침해도 가입 화면이 유지되게 탭이 닫힐 때까지 기억)
@@ -73,11 +113,28 @@ function finishSignUp(account) {
 
 export async function signUpAsConsumer(name) {
   const g = getPendingGoogle()
+  if (USE_BACKEND) {
+    // 계정은 첫 로그인 때 이미 만들어졌다 (이름 변경 API는 없음)
+    cancelSignUp()
+    return saveConsumer(g.consumer, g.email)
+  }
   return finishSignUp(await signUpConsumer({ id: g.id, email: g.email, name }))
 }
 
+// form: { storeName, category(백엔드 업종 값), bizNumber }
 export async function signUpAsMerchant(form) {
   const g = getPendingGoogle()
+  if (USE_BACKEND) {
+    let result
+    try {
+      result = await request('POST', '/api/merchants', { idToken: g.idToken, name: form.storeName.trim(), category: form.category, businessNo: form.bizNumber.replace(/\D/g, '') })
+    } catch (err) {
+      if (err.status === 404) throw new Error('가맹점 신청은 서버 준비 중이에요. 잠시 후 다시 시도해 주세요.', { cause: err })
+      throw err
+    }
+    cancelSignUp()
+    return saveMerchant(result, g.email)
+  }
   return finishSignUp(await signUpMerchant({ ...form, id: g.id, email: g.email }))
 }
 
@@ -92,6 +149,7 @@ export function getUser() {
 
 export function logout() {
   localStorage.removeItem(STORAGE_KEY)
+  clearToken()
 }
 
 // 역할별 첫 화면 주소

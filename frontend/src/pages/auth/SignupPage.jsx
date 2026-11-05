@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { cancelSignUp, getPendingGoogle, signUpAsConsumer, signUpAsMerchant } from '../../auth/mockAuth.js'
+import { USE_BACKEND, cancelSignUp, getPendingGoogle, signUpAsConsumer, signUpAsMerchant } from '../../auth/mockAuth.js'
 import Icon from '../../components/Icon.jsx'
+import { SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import Timeline from '../../components/Timeline.jsx'
-import { num } from '../../utils/format.js'
 
-// 가맹점 업종·판매 채널 선택지 (업종은 타깃 카테고리: 농수산물·꽃)
-const CATEGORIES = ['꽃·식물', '제철 과일', '농산물', '수산·반찬']
-const CHANNELS = ['자체 쇼핑몰', '오픈마켓', '자체 쇼핑몰 + 오픈마켓']
+// 가맹점 업종: [화면 글자, 백엔드 값] (backend MerchantCategory)
+const CATEGORIES = [
+  ['꽃·식물', 'FLOWER_PLANT'],
+  ['제철 과일', 'FRUIT'],
+  ['수산물', 'SEAFOOD'],
+  ['농산물', 'FARM_PRODUCE'],
+  ['반찬·밀키트', 'SIDE_DISH'],
+]
 
 // 상단 바: 뒤로 + 제목 + 단계 표시
 function SignupBar({ title, step, onBack }) {
@@ -36,15 +41,15 @@ function TextField({ label, help, value, onChange, ...rest }) {
   )
 }
 
-// 하나 고르기 버튼들
+// 하나 고르기 버튼들. options: [화면 글자, 값]
 function Choice({ label, options, value, onChange }) {
   return (
     <div className="field">
       <div className="lb">{label}</div>
       <div className="choice">
-        {options.map((o) => (
-          <button key={o} type="button" className={value === o ? 'on' : ''} aria-pressed={value === o} onClick={() => onChange(o)}>
-            {o}
+        {options.map(([text, v]) => (
+          <button key={v} type="button" className={value === v ? 'on' : ''} aria-pressed={value === v} onClick={() => onChange(v)}>
+            {text}
           </button>
         ))}
       </div>
@@ -112,7 +117,17 @@ function ConsumerSignup({ google, next, onBack }) {
     <div className="phone-app">
       <SignupBar title="이용자 가입" onBack={onBack} />
       <main className="ct">
-        <TextField label="이름" value={name} onChange={setName} autoComplete="name" />
+        {/* 진짜 백엔드는 구글 계정 이름을 그대로 쓴다 (이름 변경 API 없음) */}
+        {USE_BACKEND ? (
+          <div className="field">
+            <div className="lb">이름</div>
+            <div className="inp lock">
+              <input value={name} aria-label="이름" readOnly />
+            </div>
+          </div>
+        ) : (
+          <TextField label="이름" value={name} onChange={setName} autoComplete="name" />
+        )}
         <div className="field">
           <div className="lb">Google 계정</div>
           <div className="inp lock">
@@ -123,6 +138,7 @@ function ConsumerSignup({ google, next, onBack }) {
         {error && <p className="nb err">{error}</p>}
       </main>
       <div className="cta">
+        {busy && <SproutOverlay delay title="쿠폰 지갑을 준비하고 있어요" sub="거의 다 됐어요" />}
         <button className="btn" disabled={busy || !name.trim() || !consent.terms || !consent.privacy} onClick={handleSubmit}>
           {busy ? '가입하는 중…' : '가입하기'}
         </button>
@@ -131,13 +147,13 @@ function ConsumerSignup({ google, next, onBack }) {
   )
 }
 
-// ----- 가맹점 가입: ① 가게 정보 → ② 대표 상품·동의 → ③ 신청 완료 (KCP 심사 대기) -----
+// ----- 가맹점 가입: 가게 정보·동의 → 신청 완료 (KCP 심사 대기) -----
 function MerchantSignup({ onBack }) {
-  const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ storeName: '', category: '', bizNumber: '', channel: '', kcpPay: null, productName: '', price: 0 })
+  const [form, setForm] = useState({ storeName: '', category: '', bizNumber: '' })
   const [consent, setConsent] = useState({ terms: false, privacy: false })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
   const set = (key) => (v) => setForm({ ...form, [key]: v })
 
   async function handleSubmit() {
@@ -145,14 +161,14 @@ function MerchantSignup({ onBack }) {
     setError('')
     try {
       await signUpAsMerchant(form)
-      setStep(3)
+      setDone(true)
     } catch (err) {
       setError(err.message)
     }
     setBusy(false)
   }
 
-  if (step === 3) {
+  if (done) {
     return (
       <div className="phone-app">
         <header className="topb">
@@ -178,47 +194,22 @@ function MerchantSignup({ onBack }) {
     )
   }
 
-  if (step === 2) {
-    return (
-      <div className="phone-app">
-        <SignupBar title="가맹점 가입" step="2/2" onBack={() => setStep(1)} />
-        <main className="ct">
-          <TextField label="대표 상품 이름" placeholder="예: 제주 제철 감귤 3kg" value={form.productName} onChange={set('productName')} />
-          <div className="field">
-            <div className="lb">대표 상품 가격</div>
-            <div className="inp">
-              <input inputMode="numeric" aria-label="대표 상품 가격" value={form.price ? num(form.price) : ''} onChange={(e) => set('price')(Number(e.target.value.replace(/\D/g, '')) || 0)} />
-              <em>원</em>
-            </div>
-          </div>
-          <div className="nb ok">돈을 미리 맡기지 않아요. 쿠폰이 실제로 쓰였을 때만 할인 부담이 생겨요.</div>
-          <Consent value={consent} onChange={setConsent} />
-          {error && <p className="nb err">{error}</p>}
-        </main>
-        <div className="cta">
-          <button className="btn" disabled={busy || !form.productName.trim() || !form.price || !consent.terms || !consent.privacy} onClick={handleSubmit}>
-            {busy ? '신청하는 중…' : '참여 신청하기'}
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   const bizOk = form.bizNumber.replace(/\D/g, '').length === 10
-  const ready = form.storeName.trim() && form.category && bizOk && form.channel && form.kcpPay !== null
+  const ready = form.storeName.trim() && form.category && bizOk && consent.terms && consent.privacy
   return (
     <div className="phone-app">
-      <SignupBar title="가맹점 가입" step="1/2" onBack={onBack} />
+      <SignupBar title="가맹점 가입" onBack={onBack} />
       <main className="ct">
-        <TextField label="가게 이름" value={form.storeName} onChange={set('storeName')} />
+        <TextField label="가게 이름" maxLength={100} value={form.storeName} onChange={set('storeName')} />
         <Choice label="업종" options={CATEGORIES} value={form.category} onChange={set('category')} />
-        <TextField label="사업자등록번호" help="숫자 10자리예요. 실제 확인은 KCP 심사 때 해요." inputMode="numeric" maxLength={12} value={form.bizNumber} onChange={set('bizNumber')} />
-        <Choice label="판매 채널" options={CHANNELS} value={form.channel} onChange={set('channel')} />
-        <Choice label="KCP 결제를 쓰고 있나요?" options={['사용 중', '미사용']} value={form.kcpPay === null ? '' : form.kcpPay ? '사용 중' : '미사용'} onChange={(v) => set('kcpPay')(v === '사용 중')} />
+        <TextField label="사업자등록번호" help="숫자 10자리예요." inputMode="numeric" maxLength={12} value={form.bizNumber} onChange={set('bizNumber')} />
+        <Consent value={consent} onChange={setConsent} />
+        {error && <p className="nb err">{error}</p>}
       </main>
       <div className="cta">
-        <button className="btn" disabled={!ready} onClick={() => setStep(2)}>
-          다음
+        {busy && <SproutOverlay delay title="가맹점 신청을 보내고 있어요" />}
+        <button className="btn" disabled={busy || !ready} onClick={handleSubmit}>
+          {busy ? '신청하는 중…' : '참여 신청하기'}
         </button>
       </div>
     </div>

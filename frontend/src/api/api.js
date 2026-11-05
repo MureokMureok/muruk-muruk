@@ -13,6 +13,8 @@ import {
   calcDiscount,
   couponsForPurchase,
   dateOf,
+  doCancel,
+  doConfirm,
   doPurchase,
   doRedeem,
   findCampaign,
@@ -116,12 +118,6 @@ export async function findAccount(email) {
   return load().accounts.find((a) => a.email === email) ?? null
 }
 
-// 가입된 이메일 목록 (시연용 계정 고르기에서 "가입 전" 표시용 — 실제 구글 로그인에는 필요 없음)
-export async function getAccounts() {
-  await wait(READ_MS)
-  return load().accounts
-}
-
 function assertNewAccount(db, email) {
   if (db.accounts.some((a) => a.email === email)) throw new ApiError('ALREADY_JOINED', '이미 가입한 계정이에요. 다시 로그인해 주세요.')
 }
@@ -138,11 +134,22 @@ export async function signUpConsumer({ id, name, email }) {
   return account
 }
 
+// 진짜 로그인 사용자도 쿠폰·주문은 아직 모의 데이터를 쓰므로, 가게 화면에 보일 이름을 넣어 둔다
+export function ensureMockUser(id, name) {
+  const db = load()
+  if (db.users[id] === name) return
+  db.users[id] = name
+  save(db)
+}
+
+// 백엔드 업종 값 → 모의 데이터의 업종 글자
+const CATEGORY_LABEL = { FLOWER_PLANT: '꽃·식물', FRUIT: '제철 과일', SEAFOOD: '수산·반찬', FARM_PRODUCE: '농산물', SIDE_DISH: '수산·반찬' }
+
 // 새 가게 표시 색
 const STORE_COLORS = ['#ffc091', '#ffd7ef', '#a0e1e1', '#ffe7a3', '#d5e8b5']
 
 // POST /api/auth/signup/merchant — 가맹점 가입 = 참여 신청. KCP 심사(승인)까지는 가맹점 센터를 못 씀
-export async function signUpMerchant({ id, email, storeName, category, bizNumber, channel, kcpPay, productName, price }) {
+export async function signUpMerchant({ id, email, storeName, category, bizNumber }) {
   await wait(CHAIN_MS)
   const db = load()
   assertNewAccount(db, email)
@@ -150,8 +157,8 @@ export async function signUpMerchant({ id, email, storeName, category, bizNumber
   if (db.merchants.some((m) => m.name === name)) throw new ApiError('DUPLICATE_STORE', '이미 등록된 가게 이름이에요.')
   const n = db.merchants.length + 1
   const merchantId = `m${n}`
-  db.merchants.push({ id: merchantId, name, category, short: name[0], color: STORE_COLORS[n % STORE_COLORS.length], status: 'APPLIED', appliedAt: today(), bizNumber: bizNumber.replace(/\D/g, ''), bizChecked: false, channel, kcpPay, scale: '소형' })
-  db.products.push({ merchantId, name: productName.trim(), price })
+  db.merchants.push({ id: merchantId, name, category: CATEGORY_LABEL[category], short: name[0], color: STORE_COLORS[n % STORE_COLORS.length], status: 'APPLIED', appliedAt: today(), bizNumber: bizNumber.replace(/\D/g, ''), bizChecked: false, channel: '미입력', kcpPay: false, scale: '소형' })
+  db.products.push({ merchantId, name: `${name} 대표 상품`, price: 20000 }) // 백엔드에 상품이 없어 시연용 기본값
   const account = { id, name, email, role: 'store', merchantId }
   db.accounts.push(account)
   addLedger(db, nowText(), 'ADMIN', `${name} 가맹점 참여 신청`, name, { merchantId })
@@ -222,7 +229,7 @@ export async function previewPurchase(merchantId) {
   }
 }
 
-// POST /api/orders — 모의 결제 후 쿠폰 발급
+// POST /api/orders — 모의 결제 후 쿠폰 발급 (잠김 상태)
 // 돌려주는 값: { order, issuedCoupons, missedCoupons(못 받은 쿠폰 + 사유), pending(발급 확인 중) }
 export async function purchase(userId, merchantId) {
   await wait(CHAIN_MS)
@@ -238,8 +245,12 @@ export async function purchase(userId, merchantId) {
 // 만료 판정: 유효기간 마지막 날까지 사용 가능
 function couponView(db, c) {
   const status = c.status === 'AVAILABLE' && c.expiresAt < today() ? 'EXPIRED' : c.status
-  return { ...withMerchant(db, c), status, fromMerchantName: nameOf(db, c.fromMerchantId) }
+  // issuedTogether: 같은 구매로 받은 쿠폰 수 (주문을 취소하면 함께 사라진다고 안내할 때 씀)
+  return { ...withMerchant(db, c), status, fromMerchantName: nameOf(db, c.fromMerchantId), issuedTogether: db.coupons.filter((x) => x.orderId === c.orderId).length }
 }
+
+// 지금 바로 쓸 수 있는 내 쿠폰
+const usableCoupons = (db, userId) => db.coupons.filter((c) => c.ownerId === userId && c.status === 'AVAILABLE' && c.expiresAt >= today()).map((c) => couponView(db, c))
 
 // GET /api/me/coupons
 export async function getMyCoupons(userId) {
@@ -273,15 +284,16 @@ export async function getMySummary(userId) {
   await wait(READ_MS)
   readGuard()
   const db = load()
-  const mine = db.coupons.filter((c) => c.ownerId === userId)
+  const mine = db.coupons.filter((c) => c.ownerId === userId && c.status !== 'VOIDED')
   return {
     received: mine.length,
     used: mine.filter((c) => c.status === 'USED').length,
-    saved: db.orders.filter((o) => o.userId === userId).reduce((s, o) => s + o.discount, 0),
+    // 아낀 금액은 구매 확정된 주문만 (취소·환불한 주문의 할인은 아낀 게 아님)
+    saved: db.orders.filter((o) => o.userId === userId && o.status === 'CONFIRMED').reduce((s, o) => s + o.discount, 0),
   }
 }
 
-// POST /api/orders (쿠폰 적용) — 5가지 확인 후 사용 처리
+// POST /api/orders (쿠폰 적용) — 5가지 확인 후 사용 처리 중으로 (구매 확정 전까지 사용 완료가 아님)
 // (이름을 useCoupon으로 하지 않은 이유: React는 use로 시작하는 함수를 특별한 함수(Hook)로 취급함)
 export async function redeemCoupon(userId, couponId, merchantId) {
   await wait(CHAIN_MS)
@@ -292,12 +304,30 @@ export async function redeemCoupon(userId, couponId, merchantId) {
   try {
     const r = doRedeem(db, userId, couponId, merchantId, nowText())
     save(db)
-    const left = db.coupons.filter((c) => c.ownerId === userId && c.status === 'AVAILABLE' && c.expiresAt >= today()).map((c) => couponView(db, c))
-    return { order: r.order, coupon: couponView(db, r.coupon), checks: r.checks, pending, leftCoupons: left }
+    return { order: r.order, coupon: couponView(db, r.coupon), checks: r.checks, pending }
   } catch (err) {
     save(db) // 거절 기록은 남긴다
     throw err
   }
+}
+
+// [가정] POST /api/orders/{id}/confirm — 구매 확정 (백엔드 명세서에 아직 없음. 지금은 모의로만 동작)
+// 돌려주는 값: { order, coupons(상태가 바뀐 쿠폰), leftCoupons(지금 쓸 수 있는 쿠폰) }
+export async function confirmOrder(userId, orderId) {
+  await wait(CHAIN_MS)
+  const db = load()
+  const r = doConfirm(db, userId, orderId, nowText())
+  save(db)
+  return { order: r.order, coupons: r.coupons.map((c) => couponView(db, c)), leftCoupons: usableCoupons(db, userId) }
+}
+
+// [가정] POST /api/orders/{id}/cancel — 주문 취소·환불 (백엔드 명세서에 아직 없음. 지금은 모의로만 동작)
+export async function cancelOrder(userId, orderId) {
+  await wait(CHAIN_MS)
+  const db = load()
+  const r = doCancel(db, userId, orderId, nowText())
+  save(db)
+  return { order: r.order, coupons: r.coupons.map((c) => couponView(db, c)) }
 }
 
 // ================= 가맹점 =================
@@ -315,7 +345,8 @@ function storeCampaigns(db, merchantId) {
 
 // 손님 연결: 보낸 손님(우리 가게 구매로 다른 가게 쿠폰 발급) / 온 손님(다른 가게 구매로 받은 쿠폰을 우리 가게에서 사용)
 function customerLinks(db, merchantId) {
-  const sentOrders = db.orders.filter((o) => o.merchantId === merchantId && db.coupons.some((c) => c.orderId === o.id))
+  // 취소된 주문·소멸한 쿠폰은 손님을 보낸 것으로 세지 않는다
+  const sentOrders = db.orders.filter((o) => o.merchantId === merchantId && o.status !== 'CANCELLED' && db.coupons.some((c) => c.orderId === o.id))
   const ourUsed = db.coupons.filter((c) => c.merchantId === merchantId && c.status === 'USED')
   const partners = [...new Set(db.coupons.filter((c) => c.fromMerchantId === merchantId || c.merchantId === merchantId).flatMap((c) => [c.merchantId, c.fromMerchantId]))].filter((id) => id !== merchantId)
   return {
@@ -324,7 +355,7 @@ function customerLinks(db, merchantId) {
     partners: partners.map((p) => ({
       merchantId: p,
       name: nameOf(db, p),
-      sent: db.coupons.filter((c) => c.fromMerchantId === merchantId && c.merchantId === p).length,
+      sent: db.coupons.filter((c) => c.fromMerchantId === merchantId && c.merchantId === p && c.status !== 'VOIDED').length,
       received: ourUsed.filter((c) => c.fromMerchantId === p).length,
     })),
   }
@@ -405,7 +436,8 @@ export async function getBurden(merchantId) {
   const used = db.coupons.filter((c) => c.merchantId === merchantId && c.status === 'USED')
   const rows = used
     .map((c) => {
-      const o = db.orders.find((x) => x.couponId === c.id)
+      // 환불 후 다시 쓴 쿠폰은 주문이 여러 개일 수 있어 구매 확정된 주문을 찾는다
+      const o = db.orders.find((x) => x.couponId === c.id && x.status === 'CONFIRMED')
       const log = db.ledger.find((l) => l.type === 'USE' && l.couponId === c.id)
       return { id: c.id, at: c.usedAt, customer: maskUser(db, c.ownerId), from: nameOf(db, c.fromMerchantId), amount: o.amount, discount: c.discount, tx: log?.tx }
     })
@@ -414,7 +446,7 @@ export async function getBurden(merchantId) {
   const newCustomers = new Set(
     used
       .filter((c) => {
-        const first = db.orders.filter((o) => o.userId === c.ownerId && o.merchantId === merchantId).sort((a, b) => a.at.localeCompare(b.at))[0]
+        const first = db.orders.filter((o) => o.userId === c.ownerId && o.merchantId === merchantId && o.status !== 'CANCELLED').sort((a, b) => a.at.localeCompare(b.at))[0]
         return first?.couponId === c.id
       })
       .map((c) => c.ownerId),
