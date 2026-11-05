@@ -24,7 +24,6 @@ import {
   won,
 } from './core.js'
 import { SEED_VERSION, createSeed } from './seed.js'
-import { matches } from '../utils/search.js'
 
 export { ApiError, USE_CHECKS, calcDiscount }
 
@@ -109,6 +108,57 @@ function readGuard() {
   if (getSimulation() === 'NETWORK') throw new ApiError('NETWORK', '연결이 불안정해요. 잠시 후 다시 시도해 주세요.')
 }
 
+// ================= 계정 =================
+
+// POST /api/auth/google — 구글 로그인 후 무럭무럭 계정이 있는지 확인. 있으면 계정, 없으면 null
+export async function findAccount(email) {
+  await wait(READ_MS)
+  return load().accounts.find((a) => a.email === email) ?? null
+}
+
+// 가입된 이메일 목록 (시연용 계정 고르기에서 "가입 전" 표시용 — 실제 구글 로그인에는 필요 없음)
+export async function getAccounts() {
+  await wait(READ_MS)
+  return load().accounts
+}
+
+function assertNewAccount(db, email) {
+  if (db.accounts.some((a) => a.email === email)) throw new ApiError('ALREADY_JOINED', '이미 가입한 계정이에요. 다시 로그인해 주세요.')
+}
+
+// POST /api/auth/signup/consumer — 이용자 가입
+export async function signUpConsumer({ id, name, email }) {
+  await wait(READ_MS)
+  const db = load()
+  assertNewAccount(db, email)
+  const account = { id, name: name.trim(), email, role: 'consumer' }
+  db.accounts.push(account)
+  db.users[id] = account.name
+  save(db)
+  return account
+}
+
+// 새 가게 표시 색
+const STORE_COLORS = ['#ffc091', '#ffd7ef', '#a0e1e1', '#ffe7a3', '#d5e8b5']
+
+// POST /api/auth/signup/merchant — 가맹점 가입 = 참여 신청. KCP 심사(승인)까지는 가맹점 센터를 못 씀
+export async function signUpMerchant({ id, email, storeName, category, bizNumber, channel, kcpPay, productName, price }) {
+  await wait(CHAIN_MS)
+  const db = load()
+  assertNewAccount(db, email)
+  const name = storeName.trim()
+  if (db.merchants.some((m) => m.name === name)) throw new ApiError('DUPLICATE_STORE', '이미 등록된 가게 이름이에요.')
+  const n = db.merchants.length + 1
+  const merchantId = `m${n}`
+  db.merchants.push({ id: merchantId, name, category, short: name[0], color: STORE_COLORS[n % STORE_COLORS.length], status: 'APPLIED', appliedAt: today(), bizNumber: bizNumber.replace(/\D/g, ''), bizChecked: false, channel, kcpPay, scale: '소형' })
+  db.products.push({ merchantId, name: productName.trim(), price })
+  const account = { id, name, email, role: 'store', merchantId }
+  db.accounts.push(account)
+  addLedger(db, nowText(), 'ADMIN', `${name} 가맹점 참여 신청`, name, { merchantId })
+  save(db)
+  return account
+}
+
 // ================= 소비자 =================
 
 // 기획전 + 참여 가게 조건 (화면용)
@@ -129,6 +179,24 @@ export async function getCampaign() {
   readGuard()
   const db = load()
   return campaignView(db, mainCampaign(db))
+}
+
+// GET /api/campaigns — 기획전 목록. 소비자 검색은 별도 API 없이 이 목록을 받아 프론트에서 거른다 (utils/search.js)
+// [가정] 응답 모양은 백엔드 명세서와 아직 안 맞춰 봄: 참여 가게(terms)마다 상품(product)이 들어 있다고 가정
+export async function getCampaigns() {
+  await wait(READ_MS)
+  readGuard()
+  const db = load()
+  return db.campaigns.map((c) => {
+    const view = campaignView(db, c)
+    return {
+      ...view,
+      terms: view.terms.map((t) => {
+        const p = db.products.find((x) => x.merchantId === t.merchantId)
+        return { ...t, product: { name: p.name, price: p.price } }
+      }),
+    }
+  })
 }
 
 // GET /api/merchants/{id}/product — 가게 상품 (시연용 1개)
@@ -230,62 +298,6 @@ export async function redeemCoupon(userId, couponId, merchantId) {
     save(db) // 거절 기록은 남긴다
     throw err
   }
-}
-
-// ---------- 검색 ----------
-
-// 검색 대상: 승인된 가게의 상품만 (심사 대기·반려된 가게는 안 보임)
-const searchable = (db) => db.products.filter((p) => findMerchant(db, p.merchantId).status === 'APPROVED')
-
-// 상품 한 개에서 검색에 쓰는 말들: 상품 이름 · 가게 이름 · 업종 · 태그
-const fieldsOf = (db, p) => {
-  const m = findMerchant(db, p.merchantId)
-  return [p.name, m.name, m.category, ...(p.tags ?? [])]
-}
-
-// GET /api/search?q=감귤 — 가게·상품 검색
-// 여러 단어로 검색하면 모든 단어가 들어간 상품만 (예: "제주 감귤")
-// 결과마다 "이 상품을 사면 받는 쿠폰" 수와 최대 할인 금액을 붙인다 (연합 기획전의 핵심을 검색에서도 보이게)
-export async function searchProducts(q) {
-  await wait(READ_MS)
-  readGuard()
-  const db = load()
-  const words = q.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return []
-  const now = nowText()
-  return searchable(db)
-    .filter((p) => words.every((w) => fieldsOf(db, p).some((f) => matches(f, w))))
-    .map((p) => {
-      const { issue } = couponsForPurchase(db, p.merchantId, now)
-      return {
-        ...withMerchant(db, p),
-        coupons: issue.length,
-        couponTotal: issue.reduce((s, c) => s + c.value, 0),
-        sold: db.orders.filter((o) => o.merchantId === p.merchantId).length, // 구매 많은순 정렬용
-      }
-    })
-}
-
-// GET /api/search/keywords — 자동완성 후보와 많이 찾는 검색어 순위
-export async function getSearchKeywords() {
-  await wait(READ_MS)
-  readGuard()
-  const db = load()
-  const words = new Set()
-  for (const p of searchable(db)) fieldsOf(db, p).forEach((f) => words.add(f))
-  const popular = Object.entries(db.searchCounts ?? {})
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([word]) => word)
-  return { suggestions: [...words], popular }
-}
-
-// POST /api/search/log — 검색할 때마다 횟수 +1 (많이 찾는 검색어 순위에 반영)
-export async function logSearch(term) {
-  const db = load()
-  db.searchCounts = db.searchCounts ?? {}
-  db.searchCounts[term] = (db.searchCounts[term] ?? 0) + 1
-  save(db)
 }
 
 // ================= 가맹점 =================

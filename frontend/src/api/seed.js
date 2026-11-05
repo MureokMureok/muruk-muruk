@@ -11,7 +11,7 @@ import { addLedger, doPurchase, doRedeem } from './core.js'
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 6
+export const SEED_VERSION = 8
 
 export function createSeed(mode = 'ready') {
   const db = createDemoStart()
@@ -22,6 +22,16 @@ export function createSeed(mode = 'ready') {
 function createDemoStart() {
   const db = {
     version: SEED_VERSION,
+
+    // 무럭무럭 계정 (데이터베이스의 회원 목록). 구글 로그인한 이메일이 여기 있으면 역할 화면으로, 없으면 회원가입으로
+    // KCP 관리자는 가입이 없고 여기 미리 넣어 둔 계정만 있다
+    accounts: [
+      { id: 'user', name: '지민', email: 'jimin@example.com', role: 'consumer' },
+      { id: 'store', name: '과수원집', email: 'orchard@example.com', role: 'store', merchantId: 'm1' },
+      { id: 'store2', name: '봄꽃상회', email: 'flower@example.com', role: 'store', merchantId: 'm2' },
+      { id: 'store3', name: '바다찬', email: 'sea@example.com', role: 'store', merchantId: 'm3' },
+      { id: 'kcp', name: 'KCP 운영팀', email: 'ops@example.com', role: 'kcp' },
+    ],
 
     // 소비자 이름 (가게·KCP 화면에는 "지*"처럼 가려서 보여줌)
     users: { user: '지민', u2: '서연', u3: '민호', u4: '하은', u5: '수빈' },
@@ -36,17 +46,14 @@ function createDemoStart() {
       { id: 'm5', name: '산골농원', category: '농산물', short: '산', color: '#d5e8b5', status: 'APPLIED', appliedAt: '2026-10-31', bizChecked: true, channel: '오픈마켓', kcpPay: false, scale: '소형' },
     ],
 
-    // 가게별 판매 상품 (시연용 1개씩). tags = 검색할 때 같이 찾아 주는 말 (예: "귤"로도 감귤이 나오게)
+    // 가게별 판매 상품 (시연용 1개씩).
     products: [
-      { merchantId: 'm1', name: '제주 제철 감귤 3kg', price: 24900, tags: ['귤', '과일', '제주', '겨울 과일'] },
-      { merchantId: 'm2', name: '계절 꽃다발 S', price: 25000, tags: ['꽃', '꽃다발', '선물', '생화'] },
-      { merchantId: 'm3', name: '손질 고등어 5팩', price: 21900, tags: ['생선', '수산물', '고등어', '반찬'] },
-      { merchantId: 'm4', name: '드라이플라워 미니 다발', price: 18000, tags: ['꽃', '선물', '드라이플라워'] },
-      { merchantId: 'm5', name: '햇감자 2kg', price: 12900, tags: ['감자', '농산물', '채소'] },
+      { merchantId: 'm1', name: '제주 제철 감귤 3kg', price: 24900 },
+      { merchantId: 'm2', name: '계절 꽃다발 S', price: 25000 },
+      { merchantId: 'm3', name: '손질 고등어 5팩', price: 21900 },
+      { merchantId: 'm4', name: '드라이플라워 미니 다발', price: 18000 },
+      { merchantId: 'm5', name: '햇감자 2kg', price: 12900 },
     ],
-
-    // 검색어별 검색 횟수 → "많이 찾는 검색어" 순위 (시연용 예시 숫자로 시작, 검색할 때마다 1씩 늘어남)
-    searchCounts: { 감귤: 42, 꽃다발: 35, 고등어: 28, '제철 과일': 21, 선물: 17, 반찬: 12, 생선: 9, 과일: 7, 생화: 5, 수산물: 4 },
 
     // 연합 기획전. status: PREPARING(준비 중 — 가게들이 쿠폰 조건 등록) → ACTIVE(진행 중) ⇄ PAUSED(일시 중지) → ENDED(종료)
     // 가게별 조건(terms): value 할인 금액(정액만), minOrder 최소 주문, validity 유효기간(DAYS30 받은 날부터 30일 / END 기획전 종료일까지),

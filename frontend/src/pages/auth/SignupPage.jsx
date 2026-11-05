@@ -1,0 +1,284 @@
+import { useState } from 'react'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { cancelSignUp, getPendingGoogle, signUpAsConsumer, signUpAsMerchant } from '../../auth/mockAuth.js'
+import Icon from '../../components/Icon.jsx'
+import StatusView from '../../components/StatusView.jsx'
+import Timeline from '../../components/Timeline.jsx'
+import { num } from '../../utils/format.js'
+
+// 가맹점 업종·판매 채널 선택지 (업종은 타깃 카테고리: 농수산물·꽃)
+const CATEGORIES = ['꽃·식물', '제철 과일', '농산물', '수산·반찬']
+const CHANNELS = ['자체 쇼핑몰', '오픈마켓', '자체 쇼핑몰 + 오픈마켓']
+
+// 상단 바: 뒤로 + 제목 + 단계 표시
+function SignupBar({ title, step, onBack }) {
+  return (
+    <header className="topb">
+      <button className="bk" aria-label="뒤로" onClick={onBack}>
+        <Icon name="back" size={18} />
+      </button>
+      <h1>{title}</h1>
+      {step && <span className="chip g">{step}</span>}
+    </header>
+  )
+}
+
+// 글자 입력칸
+function TextField({ label, help, value, onChange, ...rest }) {
+  return (
+    <div className="field">
+      <div className="lb">{label}</div>
+      <div className="inp">
+        <input aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} {...rest} />
+      </div>
+      {help && <p className="help">{help}</p>}
+    </div>
+  )
+}
+
+// 하나 고르기 버튼들
+function Choice({ label, options, value, onChange }) {
+  return (
+    <div className="field">
+      <div className="lb">{label}</div>
+      <div className="choice">
+        {options.map((o) => (
+          <button key={o} type="button" className={value === o ? 'on' : ''} aria-pressed={value === o} onClick={() => onChange(o)}>
+            {o}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// 필수 동의 2개 (약관 본문은 아직 없어서 항목 이름만)
+function Consent({ value, onChange }) {
+  const items = [
+    ['terms', '[필수] 이용약관 동의'],
+    ['privacy', '[필수] 개인정보 수집·이용 동의'],
+  ]
+  return (
+    <div className="consent">
+      {items.map(([key, label]) => (
+        <label key={key}>
+          <input type="checkbox" checked={value[key]} onChange={(e) => onChange({ ...value, [key]: e.target.checked })} />
+          {label}
+        </label>
+      ))}
+    </div>
+  )
+}
+
+// ----- 이용자 가입: 이름·동의 → 완료 -----
+function ConsumerSignup({ google, next, onBack }) {
+  const [name, setName] = useState(google.name)
+  const [consent, setConsent] = useState({ terms: false, privacy: false })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+
+  async function handleSubmit() {
+    setBusy(true)
+    setError('')
+    try {
+      await signUpAsConsumer(name)
+      setDone(true)
+    } catch (err) {
+      setError(err.message)
+    }
+    setBusy(false)
+  }
+
+  if (done) {
+    return (
+      <div className="phone-app">
+        <header className="topb">
+          <h1>회원가입</h1>
+        </header>
+        <main className="ct">
+          <StatusView kind="ok" title="가입이 끝났어요" desc={`${name.trim()}님, 쿠폰 지갑이 자동으로 만들어졌어요.`} />
+        </main>
+        <div className="cta">
+          <Link className="btn" to={next || '/home'} replace>
+            시작하기
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="phone-app">
+      <SignupBar title="이용자 가입" onBack={onBack} />
+      <main className="ct">
+        <TextField label="이름" value={name} onChange={setName} autoComplete="name" />
+        <div className="field">
+          <div className="lb">Google 계정</div>
+          <div className="inp lock">
+            <input value={google.email} aria-label="Google 계정" readOnly />
+          </div>
+        </div>
+        <Consent value={consent} onChange={setConsent} />
+        {error && <p className="nb err">{error}</p>}
+      </main>
+      <div className="cta">
+        <button className="btn" disabled={busy || !name.trim() || !consent.terms || !consent.privacy} onClick={handleSubmit}>
+          {busy ? '가입하는 중…' : '가입하기'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ----- 가맹점 가입: ① 가게 정보 → ② 대표 상품·동의 → ③ 신청 완료 (KCP 심사 대기) -----
+function MerchantSignup({ onBack }) {
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState({ storeName: '', category: '', bizNumber: '', channel: '', kcpPay: null, productName: '', price: 0 })
+  const [consent, setConsent] = useState({ terms: false, privacy: false })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (key) => (v) => setForm({ ...form, [key]: v })
+
+  async function handleSubmit() {
+    setBusy(true)
+    setError('')
+    try {
+      await signUpAsMerchant(form)
+      setStep(3)
+    } catch (err) {
+      setError(err.message)
+    }
+    setBusy(false)
+  }
+
+  if (step === 3) {
+    return (
+      <div className="phone-app">
+        <header className="topb">
+          <h1>가맹점 가입</h1>
+        </header>
+        <main className="ct">
+          <StatusView kind="ok" title="참여 신청을 받았어요" desc="KCP 심사가 끝나면 가맹점 센터를 쓸 수 있어요.">
+            <Timeline
+              items={[
+                { key: 1, tone: 'ok', title: '참여 신청 완료' },
+                { key: 2, tone: 'w', title: 'KCP 심사 중' },
+                { key: 3, tone: 'n', title: '승인되면 연합 기획전 참여' },
+              ]}
+            />
+          </StatusView>
+        </main>
+        <div className="cta">
+          <Link className="btn" to="/store" replace>
+            가맹점 센터로
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 2) {
+    return (
+      <div className="phone-app">
+        <SignupBar title="가맹점 가입" step="2/2" onBack={() => setStep(1)} />
+        <main className="ct">
+          <TextField label="대표 상품 이름" placeholder="예: 제주 제철 감귤 3kg" value={form.productName} onChange={set('productName')} />
+          <div className="field">
+            <div className="lb">대표 상품 가격</div>
+            <div className="inp">
+              <input inputMode="numeric" aria-label="대표 상품 가격" value={form.price ? num(form.price) : ''} onChange={(e) => set('price')(Number(e.target.value.replace(/\D/g, '')) || 0)} />
+              <em>원</em>
+            </div>
+          </div>
+          <div className="nb ok">돈을 미리 맡기지 않아요. 쿠폰이 실제로 쓰였을 때만 할인 부담이 생겨요.</div>
+          <Consent value={consent} onChange={setConsent} />
+          {error && <p className="nb err">{error}</p>}
+        </main>
+        <div className="cta">
+          <button className="btn" disabled={busy || !form.productName.trim() || !form.price || !consent.terms || !consent.privacy} onClick={handleSubmit}>
+            {busy ? '신청하는 중…' : '참여 신청하기'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const bizOk = form.bizNumber.replace(/\D/g, '').length === 10
+  const ready = form.storeName.trim() && form.category && bizOk && form.channel && form.kcpPay !== null
+  return (
+    <div className="phone-app">
+      <SignupBar title="가맹점 가입" step="1/2" onBack={onBack} />
+      <main className="ct">
+        <TextField label="가게 이름" value={form.storeName} onChange={set('storeName')} />
+        <Choice label="업종" options={CATEGORIES} value={form.category} onChange={set('category')} />
+        <TextField label="사업자등록번호" help="숫자 10자리예요. 실제 확인은 KCP 심사 때 해요." inputMode="numeric" maxLength={12} value={form.bizNumber} onChange={set('bizNumber')} />
+        <Choice label="판매 채널" options={CHANNELS} value={form.channel} onChange={set('channel')} />
+        <Choice label="KCP 결제를 쓰고 있나요?" options={['사용 중', '미사용']} value={form.kcpPay === null ? '' : form.kcpPay ? '사용 중' : '미사용'} onChange={(v) => set('kcpPay')(v === '사용 중')} />
+      </main>
+      <div className="cta">
+        <button className="btn" disabled={!ready} onClick={() => setStep(2)}>
+          다음
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// 회원가입 (구글 로그인은 됐지만 무럭무럭 계정이 없을 때 오는 화면)
+// 처음에 이용자인지 가맹점인지 고르고, 고른 쪽의 단계로 이어진다
+// KCP 관리자는 가입이 없다 (미리 만들어 둔 계정만)
+function SignupPage() {
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const next = params.get('next')
+  const [google] = useState(getPendingGoogle)
+  const [kind, setKind] = useState(null) // null(고르는 중) / 'consumer' / 'merchant'
+
+  // 구글 로그인을 거치지 않고 주소로 바로 들어오면 로그인 화면으로
+  if (!google) return <Navigate to="/login" replace />
+
+  if (kind === 'consumer') return <ConsumerSignup google={google} next={next} onBack={() => setKind(null)} />
+  if (kind === 'merchant') return <MerchantSignup onBack={() => setKind(null)} />
+
+  function handleCancel() {
+    cancelSignUp()
+    navigate('/login', { replace: true })
+  }
+
+  return (
+    <div className="phone-app">
+      <SignupBar title="회원가입" onBack={handleCancel} />
+      <main className="ct">
+        <div>
+          <h2 className="ttl-l">어떻게 이용하시나요?</h2>
+          <p className="cap" style={{ fontSize: 13, marginTop: 6 }}>
+            {google.email} 계정은 아직 가입 전이에요
+          </p>
+        </div>
+        <button className="role-card" onClick={() => setKind('consumer')}>
+          <span className="avatar s">
+            <Icon name="user" size={20} />
+          </span>
+          <span className="grow">
+            <b>무럭무럭 이용자이신가요?</b>
+            <small>동네 가게에서 사고, 다른 가게 쿠폰을 받아요</small>
+          </span>
+          <Icon name="chev" size={18} />
+        </button>
+        <button className="role-card" onClick={() => setKind('merchant')}>
+          <span className="avatar s">
+            <Icon name="link" size={20} />
+          </span>
+          <span className="grow">
+            <b>무럭무럭 가맹점이신가요?</b>
+            <small>우리 가게를 연합 기획전에 올려요. KCP 심사 후 이용할 수 있어요</small>
+          </span>
+          <Icon name="chev" size={18} />
+        </button>
+      </main>
+    </div>
+  )
+}
+
+export default SignupPage
