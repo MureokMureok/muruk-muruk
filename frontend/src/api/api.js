@@ -14,13 +14,16 @@ import {
   couponsForPurchase,
   dateOf,
   doCancel,
+  doClaim,
   doConfirm,
+  doPublishPolicy,
   doPurchase,
   doRedeem,
   findCampaign,
   findMerchant,
   maskUser,
   nameOf,
+  policyStats,
   qtyTotalOf,
   termStats,
   won,
@@ -249,7 +252,7 @@ export async function purchase(userId, merchantId) {
 function couponView(db, c) {
   const status = c.status === 'AVAILABLE' && c.expiresAt < today() ? 'EXPIRED' : c.status
   // issuedTogether: 같은 구매로 받은 쿠폰 수 (주문을 취소하면 함께 사라진다고 안내할 때 씀)
-  return { ...withMerchant(db, c), status, fromMerchantName: nameOf(db, c.fromMerchantId), issuedTogether: db.coupons.filter((x) => x.orderId === c.orderId).length }
+  return { ...withMerchant(db, c), status, fromMerchantName: nameOf(db, c.fromMerchantId), issuedTogether: c.orderId ? db.coupons.filter((x) => x.orderId === c.orderId).length : 1 }
 }
 
 // 지금 바로 쓸 수 있는 내 쿠폰
@@ -314,6 +317,29 @@ export async function redeemCoupon(userId, couponId, merchantId) {
   }
 }
 
+// GET /api/coupon-policies — 손님이 직접 받을 수 있는 일반 쿠폰. userId가 있으면 이미 받았는지도 알려 준다
+export async function getCouponOffers(userId) {
+  await wait(READ_MS)
+  readGuard()
+  const db = load()
+  return db.couponPolicies
+    .filter((p) => findMerchant(db, p.merchantId)?.status === 'APPROVED')
+    .map((p) => {
+      const mine = userId ? db.coupons.find((c) => c.policyId === p.id && c.ownerId === userId) : null
+      return { ...withMerchant(db, p), ...policyStats(db, p), myCouponId: mine?.id ?? null }
+    })
+    .reverse()
+}
+
+// POST /api/coupon-policies/{id}/claim — 쿠폰 받기. 받으면 바로 사용 가능
+export async function claimCoupon(userId, policyId) {
+  await wait(CHAIN_MS)
+  const db = load()
+  const coupon = doClaim(db, userId, policyId, nowText())
+  save(db)
+  return couponView(db, coupon)
+}
+
 // [가정] POST /api/orders/{id}/confirm — 구매 확정 (백엔드 명세서에 아직 없음. 지금은 모의로만 동작)
 // 돌려주는 값: { order, coupons(상태가 바뀐 쿠폰), leftCoupons(지금 쓸 수 있는 쿠폰) }
 export async function confirmOrder(userId, orderId) {
@@ -350,8 +376,9 @@ function storeCampaigns(db, merchantId) {
 function customerLinks(db, merchantId) {
   // 취소된 주문·소멸한 쿠폰은 손님을 보낸 것으로 세지 않는다
   const sentOrders = db.orders.filter((o) => o.merchantId === merchantId && o.status !== 'CANCELLED' && db.coupons.some((c) => c.orderId === o.id))
-  const ourUsed = db.coupons.filter((c) => c.merchantId === merchantId && c.status === 'USED')
-  const partners = [...new Set(db.coupons.filter((c) => c.fromMerchantId === merchantId || c.merchantId === merchantId).flatMap((c) => [c.merchantId, c.fromMerchantId]))].filter((id) => id !== merchantId)
+  // 일반 쿠폰은 다른 가게에서 온 손님이 아니므로 뺀다
+  const ourUsed = db.coupons.filter((c) => c.merchantId === merchantId && c.status === 'USED' && !c.policyId)
+  const partners = [...new Set(db.coupons.filter((c) => !c.policyId && (c.fromMerchantId === merchantId || c.merchantId === merchantId)).flatMap((c) => [c.merchantId, c.fromMerchantId]))].filter((id) => id !== merchantId)
   return {
     sent: new Set(sentOrders.map((o) => o.userId)).size,
     received: new Set(ourUsed.map((c) => c.ownerId)).size,
@@ -434,6 +461,22 @@ export async function saveTerms(merchantId, campaignId, form, register) {
   return campaignView(db, c)
 }
 
+// GET /api/merchants/me/coupon-policies — 우리 가게가 발행한 일반 쿠폰
+export async function getStorePolicies(merchantId) {
+  await wait(READ_MS)
+  const db = load()
+  return db.couponPolicies.filter((p) => p.merchantId === merchantId).map((p) => ({ ...p, ...policyStats(db, p) })).reverse()
+}
+
+// POST /api/merchants/me/coupon-policies — 일반 쿠폰 발행. 받는 방법은 직접 받기, 사용처는 우리 가게만 (백엔드 DIRECT·OWN_SHOP)
+export async function publishPolicy(merchantId, form) {
+  await wait(CHAIN_MS)
+  const db = load()
+  const policy = doPublishPolicy(db, merchantId, form, nowText())
+  save(db)
+  return policy
+}
+
 // GET /api/stores/{id}/burden — 할인 부담 내역 (목업 M4). 실제 정산(돈 이동)은 이번 범위 밖
 export async function getBurden(merchantId) {
   await wait(READ_MS)
@@ -444,7 +487,7 @@ export async function getBurden(merchantId) {
       // 환불 후 다시 쓴 쿠폰은 주문이 여러 개일 수 있어 구매 확정된 주문을 찾는다
       const o = db.orders.find((x) => x.couponId === c.id && x.status === 'CONFIRMED')
       const log = db.ledger.find((l) => l.type === 'USE' && l.couponId === c.id)
-      return { id: c.id, at: c.usedAt, customer: maskUser(db, c.ownerId), from: nameOf(db, c.fromMerchantId), amount: o.amount, discount: c.discount, tx: log?.tx }
+      return { id: c.id, at: c.usedAt, customer: maskUser(db, c.ownerId), source: c.policyId ? '직접 받기' : `${nameOf(db, c.fromMerchantId)} 구매`, amount: o.amount, discount: c.discount, tx: log?.tx }
     })
     .sort((a, b) => b.at.localeCompare(a.at))
   // 새로 온 손님: 우리 가게 첫 주문이 쿠폰을 쓴 주문인 손님
