@@ -1,4 +1,6 @@
 package com.murukmuruk.domain.order.enums;
 
-public class OrderStatus {
+/** 주문 상태: 처리 중 / 완료 / 실패 */
+public enum OrderStatus {
+    PENDING, PAID, FAILED
 }

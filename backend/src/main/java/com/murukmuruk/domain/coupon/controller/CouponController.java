@@ -2,14 +2,19 @@ package com.murukmuruk.domain.coupon.controller;
 
 import com.murukmuruk.domain.coupon.dto.CouponDetailResponse;
 import com.murukmuruk.domain.coupon.dto.CouponListResponse;
+import com.murukmuruk.domain.coupon.dto.CouponUseRequest;
+import com.murukmuruk.domain.coupon.dto.CouponUseResponse;
 import com.murukmuruk.domain.coupon.enums.CouponStatus;
 import com.murukmuruk.domain.coupon.service.CouponQueryService;
+import com.murukmuruk.domain.coupon.service.CouponUseService;
 import com.murukmuruk.global.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CouponController {
 
     private final CouponQueryService couponQueryService;
+    private final CouponUseService couponUseService;
 
     /** GET /api/coupons : 내 쿠폰함 (사용자 전용) */
     @GetMapping
@@ -37,5 +43,14 @@ public class CouponController {
                                                     @PathVariable Long couponId) {
         Long userId = Long.valueOf(jwt.getSubject());
         return ApiResponse.success(couponQueryService.getCoupon(userId, couponId));
+    }
+
+    /** POST /api/coupons/{couponId}/use : 쿠폰 사용 (200) */
+    @PostMapping("/{couponId}/use")
+    public ApiResponse<CouponUseResponse> use(@AuthenticationPrincipal Jwt jwt,
+                                              @PathVariable Long couponId,
+                                              @RequestBody CouponUseRequest request) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        return ApiResponse.success(couponUseService.use(userId, couponId, request));
     }
 }

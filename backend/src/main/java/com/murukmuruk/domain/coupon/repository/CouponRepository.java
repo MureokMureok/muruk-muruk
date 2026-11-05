@@ -5,6 +5,7 @@ import com.murukmuruk.domain.coupon.entity.Coupon;
 import com.murukmuruk.domain.coupon.enums.CouponState;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -43,4 +44,16 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
                              @Param("upper") LocalDateTime upper,
                              @Param("cursor") long cursor,
                              Pageable pageable);
+
+    /**
+     * 쿠폰을 사용 처리한다. 아직 ACTIVE일 때만 바뀐다 (반환값 0이면 이미 사용된 쿠폰).
+     * 동시에 두 번 눌러도 한 요청만 1을 돌려받으므로 재사용이 불가능하다.
+     * status, used_order_id, used_at 은 DB 제약상 함께 바뀌어야 해서 한 문장으로 처리한다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE coupon SET status = 'USED', used_order_id = :orderId, used_at = :usedAt "
+            + "WHERE id = :id AND status = 'ACTIVE'", nativeQuery = true)
+    int markUsed(@Param("id") Long id,
+                 @Param("orderId") Long orderId,
+                 @Param("usedAt") LocalDateTime usedAt);
 }
