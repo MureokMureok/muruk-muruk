@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { confirmOrder, getProduct, previewPurchase, purchase } from '../../api/api.js'
-import { getUser } from '../../auth/mockAuth.js'
+import { ROLES, getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
+import MissingScreen from '../../components/MissingScreen.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
@@ -80,6 +81,7 @@ function BuyScreen({ merchantId }) {
   const [phase, setPhase] = useState('ready') // ready → paying → done
   const [result, setResult] = useState(null)
   const paying = useRef(false) // 결제 진행 중 표시 (화면을 다시 그리지 않고 바로 바뀌는 값)
+  const [payError, setPayError] = useState('')
   const [confirmState, setConfirmState] = useState('none') // 구매 확정: none(전) → working(처리 중) → done(완료)
   const [confirmError, setConfirmError] = useState('')
 
@@ -92,10 +94,17 @@ function BuyScreen({ merchantId }) {
     // 연속 클릭으로 주문이 두 번 생기지 않게 (state는 다음 화면 그릴 때 바뀌므로 ref로 즉시 막음)
     if (paying.current) return
     paying.current = true
+    setPayError('')
     setPhase('paying')
-    const r = await purchase(user.id, merchantId)
-    setResult(r)
-    setPhase('done')
+    try {
+      setResult(await purchase(user.id, merchantId))
+      setPhase('done')
+    } catch {
+      setPayError('결제를 완료하지 못했어요. 잠시 후 다시 시도해 주세요.')
+      setPhase('ready')
+    } finally {
+      paying.current = false
+    }
   }
 
   // 구매 확정 → 잠겨 있던 쿠폰이 사용 가능으로
@@ -115,6 +124,7 @@ function BuyScreen({ merchantId }) {
 
   if (!data) return <PhoneScreen title="상품" />
   const { product, preview } = data
+  if (!product) return <MissingScreen title="상품" message="찾을 수 없는 가게예요" to="/home" toLabel="홈으로" />
   const name = product.merchantName
 
   // ----- 결제 처리하는 동안: 새싹이가 자란다 -----
@@ -228,18 +238,20 @@ function BuyScreen({ merchantId }) {
 
   // ----- C-03 상품 · 받을 쿠폰 미리보기 -----
   const n = preview.coupons.length
+  const canBuy = !user || user.role === ROLES.CONSUMER // 가맹점·KCP 계정은 손님 쿠폰함이 없어 구매하지 않는다
   return (
     <PhoneScreen
       title={name}
       foot={
         <>
-          <span className="demo">{user ? '시연용 가상 결제예요. 실제 결제는 일어나지 않아요' : '결제하려면 로그인이 필요해요 · 로그인 후 이 화면으로 돌아와요'}</span>
-          <button className="btn" onClick={handlePay}>
+          <span className="demo">{!user ? '결제하려면 로그인이 필요해요 · 로그인 후 이 화면으로 돌아와요' : canBuy ? '시연용 가상 결제예요. 실제 결제는 일어나지 않아요' : '소비자 계정으로 로그인해야 결제할 수 있어요'}</span>
+          <button className="btn" disabled={!canBuy} onClick={handlePay}>
             {won(product.price)} 결제하기
           </button>
         </>
       }
     >
+      {payError && <p className="nb err">{payError}</p>}
       <div className="shopimg" style={{ height: 150 }}>
         상품 이미지
       </div>

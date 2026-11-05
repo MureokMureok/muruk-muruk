@@ -4,6 +4,7 @@ import { USE_CHECKS, calcDiscount, cancelOrder, confirmOrder, getCoupon, getProd
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import Icon from '../../components/Icon.jsx'
+import MissingScreen from '../../components/MissingScreen.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
@@ -50,7 +51,7 @@ function Amounts({ amount, discount }) {
 function CouponScreen({ couponId }) {
   const user = getUser()
   const { data, reload } = useApi(async () => {
-    const coupon = await getCoupon(couponId)
+    const coupon = await getCoupon(couponId, user.id)
     const product = coupon ? await getProduct(coupon.merchantId) : null
     return { coupon, product }
   }, [couponId])
@@ -112,7 +113,7 @@ function CouponScreen({ couponId }) {
 
   if (!data) return <PhoneScreen title="쿠폰 상세" />
   const { coupon, product } = data
-  if (!coupon) return <PhoneScreen title="쿠폰 상세">쿠폰을 찾을 수 없어요.</PhoneScreen>
+  if (!coupon) return <MissingScreen title="쿠폰 상세" message="찾을 수 없는 쿠폰이에요" to="/coupons" toLabel="쿠폰함으로" />
   const name = coupon.merchantName
 
   // ----- 쿠폰 사용 처리하는 동안: 새싹이가 자란다 -----
@@ -331,6 +332,7 @@ function CouponScreen({ couponId }) {
     return (
       <PhoneScreen
         title="주문 결제"
+        onBack={() => setPhase('detail')}
         foot={
           <>
             <span className="demo">시연용 가상 결제예요. 실제 결제는 일어나지 않아요</span>

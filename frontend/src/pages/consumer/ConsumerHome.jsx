@@ -58,7 +58,7 @@ function ConsumerHome() {
                 <h2>구매하면 받는 쿠폰</h2>
                 <Link to="/campaign">전체 보기</Link>
               </div>
-              {campaign.terms.map((t) => (
+              {campaign.terms.filter((t) => t.registered).map((t) => (
                 <CouponCard
                   key={t.merchantId}
                   coupon={t}

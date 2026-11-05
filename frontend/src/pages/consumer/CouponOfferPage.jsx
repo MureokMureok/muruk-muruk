@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { getCampaign } from '../../api/api.js'
 import CouponCard from '../../components/CouponCard.jsx'
+import MissingScreen from '../../components/MissingScreen.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { VALIDITY } from '../../utils/labels.js'
@@ -13,7 +14,8 @@ function CouponOfferPage() {
   const { data: c } = useApi(() => getCampaign(), [])
   if (!c) return <PhoneScreen title="쿠폰 상세" />
 
-  const t = c.terms.find((x) => x.merchantId === merchantId)
+  const t = c.terms.find((x) => x.merchantId === merchantId && x.registered)
+  if (!t) return <MissingScreen title="쿠폰 상세" message="찾을 수 없는 쿠폰이에요" to="/home" toLabel="홈으로" />
   const from = c.terms.filter((x) => x.merchantId !== merchantId)
   const validity = t.validity === 'END' ? VALIDITY.END : VALIDITY.DAYS30
 

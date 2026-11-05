@@ -1,7 +1,7 @@
 import { Route } from 'react-router-dom'
 import RequireRole from '../auth/RequireRole.jsx'
 import { ROLES } from '../auth/mockAuth.js'
-import ConsumerShell from '../components/ConsumerShell.jsx'
+import RouteErrorShell from '../components/RouteErrorShell.jsx'
 import BuyPage from '../pages/consumer/BuyPage.jsx'
 import CampaignPage from '../pages/consumer/CampaignPage.jsx'
 import ConsumerHome from '../pages/consumer/ConsumerHome.jsx'
@@ -18,7 +18,7 @@ import SettingsPage from '../pages/consumer/SettingsPage.jsx'
 export function consumerRoutes() {
   return (
     // 소비자 화면 전체를 오류 처리 틀로 감쌈
-    <Route element={<ConsumerShell />}>
+    <Route element={<RouteErrorShell tabs />}>
       {/* 로그인 없이 볼 수 있는 화면 (와이어프레임 v0 확정 정책 — 비회원도 둘러보기) */}
       <Route path="/home" element={<ConsumerHome />} />
       <Route path="/campaign" element={<CampaignPage />} />

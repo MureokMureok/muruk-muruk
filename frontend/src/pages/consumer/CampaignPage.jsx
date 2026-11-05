@@ -59,20 +59,23 @@ function CampaignPage() {
       <section className="grp" style={{ gap: 8 }}>
         <h3 className="h4">어디서 사면 무엇을 받나요</h3>
         {c.terms.map((t) => {
-          const gets = c.terms.filter((x) => x.merchantId !== t.merchantId)
-          // 받을 쿠폰 중 가장 적게 남은 수량 (다 떨어지면 "쿠폰 마감", 구매는 가능)
-          const left = Math.min(...gets.map((x) => x.qtyLeft))
-          const total = Math.min(...gets.map((x) => x.qtyTotal))
+          const gets = c.terms.filter((x) => x.merchantId !== t.merchantId && x.registered)
+          // 실제 발급 규칙과 같게: 소진된 가게 쿠폰만 빠지고 남은 가게 쿠폰은 계속 받는다
+          const open = gets.filter((x) => x.qtyLeft > 0)
+          const left = Math.min(...open.map((x) => x.qtyLeft))
+          const total = Math.min(...open.map((x) => x.qtyTotal))
           return (
             <Link className="store" key={t.merchantId} to={`/campaign/buy/${t.merchantId}`}>
               <div className="hd">
                 <b>{t.merchantName}에서 구매</b>
-                {left > 0 ? (
+                {open.length === 0 ? (
+                  <span className="chip y">쿠폰 마감</span>
+                ) : open.length < gets.length ? (
+                  <span className="chip y">일부 쿠폰 마감</span>
+                ) : (
                   <span className="chip">
                     {left}/{total} 남음
                   </span>
-                ) : (
-                  <span className="chip y">쿠폰 마감</span>
                 )}
               </div>
               <span>{gets.map((x) => `${x.merchantName} ${won(x.value)}`).join(' + ')}</span>

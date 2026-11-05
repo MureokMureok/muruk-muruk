@@ -1,6 +1,8 @@
 import { useParams } from 'react-router-dom'
 import { getCoupon, getCouponHistory } from '../../api/api.js'
+import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
+import MissingScreen from '../../components/MissingScreen.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import Timeline from '../../components/Timeline.jsx'
 import { useApi } from '../../hooks/useApi.js'
@@ -13,8 +15,8 @@ function toItem(h) {
   if (h.type === 'APPLY') return { key: h.id, tone: 'w', title: '결제 적용 · 처리 중', sub: `${mdhm(h.at)} · ${h.merchantName} 결제에 적용` }
   if (h.type === 'USE') return { key: h.id, tone: 'ok', title: '사용 확인됨', sub: `${mdhm(h.at)} · ${h.merchantName} 구매 확정` }
   if (h.type === 'REFUND') return { key: h.id, tone: h.voided ? 'x' : 'n', title: h.detail.split(' · ')[1], sub: `${mdhm(h.at)} · ${h.merchantName} 주문 취소` }
-  const reused = h.detail.includes('재사용')
-  const reusedWhat = h.detail.includes('처리 중') ? '결제에 적용 중인 쿠폰' : '이미 사용한 쿠폰'
+  const reused = h.reason === 'COUPON_ALREADY_USED'
+  const reusedWhat = h.couponStatus === 'PROCESSING' ? '결제에 적용 중인 쿠폰' : '이미 사용한 쿠폰'
   return { key: h.id, tone: 'x', title: reused ? '재사용 시도 · 거절 기록됨' : '사용 시도 · 거절 기록됨', sub: `${mdhm(h.at)} · ${reused ? reusedWhat : h.detail.split(' · ')[1]}` }
 }
 
@@ -22,17 +24,19 @@ function toItem(h) {
 // 블록체인의 "고칠 수 없는 장부"를 소비자 쪽에서 보여주는 화면. 지갑 주소·긴 번호는 보여주지 않는다
 function CouponHistoryPage() {
   const { couponId } = useParams()
+  const userId = getUser().id
   const { data } = useApi(async () => {
-    const [coupon, history] = await Promise.all([getCoupon(couponId), getCouponHistory(couponId)])
+    const [coupon, history] = await Promise.all([getCoupon(couponId, userId), getCouponHistory(couponId)])
     return { coupon, history }
-  }, [couponId])
+  }, [couponId, userId])
 
   if (!data) return <PhoneScreen title="발급·사용 기록" />
   const { coupon, history } = data
+  if (!coupon) return <MissingScreen title="발급·사용 기록" message="찾을 수 없는 쿠폰이에요" to="/coupons" toLabel="쿠폰함으로" />
 
   return (
     <PhoneScreen title="발급·사용 기록">
-      {coupon && <CouponCard coupon={coupon} />}
+      <CouponCard coupon={coupon} />
       <div className="nb ok">이 쿠폰의 발급·사용 기록은 참여 가게가 함께 확인해요</div>
       <section className="grp">
         <h3 className="h4">기록</h3>
