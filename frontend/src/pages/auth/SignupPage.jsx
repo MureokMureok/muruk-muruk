@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { USE_BACKEND, cancelSignUp, getPendingGoogle, signUpAsConsumer, signUpAsMerchant } from '../../auth/mockAuth.js'
 import Icon from '../../components/Icon.jsx'
+import { SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import Timeline from '../../components/Timeline.jsx'
 
@@ -137,6 +138,7 @@ function ConsumerSignup({ google, next, onBack }) {
         {error && <p className="nb err">{error}</p>}
       </main>
       <div className="cta">
+        {busy && <SproutOverlay delay title="쿠폰 지갑을 준비하고 있어요" sub="거의 다 됐어요" />}
         <button className="btn" disabled={busy || !name.trim() || !consent.terms || !consent.privacy} onClick={handleSubmit}>
           {busy ? '가입하는 중…' : '가입하기'}
         </button>
@@ -205,6 +207,7 @@ function MerchantSignup({ onBack }) {
         {error && <p className="nb err">{error}</p>}
       </main>
       <div className="cta">
+        {busy && <SproutOverlay delay title="가맹점 신청을 보내고 있어요" />}
         <button className="btn" disabled={busy || !ready} onClick={handleSubmit}>
           {busy ? '신청하는 중…' : '참여 신청하기'}
         </button>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
+import { SproutOverlay } from '../../components/SproutLoading.jsx'
 import { GOOGLE_CLIENT_ID, renderGoogleButton } from '../../auth/googleSignIn.js'
 import { homePathFor, loginWithGoogle, loginWithIdToken } from '../../auth/mockAuth.js'
 
@@ -17,12 +18,14 @@ function LoginPage() {
   const [emailOpen, setEmailOpen] = useState(false) // 임시 이메일 입력칸을 보여줄지
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
+  const [checking, setChecking] = useState(false) // 계정 확인 중
   const googleBox = useRef(null) // 구글 버튼이 그려질 자리
 
   // 구글 로그인이 끝난 뒤: 계정 확인 → 알맞은 화면으로. login = 계정 확인을 부르는 함수
   const finish = useCallback(
     async (login) => {
       setError('')
+      setChecking(true)
       try {
         const { registered, user } = await login()
         if (!registered) {
@@ -36,6 +39,7 @@ function LoginPage() {
       } catch (err) {
         setError(err.message)
       }
+      setChecking(false)
     },
     [navigate, next],
   )
@@ -58,6 +62,7 @@ function LoginPage() {
 
   return (
     <div className="phone-app login">
+      {checking && <SproutOverlay delay title="계정을 확인하고 있어요" />}
       <header className="topb">
         {/* 닫기(X): 로그인 안 하고 둘러보기로 */}
         <button className="bk" aria-label="닫기" onClick={() => navigate('/home')}>
