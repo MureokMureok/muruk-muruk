@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -35,16 +36,25 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // 쿠키/세션을 안 쓰고 Authorization 헤더의 토큰만 쓰므로 CSRF 방어는 필요 없다
+                // 쿠키/세션 없이 Authorization 헤더의 토큰만 쓰므로 CSRF 방어는 필요 없다
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()     // 로그인 API는 토큰 없이 접근
-                        .requestMatchers("/actuator/health").permitAll() // 헬스체크
-                        // Swagger 화면과 API 문서 데이터 (로컬 개발용. 배포 때는 막거나 끌 것)
+                        // ---- 토큰 없이 접근 ----
+                        .requestMatchers("/api/auth/**").permitAll()                // 사용자 로그인
+                        .requestMatchers(HttpMethod.POST, "/api/merchants").permitAll() // 가맹점 가입 신청
+                        .requestMatchers("/api/merchants/auth/**").permitAll()      // 가맹점 로그인
+                        .requestMatchers("/api/admin/auth/**").permitAll()          // 관리자 로그인
+                        .requestMatchers("/actuator/health").permitAll()            // 헬스체크
+                        // Swagger 화면과 API 문서 (개발용. 배포 전에는 막아야 함)
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                        .anyRequest().authenticated())                   // 나머지는 토큰 필요
+                        // ---- 역할별 접근 (다른 역할 토큰이면 403) ----
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/merchants/me/**").hasRole("MERCHANT")
+                        .requestMatchers("/api/users/**", "/api/coupons/**",
+                                "/api/coupon-policies/**", "/api/orders/**").hasRole("USER")
+                        .anyRequest().authenticated())                              // 나머지는 로그인 필요
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
