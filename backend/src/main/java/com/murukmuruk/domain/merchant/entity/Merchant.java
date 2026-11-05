@@ -3,6 +3,8 @@ package com.murukmuruk.domain.merchant.entity;
 import com.murukmuruk.domain.common.entity.BaseTimeEntity;
 import com.murukmuruk.domain.merchant.enums.MerchantCategory;
 import com.murukmuruk.domain.merchant.enums.MerchantStatus;
+import com.murukmuruk.global.exception.BusinessException;
+import com.murukmuruk.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -75,16 +77,25 @@ public class Merchant extends BaseTimeEntity {
 
     /** 승인: APPLIED → ACTIVE */
     public void approve() {
+        if (status != MerchantStatus.APPLIED) {
+            throw new BusinessException(ErrorCode.CONFLICT); // 승인 대기 상태에서만 승인 가능
+        }
         this.status = MerchantStatus.ACTIVE;
     }
 
-    /** 일시 정지: ACTIVE → SUSPENDED */
+    /** 정지: ACTIVE → SUSPENDED */
     public void suspend() {
+        if (status != MerchantStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.CONFLICT); // 활성 상태에서만 정지 가능
+        }
         this.status = MerchantStatus.SUSPENDED;
     }
 
     /** 정지 해제: SUSPENDED → ACTIVE */
     public void unsuspend() {
+        if (status != MerchantStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.CONFLICT); // 정지 상태에서만 해제 가능
+        }
         this.status = MerchantStatus.ACTIVE;
     }
 
