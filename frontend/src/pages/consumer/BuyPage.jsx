@@ -187,6 +187,7 @@ function BuyScreen({ merchantId }) {
     const got = result.issuedCoupons
     const max = got.reduce((s, c) => s + c.value, 0)
     const needConfirm = got.length > 0 && confirmState !== 'done' // 아직 구매 확정 전
+    const confirmed = confirmState === 'done'
     return (
       <PhoneScreen
         title="결제 완료"
@@ -207,13 +208,15 @@ function BuyScreen({ merchantId }) {
           </>
         }
       >
+        {/* key가 바뀌어야 React가 새로 그려서 체크 애니메이션이 다시 나온다 */}
         <StatusView
+          key={confirmed ? 'confirmed' : 'paid'}
           kind="ok"
           top
           strong
-          sound={got.length > 0 ? 'issue' : 'pay'}
-          title={`${name} 결제가 완료됐어요`}
-          desc={got.length > 0 ? `쿠폰 ${got.length}장을 받았어요` : '이번 구매로 받은 쿠폰은 없어요'}
+          sound={confirmed ? 'pay' : got.length > 0 ? 'issue' : 'pay'}
+          title={confirmed ? `${name} 구매를 확정했어요` : `${name} 결제가 완료됐어요`}
+          desc={confirmed ? `이제 쿠폰 ${got.length}장을 쓸 수 있어요` : got.length > 0 ? `쿠폰 ${got.length}장을 받았어요` : '이번 구매로 받은 쿠폰은 없어요'}
         />
         {got.length > 0 && (
           <div className="grp">
@@ -224,7 +227,6 @@ function BuyScreen({ merchantId }) {
           </div>
         )}
         {needConfirm && <div className="nb warn">구매를 확정하면 쿠폰을 쓸 수 있어요</div>}
-        {confirmState === 'done' && <div className="nb ok">구매를 확정했어요. 이제 쿠폰을 쓸 수 있어요</div>}
         {confirmError && <p className="nb err">{confirmError}</p>}
         {confirmState === 'working' && <SproutOverlay growing title="구매를 확정하고 있어요" />}
         {got.length > 1 && (

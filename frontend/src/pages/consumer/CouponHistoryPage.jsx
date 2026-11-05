@@ -6,7 +6,7 @@ import MissingScreen from '../../components/MissingScreen.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import Timeline from '../../components/Timeline.jsx'
 import { useApi } from '../../hooks/useApi.js'
-import { mdhm } from '../../utils/format.js'
+import { mdhm, shortTx } from '../../utils/format.js'
 
 // 기록 한 줄 → 타임라인 한 칸
 function toItem(h) {
@@ -21,7 +21,7 @@ function toItem(h) {
 }
 
 // C-12 발급·사용 기록 (목업 v3)
-// 블록체인의 "고칠 수 없는 장부"를 소비자 쪽에서 보여주는 화면. 지갑 주소·긴 번호는 보여주지 않는다
+// 지갑 주소는 보여주지 않고, 쿠폰 ID와 tx 해시는 정책표 시트 5의 캡처를 위해 보여준다
 function CouponHistoryPage() {
   const { couponId } = useParams()
   const userId = getUser().id
@@ -37,10 +37,11 @@ function CouponHistoryPage() {
   return (
     <PhoneScreen title="발급·사용 기록">
       <CouponCard coupon={coupon} />
+      <p className="cap">쿠폰 ID #{coupon.tokenId}</p>
       <div className="nb ok">이 쿠폰의 발급·사용 기록은 참여 가게가 함께 확인해요</div>
       <section className="grp">
         <h3 className="h4">기록</h3>
-        <Timeline items={history.map(toItem)} />
+        <Timeline items={history.map((h) => ({ ...toItem(h), sub: `${toItem(h).sub} · tx ${shortTx(h.tx)}` }))} />
       </section>
       {/* 11/26 KCP 네트워크 배포 후 외부 탐색기 연결 예정 */}
       <div className="nb row" style={{ color: 'var(--muted)' }}>

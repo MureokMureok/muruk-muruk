@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SIMULATIONS, getMySummary, getSimulation, resetDemo, setSimulation } from '../../api/api.js'
 import { getUser, logout } from '../../auth/mockAuth.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { won } from '../../utils/format.js'
 
 // C-11 MY (목업 v3)
 // - 지갑 정보는 MY에도 표시하지 않음
-// - 11/8 범위: 프로필·쿠폰함·설정(다크 모드)·로그아웃만 동작, 나머지 메뉴는 자리만
+// - 시연 범위: 프로필·쿠폰함·설정(다크 모드)·로그아웃만 동작, 나머지 메뉴는 자리만
 // - 맨 아래 시연 도구 (발표용 — 목업에는 없음)
 function MyPage() {
   const user = getUser()
@@ -21,9 +22,9 @@ function MyPage() {
   }
 
   // mode: 'ready'(기획전 진행 중, 바로 쿠폰 받기) / 'demo'(시연 시작 — KCP 가맹점 심사부터)
-  async function handleReset(mode) {
-    if (!window.confirm('시연 데이터를 처음 상태로 되돌릴까요? (쿠폰·주문·기록이 모두 지워져요)')) return
-    await resetDemo(mode)
+  const [resetMode, setResetMode] = useState(null)
+  async function handleReset() {
+    await resetDemo(resetMode)
     navigate('/home')
   }
 
@@ -36,6 +37,7 @@ function MyPage() {
 
   return (
     <PhoneScreen large="MY" tabs>
+      {resetMode && <ConfirmDialog message="시연 데이터를 처음 상태로 되돌릴까요? 쿠폰·주문·기록이 모두 지워져요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
       <div className="profile">
         <span className="avatar">{user.name[0]}</span>
         <div>
@@ -96,10 +98,10 @@ function MyPage() {
             ))}
           </select>
         </label>
-        <button className="text-link" onClick={() => handleReset('ready')}>
+        <button className="text-link" onClick={() => setResetMode('ready')}>
           데이터 처음으로 (기획전 진행 중 · 바로 쿠폰 받기)
         </button>
-        <button className="text-link" onClick={() => handleReset('demo')}>
+        <button className="text-link" onClick={() => setResetMode('demo')}>
           시연 시작 상태로 (KCP 가맹점 심사부터)
         </button>
       </section>

@@ -6,18 +6,13 @@ import CouponCard from '../../components/CouponCard.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
+import Toast from '../../components/Toast.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { useToast } from '../../hooks/useToast.js'
 import { minOrderText } from '../../utils/format.js'
 import { playSound } from '../../utils/sound.js'
 
 function ClaimAction({ offer, canClaim, busy, onClaim }) {
-  if (offer.myCouponId) {
-    return (
-      <Link className="btn g sm" to={`/coupons/${offer.myCouponId}`}>
-        받은 쿠폰 보기
-      </Link>
-    )
-  }
   if (offer.qtyLeft === 0) {
     return (
       <button className="btn d sm" disabled>
@@ -39,7 +34,8 @@ function CouponClaimPage() {
   const user = getUser()
   const { data: offers, reload } = useApi(() => getCouponOffers(user?.id), [user?.id])
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState(null) // { ok, text }
+  const [error, setError] = useState('')
+  const [toast, showToast] = useToast()
   const claiming = useRef(false)
   const canClaim = !user || user.role === ROLES.CONSUMER
 
@@ -51,14 +47,14 @@ function CouponClaimPage() {
     if (claiming.current) return
     claiming.current = true
     setBusy(true)
-    setResult(null)
+    setError('')
     try {
       await claimCoupon(user.id, offer.id)
       playSound('issue')
-      setResult({ ok: true, text: `${offer.merchantName} 쿠폰을 받았어요. 바로 쓸 수 있어요` })
+      showToast(`${offer.merchantName} 쿠폰을 받았어요. 쿠폰함에서 바로 쓸 수 있어요`)
     } catch (err) {
       playSound('fail')
-      setResult({ ok: false, text: err.message })
+      setError(err.message)
     } finally {
       await reload()
       claiming.current = false
@@ -67,21 +63,33 @@ function CouponClaimPage() {
   }
 
   if (!offers) return <PhoneScreen title="쿠폰 받기" />
+  const available = offers.filter((offer) => !offer.myCouponId)
+  const isConsumer = user?.role === ROLES.CONSUMER
 
   return (
-    <PhoneScreen title="쿠폰 받기">
+    <PhoneScreen
+      title="쿠폰 받기"
+      foot={
+        isConsumer && (
+          <Link className="btn g" to="/coupons">
+            쿠폰함 보기
+          </Link>
+        )
+      }
+    >
+      <Toast text={toast} />
       {busy && <SproutOverlay growing title="쿠폰을 받고 있어요" />}
-      {result && <p className={`nb ${result.ok ? 'ok' : 'err'}`}>{result.text}</p>}
+      {error && <p className="nb err">{error}</p>}
       {!canClaim && <p className="nb warn">소비자 계정으로 로그인해야 쿠폰을 받을 수 있어요</p>}
-      {offers.length === 0 ? (
+      {available.length === 0 ? (
         <StatusView kind="empty" title="지금 받을 수 있는 쿠폰이 없어요" />
       ) : (
-        offers.map((offer) => (
+        available.map((offer) => (
           <section className="grp" key={offer.id}>
             <CouponCard
               coupon={{ ...offer, policyId: offer.id }}
               caption={offer.name}
-              badge={offer.myCouponId ? { label: '받음', tone: 'g' } : { label: `${offer.qtyLeft}장 남음`, tone: 'y' }}
+              badge={{ label: `${offer.qtyLeft}장 남음`, tone: 'y' }}
               sub={`${minOrderText(offer.minOrder)} · 받은 날부터 ${offer.validDays}일`}
             />
             <ClaimAction offer={offer} canClaim={canClaim} busy={busy} onClaim={handleClaim} />

@@ -8,7 +8,9 @@ import MissingScreen from '../../components/MissingScreen.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
+import Toast from '../../components/Toast.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { useToast } from '../../hooks/useToast.js'
 import { dDay, mdhm, minOrderText, mmdd, won } from '../../utils/format.js'
 
 // 쿠폰 확인 결과 5가지 (시연용 — 컨트랙트가 확인하는 항목을 보여줌): 항목마다 통과 / 거절
@@ -62,7 +64,7 @@ function CouponScreen({ couponId }) {
   const [phase, setPhase] = useState('detail')
   const [outcome, setOutcome] = useState(null)
   const [working, setWorking] = useState('') // 구매 확정·취소 처리 중이면 그 안내 문구 (버튼을 잠그고 새싹이를 보여준다)
-  const [notice, setNotice] = useState('') // 상세 화면 위에 보여줄 완료 안내
+  const [notice, showNotice] = useToast()
   const [orderError, setOrderError] = useState('')
   const busy = useRef(false) // 버튼 연속 클릭 → 같은 처리가 두 번 일어나는 것을 방지
 
@@ -181,7 +183,8 @@ function CouponScreen({ couponId }) {
           </>
         }
       >
-        <StatusView kind="ok" top sound="pay" title="결제에 쿠폰을 적용했어요" desc={`${name} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
+        {/* 결과 화면마다 key가 달라야 체크 애니메이션이 다시 나온다 */}
+        <StatusView key="applied" kind="ok" top sound="pay" title="결제에 쿠폰을 적용했어요" desc={`${name} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
         <CouponCard coupon={outcome.coupon} sub="구매를 확정하면 사용 완료돼요" />
         <Amounts amount={order.amount} discount={order.discount} />
         <div className="nb warn">구매를 확정하면 쿠폰을 다시 쓸 수 없어요. 확정 전에 주문을 취소하면 쿠폰이 돌아와요.</div>
@@ -212,7 +215,7 @@ function CouponScreen({ couponId }) {
           </>
         }
       >
-        <StatusView kind="ok" top title="주문을 취소했어요" desc={late ? '쿠폰 유효기간이 지나 만료됐어요' : '쿠폰이 돌아왔어요. 다시 쓸 수 있어요'} />
+        <StatusView key="refunded" kind="ok" top title="주문을 취소했어요" desc={late ? '쿠폰 유효기간이 지나 만료됐어요' : '쿠폰이 돌아왔어요. 다시 쓸 수 있어요'} />
         <CouponCard coupon={back} />
       </PhoneScreen>
     )
@@ -237,7 +240,7 @@ function CouponScreen({ couponId }) {
           </>
         }
       >
-        <StatusView kind="ok" top title="쿠폰 사용이 완료됐어요" desc={`${name} 구매를 확정했어요. ${won(order.discount)} 할인받았어요`} />
+        <StatusView key="used" kind="ok" top title="쿠폰 사용이 완료됐어요" desc={`${name} 구매를 확정했어요. ${won(order.discount)} 할인받았어요`} />
         <CouponCard coupon={outcome.coupons[0]} sub="다시 쓸 수 없어요" />
         <Amounts amount={order.amount} discount={order.discount} />
         {left.length > 0 && (
@@ -398,10 +401,10 @@ function CouponScreen({ couponId }) {
           // 잠김: A 가게 구매 확정 → 사용 가능 / A 주문 취소 → 소멸 (같은 구매로 받은 쿠폰 전부)
           <>
             <span className="demo">시연용 가상 처리예요. 실제 환불은 일어나지 않아요</span>
-            <button className="btn" disabled={working} onClick={() => handleOrder(confirmOrder, coupon.orderId, () => setNotice(`구매를 확정했어요. 이제 ${name}에서 쓸 수 있어요`))}>
+            <button className="btn" disabled={working} onClick={() => handleOrder(confirmOrder, coupon.orderId, () => showNotice(`구매를 확정했어요. 이제 ${name}에서 쓸 수 있어요`))}>
               {coupon.fromMerchantName} 구매 확정하기
             </button>
-            <button className="btn g" disabled={working} onClick={() => handleOrder(cancelOrder, coupon.orderId, () => setNotice(''))}>
+            <button className="btn g" disabled={working} onClick={() => handleOrder(cancelOrder, coupon.orderId, () => {})}>
               {coupon.fromMerchantName} 주문 취소하기
             </button>
           </>
@@ -433,7 +436,7 @@ function CouponScreen({ couponId }) {
       }
     >
       {working && <SproutOverlay growing title={working} />}
-      {notice && <div className="nb ok">{notice}</div>}
+      <Toast text={notice} />
       {orderError && <p className="nb err">{orderError}</p>}
       {expired && (
         <div className="nb err">
@@ -493,6 +496,10 @@ function CouponScreen({ couponId }) {
         <dd>{voided ? '소멸' : expired ? `${mmdd(coupon.expiresAt)} 만료` : `${mmdd(coupon.expiresAt)}까지${usable ? ` (D-${dDay(coupon.expiresAt)})` : ''}`}</dd>
         <dt>사용처</dt>
         <dd>{name}</dd>
+        <dt>쿠폰 ID</dt>
+        <dd>#{coupon.tokenId}</dd>
+        <dt>tx 해시</dt>
+        <dd className="tx-full">{coupon.lastTx}</dd>
         {!ended && (
           <>
             <dt>사용 횟수</dt>

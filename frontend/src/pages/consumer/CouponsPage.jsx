@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyCoupons } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
@@ -7,7 +7,7 @@ import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { SproutLoading } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
-import { dDay, minOrderText, mmdd } from '../../utils/format.js'
+import { dDay, minOrderText, mmdd, shortTx } from '../../utils/format.js'
 
 // 탭 3개 (확정): 사용 가능 / 사용 완료 / 만료 — 탭마다 다른 빈 상태 문구
 // 상태는 6개지만 탭은 3개 유지. 잠김·사용 처리 중은 해당 탭에서 배지로 보여준다 (정책표 3번 시트 No.3)
@@ -75,12 +75,16 @@ function CouponsPage() {
             ))}
           </select>
           {shown.map((c) => (
-            <CouponCard
-              key={c.id}
-              coupon={c}
-              sub={`${minOrderText(c.minOrder)} · ${mmdd(c.expiresAt)}까지${c.status === 'AVAILABLE' ? ` (D-${dDay(c.expiresAt)})` : ''}`}
-              to={`/coupons/${c.id}`}
-            />
+            <Fragment key={c.id}>
+              <CouponCard
+                coupon={c}
+                sub={`${minOrderText(c.minOrder)} · ${mmdd(c.expiresAt)}까지${c.status === 'AVAILABLE' ? ` (D-${dDay(c.expiresAt)})` : ''}`}
+                to={`/coupons/${c.id}`}
+              />
+              <p className="cap" title={c.lastTx}>
+                쿠폰 ID #{c.tokenId} · tx {shortTx(c.lastTx)}
+              </p>
+            </Fragment>
           ))}
           <p className="cap">쿠폰 상태는 발급·사용 기록을 기준으로 보여드려요</p>
         </>

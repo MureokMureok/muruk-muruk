@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { getCampaign, getCouponOffers } from '../../api/api.js'
+import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import Icon from '../../components/Icon.jsx'
 import { SproutLoading } from '../../components/SproutLoading.jsx'
@@ -18,7 +19,9 @@ const NOT_ACTIVE = { PREPARING: '시작 전', PAUSED: '일시 중지', ENDED: '�
 // 로그인 안 해도 볼 수 있다 (확정 정책: 비회원도 홈·기획전·쿠폰 정보 탐색 가능)
 function ConsumerHome() {
   const { data: campaign } = useApi(() => getCampaign(), [])
-  const { data: offers } = useApi(() => getCouponOffers(), [])
+  const userId = getUser()?.id
+  const { data: offers } = useApi(() => getCouponOffers(userId), [userId])
+  const available = offers?.filter((offer) => !offer.myCouponId) ?? []
 
   return (
     <div className="phone-app">
@@ -70,13 +73,13 @@ function ConsumerHome() {
               ))}
             </section>
 
-            {offers?.length > 0 && (
+            {available.length > 0 && (
               <section className="grp">
                 <div className="sec-h">
                   <h2>가게 쿠폰 바로 받기</h2>
                   <Link to="/offers">전체 보기</Link>
                 </div>
-                {offers.slice(0, 2).map((offer) => (
+                {available.slice(0, 2).map((offer) => (
                   <CouponCard key={offer.id} coupon={offer} caption={offer.name} badge={{ label: '바로 받기', tone: 'y' }} sub={`${minOrderText(offer.minOrder)} · 받은 날부터 ${offer.validDays}일`} to="/offers" />
                 ))}
               </section>
