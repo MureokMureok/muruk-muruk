@@ -95,6 +95,11 @@ function AdminCampaign() {
     }),
   )
 
+  function selectCampaign(id) {
+    setSelId(id)
+    setError('')
+  }
+
   async function handleStatus(next, confirmText) {
     if (confirmText && !window.confirm(confirmText)) return
     setBusy(true)
@@ -150,7 +155,7 @@ function AdminCampaign() {
                 </thead>
                 <tbody>
                   {list.map((x) => (
-                    <tr key={x.id} className={`click ${x.id === c.id ? 'sel' : ''}`} onClick={() => setSelId(x.id)}>
+                    <tr key={x.id} className={`click ${x.id === c.id ? 'sel' : ''}`} onClick={() => selectCampaign(x.id)}>
                       <td>
                         <b>{x.title}</b>
                       </td>

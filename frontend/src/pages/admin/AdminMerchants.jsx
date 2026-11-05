@@ -13,6 +13,7 @@ function AdminMerchants() {
   const { data: list, reload } = useApi(() => getMerchants(), [])
   const [selId, setSelId] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   if (!list) return null
 
   // 기본 선택: 심사 대기 중인 첫 가게
@@ -22,9 +23,20 @@ function AdminMerchants() {
   async function handleReview(approve) {
     if (!approve && !window.confirm(`${m.name}의 참여 신청을 반려할까요?`)) return
     setBusy(true)
-    await reviewMerchant(m.id, approve)
-    setBusy(false)
-    reload()
+    setError('')
+    try {
+      await reviewMerchant(m.id, approve)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      await reload() // 실패했어도 다른 탭에서 바뀐 상태를 보여 준다
+      setBusy(false)
+    }
+  }
+
+  function selectMerchant(id) {
+    setSelId(id)
+    setError('')
   }
 
   return (
@@ -56,7 +68,7 @@ function AdminMerchants() {
               </thead>
               <tbody>
                 {list.map((x) => (
-                  <tr key={x.id} className={`click ${x.id === m.id ? 'sel' : ''}`} onClick={() => setSelId(x.id)}>
+                  <tr key={x.id} className={`click ${x.id === m.id ? 'sel' : ''}`} onClick={() => selectMerchant(x.id)}>
                     <td>
                       <b>{x.name}</b>
                     </td>
@@ -92,6 +104,7 @@ function AdminMerchants() {
             <dt>월 거래 규모</dt>
             <dd>{m.scale} (예시)</dd>
           </dl>
+          {error && <p className="nb err">{error}</p>}
           {m.status === 'APPLIED' ? (
             <>
               <div className="nb ok">승인하면 쿠폰을 등록할 수 있는 가게 목록에 추가돼요</div>

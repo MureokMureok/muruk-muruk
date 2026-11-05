@@ -2,6 +2,7 @@ import { Route } from 'react-router-dom'
 import RequireRole from '../auth/RequireRole.jsx'
 import { ROLES } from '../auth/mockAuth.js'
 import ConsoleLayout from '../components/ConsoleLayout.jsx'
+import RouteErrorShell from '../components/RouteErrorShell.jsx'
 import AdminCampaign from '../pages/admin/AdminCampaign.jsx'
 import AdminLedger from '../pages/admin/AdminLedger.jsx'
 import AdminMerchants from '../pages/admin/AdminMerchants.jsx'
@@ -17,11 +18,13 @@ const ADMIN_MENU = [
 // App.jsx가 이 목록을 불러서 붙인다
 export function adminRoutes() {
   return (
-    <Route element={<RequireRole role={ROLES.KCP} />}>
-      <Route path="/admin" element={<ConsoleLayout variant="kcp" menu={ADMIN_MENU} soon="이상 거래 모니터링" />}>
-        <Route index element={<AdminMerchants />} />
-        <Route path="campaign" element={<AdminCampaign />} />
-        <Route path="ledger" element={<AdminLedger />} />
+    <Route element={<RouteErrorShell />}>
+      <Route element={<RequireRole role={ROLES.KCP} />}>
+        <Route path="/admin" element={<ConsoleLayout variant="kcp" menu={ADMIN_MENU} soon="이상 거래 모니터링" />}>
+          <Route index element={<AdminMerchants />} />
+          <Route path="campaign" element={<AdminCampaign />} />
+          <Route path="ledger" element={<AdminLedger />} />
+        </Route>
       </Route>
     </Route>
   )
