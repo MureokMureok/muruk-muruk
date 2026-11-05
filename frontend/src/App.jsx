@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import LoginPage from './pages/auth/LoginPage.jsx'
+import SignupPage from './pages/auth/SignupPage.jsx'
 import NotFoundPage from './pages/common/NotFoundPage.jsx'
 // 역할별 화면 주소 목록 — 역할마다 파일이 따로라서, 역할 브랜치끼리 합쳐도 이 파일은 충돌하지 않는다
 import { adminRoutes } from './routes/adminRoutes.jsx'
@@ -14,6 +15,8 @@ function App() {
       <Route path="/" element={<Navigate to="/home" replace />} />
       {/* 로그인 (모든 역할 공통, [확정] 구글 로그인) */}
       <Route path="/login" element={<LoginPage />} />
+      {/* 회원가입 (구글 로그인했지만 무럭무럭 계정이 없을 때) */}
+      <Route path="/signup" element={<SignupPage />} />
 
       {/* 소비자 (휴대폰 폭) */}
       {consumerRoutes()}

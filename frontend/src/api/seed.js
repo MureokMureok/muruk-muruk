@@ -11,7 +11,7 @@ import { addLedger, doPurchase, doRedeem } from './core.js'
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 7
+export const SEED_VERSION = 8
 
 export function createSeed(mode = 'ready') {
   const db = createDemoStart()
@@ -22,6 +22,16 @@ export function createSeed(mode = 'ready') {
 function createDemoStart() {
   const db = {
     version: SEED_VERSION,
+
+    // 무럭무럭 계정 (데이터베이스의 회원 목록). 구글 로그인한 이메일이 여기 있으면 역할 화면으로, 없으면 회원가입으로
+    // KCP 관리자는 가입이 없고 여기 미리 넣어 둔 계정만 있다
+    accounts: [
+      { id: 'user', name: '지민', email: 'jimin@example.com', role: 'consumer' },
+      { id: 'store', name: '과수원집', email: 'orchard@example.com', role: 'store', merchantId: 'm1' },
+      { id: 'store2', name: '봄꽃상회', email: 'flower@example.com', role: 'store', merchantId: 'm2' },
+      { id: 'store3', name: '바다찬', email: 'sea@example.com', role: 'store', merchantId: 'm3' },
+      { id: 'kcp', name: 'KCP 운영팀', email: 'ops@example.com', role: 'kcp' },
+    ],
 
     // 소비자 이름 (가게·KCP 화면에는 "지*"처럼 가려서 보여줌)
     users: { user: '지민', u2: '서연', u3: '민호', u4: '하은', u5: '수빈' },

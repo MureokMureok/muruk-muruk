@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
-import { DEMO_GOOGLE_ACCOUNTS, ROLES, homePathFor, loginWithGoogle } from '../../auth/mockAuth.js'
+import { getAccounts } from '../../api/api.js'
+import { GOOGLE_ACCOUNTS, ROLES, homePathFor, loginWithGoogle } from '../../auth/mockAuth.js'
+import { useApi } from '../../hooks/useApi.js'
 
 const ROLE_LABEL = { [ROLES.CONSUMER]: '소비자', [ROLES.STORE]: '가맹점', [ROLES.KCP]: 'KCP 관리자' }
 
 // 로그인 화면 (목업 v3 C-05: 연두 바탕 + 로고 카드) — [확정] 소비자·가맹점·KCP 관리자 모두 구글 로그인
 // 구글 연동 전이라 "Google로 계속하기"를 누르면 시연용 계정 선택 목록이 나온다 (구글 계정 선택 화면 흉내)
-// 로그인한 계정의 역할에 따라 소비자 홈 / 가맹점 센터 / KCP 관리자로 이동
+// 데이터베이스에 있는 계정이면 역할에 따라 소비자 홈 / 가맹점 센터 / KCP 관리자로, 없으면 회원가입으로 이동
 function LoginPage() {
   const navigate = useNavigate()
   // ?next=/주소 가 붙어 있으면 로그인 후 그 화면으로 돌아간다 (로그인이 필요한 화면에서 넘어온 경우)
@@ -15,9 +17,15 @@ function LoginPage() {
   const next = searchParams.get('next')
 
   const [choosing, setChoosing] = useState(false) // 계정 선택 목록을 보여줄지
+  const { data: accounts } = useApi(() => getAccounts(), []) // 시연용 목록에 역할·가입 전 표시
 
   async function handlePick(accountId) {
-    const user = await loginWithGoogle(accountId)
+    const { registered, user } = await loginWithGoogle(accountId)
+    // 계정이 없으면 회원가입으로 (돌아갈 곳도 같이 넘김)
+    if (!registered) {
+      navigate(next ? `/signup?next=${encodeURIComponent(next)}` : '/signup', { replace: true })
+      return
+    }
     // 돌아갈 곳이 있으면 거기로, 없으면 역할별 첫 화면으로
     // (다른 역할의 화면이면 그 화면의 문지기가 자기 역할 첫 화면으로 보내 줌)
     navigate(next || homePathFor(user.role), { replace: true })
@@ -49,16 +57,19 @@ function LoginPage() {
           <>
             <div className="picker">
               <span className="cap">계정 선택 · 시연용 구글 계정</span>
-              {DEMO_GOOGLE_ACCOUNTS.map((a) => (
+              {GOOGLE_ACCOUNTS.map((a) => {
+                const account = accounts?.find((x) => x.email === a.email)
+                return (
                 <button key={a.id} onClick={() => handlePick(a.id)}>
                   <span className="avatar">{a.name[0]}</span>
                   <span>
                     <b>{a.name}</b>
                     <span className="cap">{a.email}</span>
                   </span>
-                  <span className="chip">{ROLE_LABEL[a.role]}</span>
+                  <span className="chip">{account ? ROLE_LABEL[account.role] : '가입 전'}</span>
                 </button>
-              ))}
+                )
+              })}
             </div>
             <button className="text-link cancel center" onClick={() => setChoosing(false)}>
               취소

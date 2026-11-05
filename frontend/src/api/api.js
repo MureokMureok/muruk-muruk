@@ -108,6 +108,57 @@ function readGuard() {
   if (getSimulation() === 'NETWORK') throw new ApiError('NETWORK', '연결이 불안정해요. 잠시 후 다시 시도해 주세요.')
 }
 
+// ================= 계정 =================
+
+// POST /api/auth/google — 구글 로그인 후 무럭무럭 계정이 있는지 확인. 있으면 계정, 없으면 null
+export async function findAccount(email) {
+  await wait(READ_MS)
+  return load().accounts.find((a) => a.email === email) ?? null
+}
+
+// 가입된 이메일 목록 (시연용 계정 고르기에서 "가입 전" 표시용 — 실제 구글 로그인에는 필요 없음)
+export async function getAccounts() {
+  await wait(READ_MS)
+  return load().accounts
+}
+
+function assertNewAccount(db, email) {
+  if (db.accounts.some((a) => a.email === email)) throw new ApiError('ALREADY_JOINED', '이미 가입한 계정이에요. 다시 로그인해 주세요.')
+}
+
+// POST /api/auth/signup/consumer — 이용자 가입
+export async function signUpConsumer({ id, name, email }) {
+  await wait(READ_MS)
+  const db = load()
+  assertNewAccount(db, email)
+  const account = { id, name: name.trim(), email, role: 'consumer' }
+  db.accounts.push(account)
+  db.users[id] = account.name
+  save(db)
+  return account
+}
+
+// 새 가게 표시 색
+const STORE_COLORS = ['#ffc091', '#ffd7ef', '#a0e1e1', '#ffe7a3', '#d5e8b5']
+
+// POST /api/auth/signup/merchant — 가맹점 가입 = 참여 신청. KCP 심사(승인)까지는 가맹점 센터를 못 씀
+export async function signUpMerchant({ id, email, storeName, category, bizNumber, channel, kcpPay, productName, price }) {
+  await wait(CHAIN_MS)
+  const db = load()
+  assertNewAccount(db, email)
+  const name = storeName.trim()
+  if (db.merchants.some((m) => m.name === name)) throw new ApiError('DUPLICATE_STORE', '이미 등록된 가게 이름이에요.')
+  const n = db.merchants.length + 1
+  const merchantId = `m${n}`
+  db.merchants.push({ id: merchantId, name, category, short: name[0], color: STORE_COLORS[n % STORE_COLORS.length], status: 'APPLIED', appliedAt: today(), bizNumber: bizNumber.replace(/\D/g, ''), bizChecked: false, channel, kcpPay, scale: '소형' })
+  db.products.push({ merchantId, name: productName.trim(), price })
+  const account = { id, name, email, role: 'store', merchantId }
+  db.accounts.push(account)
+  addLedger(db, nowText(), 'ADMIN', `${name} 가맹점 참여 신청`, name, { merchantId })
+  save(db)
+  return account
+}
+
 // ================= 소비자 =================
 
 // 기획전 + 참여 가게 조건 (화면용)

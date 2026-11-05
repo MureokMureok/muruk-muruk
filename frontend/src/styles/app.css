@@ -938,6 +938,63 @@ details.nb ul {
   color: var(--on-brand);
 }
 
+/* 회원가입: 이용자 / 가맹점 고르기 */
+.role-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--surface);
+  text-align: left;
+  color: var(--ink);
+}
+.role-card b {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+}
+.role-card small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.consent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+.consent label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.consent input {
+  width: 18px;
+  height: 18px;
+  accent-color: #163300;
+}
+/* 소비자 화면의 입력칸 (콘솔과 같은 부품, 다크 모드에서도 보이게) */
+.phone-app .inp {
+  background: var(--surface);
+}
+.phone-app .inp.lock {
+  background: var(--sand);
+}
+.phone-app .choice button {
+  background: var(--surface);
+}
+.phone-app .choice button.on {
+  background: var(--sel-bg);
+  color: var(--sel-fg);
+}
+
 /* 없는 주소 */
 .notfound {
   justify-content: center;
