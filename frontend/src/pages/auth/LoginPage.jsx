@@ -64,8 +64,8 @@ function LoginPage() {
     <div className="phone-app login">
       {checking && <SproutOverlay delay title="계정을 확인하고 있어요" />}
       <header className="topb">
-        {/* 닫기(X): 로그인 안 하고 둘러보기로 */}
-        <button className="bk" aria-label="닫기" onClick={() => navigate('/home')}>
+        {/* 닫기(X): 로그인 안 하고 둘러보기로. 뒤로가기를 눌러도 로그인 화면으로 돌아오지 않게 replace */}
+        <button className="bk" aria-label="닫기" onClick={() => navigate('/home', { replace: true })}>
           <Icon name="close" size={18} />
         </button>
       </header>

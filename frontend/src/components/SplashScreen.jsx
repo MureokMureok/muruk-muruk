@@ -1,38 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
+import { shouldShowSplash } from '../utils/startup.js'
 
 // 앱 시작 화면 (디자인 시안 "무럭무럭 시작 화면" 그대로): 다른 앱처럼 실행할 때 잠깐 나오는 애니메이션
 // 로고 글자 등장 → 새싹이 글자 위로 자람 → 농산물·수산물·꽃이 차례로 등장 → 잠시 머문 뒤 사라짐 (약 3.6초)
 // - 뒤에서는 앱이 이미 그려지고 있고, 시작 화면이 그 위를 덮고 있다가 사라진다
-// - 브라우저 탭을 새로 열 때 한 번만 나온다 (화면을 새로고침할 때마다 나오면 번거로우므로)
-// - 소비자 앱에서만 나온다. 가맹점·KCP 콘솔(PC)은 바로 시작
-const SEEN_KEY = 'muruk.splashSeen'
+// - 언제 나올지와 뒤에 깔릴 첫 화면은 utils/startup.js가 정한다 (새 탭에서 한 번, 소비자 앱에서만)
 const TOTAL_MS = 3600 // 저절로 넘어가는 시간
 const MIN_MS = 1500 // 눌러서 넘겨도 이만큼은 보여준다 (시안의 개발 참고: 최소 노출 1.5초)
 const FADE_MS = 500 // 사라지는 데 걸리는 시간 (CSS의 .splash transition과 같은 값)
 
-function shouldShow() {
-  const path = window.location.pathname
-  if (path.startsWith('/store') || path.startsWith('/admin')) return false
-  try {
-    return !sessionStorage.getItem(SEEN_KEY)
-  } catch {
-    return true // 저장소를 못 쓰는 환경이면 그냥 보여준다
-  }
-}
-
 function SplashScreen() {
-  const [show, setShow] = useState(shouldShow)
+  const [show, setShow] = useState(shouldShowSplash)
   const [leaving, setLeaving] = useState(false)
   const [startedAt] = useState(() => Date.now()) // 시작 시각 (눌렀을 때 최소 노출 시간을 계산)
   const timer = useRef(null)
 
   useEffect(() => {
     if (!show) return undefined
-    try {
-      sessionStorage.setItem(SEEN_KEY, '1')
-    } catch {
-      // 저장 못 해도 시작 화면은 정상 동작
-    }
     timer.current = setTimeout(() => setLeaving(true), TOTAL_MS)
     return () => clearTimeout(timer.current)
   }, [show])
