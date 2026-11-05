@@ -9,7 +9,7 @@ import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
-import { dDay, mdhm, mmdd, won } from '../../utils/format.js'
+import { dDay, mdhm, minOrderText, mmdd, won } from '../../utils/format.js'
 
 // 쿠폰 확인 결과 5가지 (시연용 — 컨트랙트가 확인하는 항목을 보여줌): 항목마다 통과 / 거절
 function CheckList({ results, failedKey }) {
@@ -488,7 +488,7 @@ function CouponScreen({ couponId }) {
         <dt>할인</dt>
         <dd>{won(coupon.value)}</dd>
         <dt>최소 주문</dt>
-        <dd>{won(coupon.minOrder)} 이상</dd>
+        <dd>{minOrderText(coupon.minOrder)}</dd>
         <dt>유효기간</dt>
         <dd>{voided ? '소멸' : expired ? `${mmdd(coupon.expiresAt)} 만료` : `${mmdd(coupon.expiresAt)}까지${usable ? ` (D-${dDay(coupon.expiresAt)})` : ''}`}</dd>
         <dt>사용처</dt>
@@ -499,7 +499,7 @@ function CouponScreen({ couponId }) {
             <dd>1회</dd>
             <dt>받은 경로</dt>
             <dd>
-              {coupon.fromMerchantName} 구매 · {mmdd(coupon.issuedAt)}
+              {coupon.policyId ? '직접 받기' : `${coupon.fromMerchantName} 구매`} · {mmdd(coupon.issuedAt)}
             </dd>
           </>
         )}
@@ -513,9 +513,7 @@ function CouponScreen({ couponId }) {
             <ul>
               {/* 인수인계 문서 [확정]: 현금화·분할 사용 불가 */}
               <li>쿠폰은 현금으로 바꾸거나 나눠 쓸 수 없어요.</li>
-              <li>
-                {name}에서 {won(coupon.minOrder)} 이상 주문할 때 쓸 수 있어요.
-              </li>
+              <li>{coupon.minOrder > 0 ? `${name}에서 ${won(coupon.minOrder)} 이상 주문할 때 쓸 수 있어요.` : `${name}에서 쓸 수 있어요.`}</li>
             </ul>
           </details>
           {/* 지갑 주소 대신 '기록 확인' 링크만 */}

@@ -5,6 +5,7 @@ import RouteErrorShell from '../components/RouteErrorShell.jsx'
 import BuyPage from '../pages/consumer/BuyPage.jsx'
 import CampaignPage from '../pages/consumer/CampaignPage.jsx'
 import ConsumerHome from '../pages/consumer/ConsumerHome.jsx'
+import CouponClaimPage from '../pages/consumer/CouponClaimPage.jsx'
 import CouponDetailPage from '../pages/consumer/CouponDetailPage.jsx'
 import CouponHistoryPage from '../pages/consumer/CouponHistoryPage.jsx'
 import CouponOfferPage from '../pages/consumer/CouponOfferPage.jsx'
@@ -23,6 +24,7 @@ export function consumerRoutes() {
       <Route path="/home" element={<ConsumerHome />} />
       <Route path="/campaign" element={<CampaignPage />} />
       <Route path="/campaign/coupon/:merchantId" element={<CouponOfferPage />} />
+      <Route path="/offers" element={<CouponClaimPage />} />
       {/* 가게·상품 검색 (?q=검색어) */}
       <Route path="/search" element={<SearchPage />} />
       {/* 상품 화면도 볼 수 있고, 결제 버튼을 누를 때 로그인 */}

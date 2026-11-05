@@ -10,7 +10,7 @@ import { mdhm } from '../../utils/format.js'
 
 // 기록 한 줄 → 타임라인 한 칸
 function toItem(h) {
-  if (h.type === 'ISSUE') return { key: h.id, tone: 'ok', title: '발급 확인됨', sub: `${mdhm(h.at)} · ${h.merchantName} 구매로 발급` }
+  if (h.type === 'ISSUE') return { key: h.id, tone: 'ok', title: '발급 확인됨', sub: `${mdhm(h.at)} · ${h.merchantName} ${h.claimed ? '쿠폰 직접 받기' : '구매로 발급'}` }
   if (h.type === 'CONFIRM') return { key: h.id, tone: 'ok', title: '구매 확정 · 사용 가능', sub: `${mdhm(h.at)} · ${h.merchantName} 구매 확정` }
   if (h.type === 'APPLY') return { key: h.id, tone: 'w', title: '결제 적용 · 처리 중', sub: `${mdhm(h.at)} · ${h.merchantName} 결제에 적용` }
   if (h.type === 'USE') return { key: h.id, tone: 'ok', title: '사용 확인됨', sub: `${mdhm(h.at)} · ${h.merchantName} 구매 확정` }

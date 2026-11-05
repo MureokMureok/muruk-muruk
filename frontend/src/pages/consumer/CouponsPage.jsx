@@ -7,7 +7,7 @@ import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { SproutLoading } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
-import { dDay, mmdd, won } from '../../utils/format.js'
+import { dDay, minOrderText, mmdd } from '../../utils/format.js'
 
 // 탭 3개 (확정): 사용 가능 / 사용 완료 / 만료 — 탭마다 다른 빈 상태 문구
 // 상태는 6개지만 탭은 3개 유지. 잠김·사용 처리 중은 해당 탭에서 배지로 보여준다 (정책표 3번 시트 No.3)
@@ -78,7 +78,7 @@ function CouponsPage() {
             <CouponCard
               key={c.id}
               coupon={c}
-              sub={`${won(c.minOrder)} 이상 · ${mmdd(c.expiresAt)}까지${c.status === 'AVAILABLE' ? ` (D-${dDay(c.expiresAt)})` : ''}`}
+              sub={`${minOrderText(c.minOrder)} · ${mmdd(c.expiresAt)}까지${c.status === 'AVAILABLE' ? ` (D-${dDay(c.expiresAt)})` : ''}`}
               to={`/coupons/${c.id}`}
             />
           ))}
