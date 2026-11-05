@@ -904,35 +904,13 @@ details.nb ul {
   flex-direction: column;
   gap: 2px;
 }
+.google-box {
+  display: flex;
+  justify-content: center;
+  min-height: 44px; /* 구글 버튼이 그려지기 전에 화면이 들썩이지 않게 */
+}
 .picker .cap {
   padding: 2px 6px 6px;
-}
-.picker button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 6px;
-  border-radius: 12px;
-  text-align: left;
-}
-.picker button:hover {
-  background: #f3f5ef;
-}
-.picker .avatar {
-  width: 36px;
-  height: 36px;
-  font-size: 14px;
-  background: #e2f6d5;
-  color: #163300;
-}
-.picker b {
-  display: block;
-  font-size: 15px;
-}
-.picker .chip {
-  margin-left: auto;
-  background: #eceee9;
-  color: #454745;
 }
 .cancel {
   color: var(--on-brand);
@@ -1873,17 +1851,6 @@ html[data-theme='dark'] .picker {
 }
 html[data-theme='dark'] .login .logo-card img {
   filter: brightness(2.3) saturate(1.1); /* 진한 녹색 로고 글자를 밝게 */
-}
-html[data-theme='dark'] .picker button:hover {
-  background: var(--sand);
-}
-html[data-theme='dark'] .picker .avatar {
-  background: var(--mint);
-  color: var(--forest);
-}
-html[data-theme='dark'] .picker .chip {
-  background: var(--gray);
-  color: var(--body);
 }
 /* 구글 버튼 다크 버전 (구글 안내의 어두운 버튼 색) */
 html[data-theme='dark'] .google-btn {
