@@ -6,18 +6,9 @@ import CouponCard from '../../components/CouponCard.jsx'
 import Icon from '../../components/Icon.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { CAMPAIGN_STATUS, VALIDITY } from '../../utils/labels.js'
-import { num, won } from '../../utils/format.js'
+import { won } from '../../utils/format.js'
 import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
-
-// 숫자 입력칸: 쉼표를 붙여 보여주고, 숫자만 받아서 돌려준다 ("15,000" ↔ 15000)
-function NumInput({ value, onChange, unit, label, disabled }) {
-  return (
-    <div className={`inp ${disabled ? 'lock' : ''}`}>
-      <input inputMode="numeric" aria-label={label} value={num(value)} disabled={disabled} onChange={(e) => onChange(Number(e.target.value.replace(/\D/g, '')) || 0)} />
-      <em>{unit}</em>
-    </div>
-  )
-}
+import NumInput from './NumInput.jsx'
 
 // M2 쿠폰 조건 설정 (목업 v3 가맹점 센터) — 다른 가게 손님이 받아 우리 가게에서 쓰는 쿠폰
 // [확정] 돈을 미리 맡기지 않음: 할인 한도(상한)만 정하고, 쓰인 쿠폰만큼만 할인 부담

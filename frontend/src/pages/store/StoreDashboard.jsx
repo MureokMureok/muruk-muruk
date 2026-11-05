@@ -14,6 +14,7 @@ function logItem(l, merchantName) {
   if (l.type === 'CONFIRM') return { dot: 'm', icon: 'check', title: '구매 확정', sub: `${mdhm(l.at)} · ${l.customer} · ${l.detail.split(' · ')[1]}` }
   if (l.type === 'REFUND') return { dot: 'x', icon: 'alert', title: '주문 취소·환불', sub: `${mdhm(l.at)} · ${l.customer} · ${l.detail.split(' · ')[1]}` }
   if (l.type === 'REJECT') return { dot: 'x', icon: 'alert', title: l.reason === 'COUPON_ALREADY_USED' ? '재사용 시도 거절' : '사용 거절', sub: `${mdhm(l.at)} · ${l.reason === 'COUPON_ALREADY_USED' ? '같은 쿠폰' : l.detail.split(' · ')[1]}` }
+  if (l.type === 'ISSUE' && l.claimed) return { dot: 'm', icon: 'ticket', title: '일반 쿠폰 받기', sub: `${mdhm(l.at)} · ${l.customer}` }
   if (l.type === 'ISSUE') return { dot: 'm', icon: 'ticket', title: '쿠폰 발급', sub: `${mdhm(l.at)} · ${l.actor === merchantName ? '우리 가게' : l.actor} 구매` }
   return { dot: 'm', icon: 'sliders', title: '관리', sub: `${mdhm(l.at)} · ${l.detail}` }
 }
@@ -57,7 +58,7 @@ function StoreDashboard() {
           <span>발급 대비 {pct(d.used, d.issued)}%</span>
         </div>
         <div className="stat hl">
-          <small>할인 부담</small>
+          <small>기획전 할인 부담</small>
           <b>{won(d.burden)}</b>
           <div className="meter">
             <i style={{ width: `${pct(d.burden, d.cap)}%` }} />

@@ -14,7 +14,7 @@ function csvCell(value) {
 // 사용 내역을 CSV 파일로 내려받기 (엑셀에서 한글이 깨지지 않게 앞에 BOM 표시를 붙임)
 function downloadCsv(rows) {
   const head = ['날짜', '손님', '어디서 온 손님', '결제 금액', '할인', '기록 번호']
-  const lines = rows.map((r) => [mdhm(r.at), r.customer, `${r.from} 구매`, r.amount, r.discount, r.tx].map(csvCell).join(','))
+  const lines = rows.map((r) => [mdhm(r.at), r.customer, r.source, r.amount, r.discount, r.tx].map(csvCell).join(','))
   const blob = new Blob(['﻿' + [head.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -88,7 +88,7 @@ function StoreBurden() {
                     <td>{mdhm(r.at)}</td>
                     <td>{r.customer}</td>
                     <td>
-                      <span className="chip">{r.from} 구매</span>
+                      <span className="chip">{r.source}</span>
                     </td>
                     <td className="num">{won(r.amount)}</td>
                     <td className="num">{won(r.discount)}</td>
