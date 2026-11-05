@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { USE_BACKEND, cancelSignUp, getPendingGoogle, signUpAsConsumer, signUpAsMerchant } from '../../auth/mockAuth.js'
+import { safeNext } from '../../auth/safeNext.js'
 import Icon from '../../components/Icon.jsx'
 import { SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
@@ -222,7 +223,7 @@ function MerchantSignup({ onBack }) {
 function SignupPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const next = params.get('next')
+  const next = safeNext(params.get('next'))
   const [google] = useState(getPendingGoogle)
   const [kind, setKind] = useState(null) // null(고르는 중) / 'consumer' / 'merchant'
 

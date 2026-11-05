@@ -64,8 +64,10 @@ function withMerchant(db, obj) {
   return { ...obj, merchantName: m.name, merchantShort: m.short, merchantColor: m.color, merchantCategory: m.category }
 }
 
-// 소비자 화면의 기본 기획전 = 첫 번째 기획전 (겨울 제철 연합 기획전)
-const mainCampaign = (db) => db.campaigns[0]
+// 끝난 기획전이 목록 앞에 있어도 진행 중인 기획전이 가려지지 않게 상태 순서로 고른다
+const STATUS_ORDER = ['ACTIVE', 'PAUSED', 'PREPARING', 'ENDED']
+const pickCampaign = (campaigns) => [...campaigns].sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status))[0]
+const mainCampaign = (db) => pickCampaign(db.campaigns)
 
 // ---------- 시연용 실패·멈춤 (발표 질의응답용) ----------
 // MY 화면에서 고르면 흉내 낸다. 연결 오류 말고는 한 번 일어나면 자동으로 정상으로 돌아옴
@@ -211,7 +213,8 @@ export async function getProduct(merchantId) {
   await wait(READ_MS)
   readGuard()
   const db = load()
-  return withMerchant(db, db.products.find((p) => p.merchantId === merchantId))
+  const product = db.products.find((p) => p.merchantId === merchantId)
+  return product ? withMerchant(db, product) : null
 }
 
 // 이 가게에서 사면 받을 쿠폰 미리보기
@@ -219,7 +222,7 @@ export async function previewPurchase(merchantId) {
   await wait(READ_MS)
   readGuard()
   const db = load()
-  const c = db.campaigns.find((x) => x.terms.some((t) => t.merchantId === merchantId)) ?? mainCampaign(db)
+  const c = pickCampaign(db.campaigns.filter((x) => x.terms.some((t) => t.merchantId === merchantId))) ?? mainCampaign(db)
   // core.js의 발급 규칙을 그대로 쓰되, 저장은 하지 않는다
   const { issue, missed } = couponsForPurchase(db, merchantId, nowText())
   return {
@@ -260,12 +263,12 @@ export async function getMyCoupons(userId) {
   return db.coupons.filter((c) => c.ownerId === userId).reverse().map((c) => couponView(db, c))
 }
 
-// GET /api/coupons/{id}
-export async function getCoupon(couponId) {
+// GET /api/coupons/{id} — 모의 API라 userId로 주인을 확인한다. 실제 서버는 토큰으로 확인한다
+export async function getCoupon(couponId, userId) {
   await wait(READ_MS)
   readGuard()
   const db = load()
-  const c = db.coupons.find((x) => x.id === couponId)
+  const c = db.coupons.find((x) => x.id === couponId && x.ownerId === userId)
   return c ? couponView(db, c) : null
 }
 
@@ -350,8 +353,8 @@ function customerLinks(db, merchantId) {
   const ourUsed = db.coupons.filter((c) => c.merchantId === merchantId && c.status === 'USED')
   const partners = [...new Set(db.coupons.filter((c) => c.fromMerchantId === merchantId || c.merchantId === merchantId).flatMap((c) => [c.merchantId, c.fromMerchantId]))].filter((id) => id !== merchantId)
   return {
-    sent: sentOrders.length,
-    received: ourUsed.length,
+    sent: new Set(sentOrders.map((o) => o.userId)).size,
+    received: new Set(ourUsed.map((c) => c.ownerId)).size,
     partners: partners.map((p) => ({
       merchantId: p,
       name: nameOf(db, p),
@@ -416,7 +419,9 @@ export async function saveTerms(merchantId, campaignId, form, register) {
   if (c.status !== 'PREPARING') throw new ApiError('LOCKED', '기획전이 시작된 뒤에는 조건을 바꿀 수 없어요.')
   if (!(form.value > 0)) throw new ApiError('INVALID', '할인 금액을 입력해 주세요.')
   if (form.minOrder < form.value) throw new ApiError('INVALID', '최소 주문 금액은 할인 금액보다 작게 입력할 수 없어요.')
-  if (form.cap < form.value) throw new ApiError('INVALID', '할인 한도는 할인 금액보다 커야 해요.')
+  if (form.cap < form.value) throw new ApiError('INVALID', '할인 한도는 할인 금액 이상이어야 해요.')
+  // 등록된 조건은 손님 쿠폰에 바로 쓰이므로, 기록 없이 바뀌지 않게 다시 등록만 허용한다
+  if (!register && t.registered) throw new ApiError('ALREADY_REGISTERED', '이미 등록한 조건은 임시 저장할 수 없어요. 바꾼 조건으로 다시 등록해 주세요.')
 
   Object.assign(t, { value: form.value, minOrder: form.minOrder, validity: form.validity, cap: form.cap })
   if (register) {
@@ -549,7 +554,7 @@ export async function getLedger() {
     stats: {
       issuedToday: todayOf('ISSUE').reduce((s, l) => s + l.couponIds.length, 0),
       usedToday: todayOf('USE').length,
-      rejected: db.ledger.filter((l) => l.type === 'REJECT').length,
+      rejected: db.ledger.filter((l) => l.type === 'REJECT' && l.reason === 'COUPON_ALREADY_USED').length,
       merchants: db.merchants.filter((m) => m.status === 'APPROVED').length,
       activeCampaigns: db.campaigns.filter((c) => c.status === 'ACTIVE').length,
     },
@@ -562,5 +567,6 @@ export async function getLedger() {
 // - mode 'ready'(기본): 기획전 진행 중 상태 → 바로 구매·쿠폰 받기 가능
 // - mode 'demo': 시연 시작 상태 → KCP 가맹점 심사부터
 export async function resetDemo(mode = 'ready') {
+  setSimulation('') // 리허설 때 고른 실패 설정이 초기화 뒤 첫 구매에 나타나지 않게
   save(createSeed(mode))
 }
