@@ -23,6 +23,7 @@ const STORAGE_KEY = 'muruk.user'
 const PENDING_KEY = 'muruk.pendingGoogle'
 
 function save(user) {
+  cancelSignUp() // 토큰이 든 이전 가입 대기 정보로 계정이 바뀌지 않게
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
   return user
 }
@@ -148,6 +149,7 @@ export function getUser() {
 }
 
 export function logout() {
+  cancelSignUp()
   localStorage.removeItem(STORAGE_KEY)
   clearToken()
 }

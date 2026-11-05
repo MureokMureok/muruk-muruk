@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { setSimulation } from '../api/api.js'
+import { ApiError, setSimulation } from '../api/api.js'
 import StatusView from './StatusView.jsx'
 import TabBar from './TabBar.jsx'
 
@@ -38,19 +38,26 @@ class NetworkErrorBoundary extends Component {
     if (!this.state.error) {
       return <div key={this.state.attempt}>{this.props.children}</div>
     }
+    const { error } = this.state
     const title = TITLES[this.props.resetKey]
+    const network = error.code === 'NETWORK'
+    // 코드 오류의 영어 메시지는 사용자에게 보이지 않게 한다
+    const detail = error instanceof ApiError && !network ? error.message : '잠시 후 다시 시도해 주세요.'
     return (
       <div className="phone-app">
         <main className="ct large-top">
           {title && <h1 className="ttl-l">{title}</h1>}
-          <StatusView kind="offline" title="연결이 불안정해요" desc={<>쿠폰 정보를 불러오지 못했어요.<br />잠시 후 다시 시도해 주세요.</>}>
+          <StatusView
+            kind={network ? 'offline' : 'warn'}
+            title={network ? '연결이 불안정해요' : '화면을 불러오지 못했어요'}
+            desc={network ? <>쿠폰 정보를 불러오지 못했어요.<br />잠시 후 다시 시도해 주세요.</> : detail}
+          >
             <button className="btn sm" style={{ alignSelf: 'center' }} onClick={this.retry}>
               다시 불러오기
             </button>
           </StatusView>
-          {this.state.error.code !== 'NETWORK' && <p className="cap center">오류 내용: {this.state.error.message}</p>}
         </main>
-        <TabBar />
+        {this.props.tabs && <TabBar />}
       </div>
     )
   }

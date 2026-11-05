@@ -2084,8 +2084,6 @@ html[data-theme='dark'] .sprout-overlay {
 @media (prefers-reduced-motion: reduce) {
   .splash,
   .splash *,
-  .sprout-box,
-  .sprout-overlay,
   .sprout-svg * {
     animation: none !important;
     transition: none !important;

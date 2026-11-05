@@ -164,6 +164,8 @@ export function doRedeem(db, userId, couponId, merchantId, at) {
       merchantId,
       userId,
       couponId,
+      reason: code,
+      couponStatus: c?.status,
     })
     throw new ApiError(code, FAIL_MESSAGES[code], { checks: results, failedKey: failed.key, couponStatus: c?.status, usedAt: c?.usedAt ?? c?.appliedAt, merchantName: c ? nameOf(db, c.merchantId) : '' })
   }
@@ -179,7 +181,7 @@ export function doRedeem(db, userId, couponId, merchantId, at) {
   return { order, coupon: c, checks: results }
 }
 
-// 내 주문이고 아직 결제 상태(확정·취소 전)인지 확인. 아니면 거절
+// 내 주문인지 확인. 아니면 거절
 function payableOrder(db, userId, orderId) {
   const order = db.orders.find((o) => o.id === orderId)
   if (!order || order.userId !== userId) throw new ApiError('ORDER_NOT_FOUND', '주문을 찾을 수 없어요.')
