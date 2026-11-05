@@ -23,6 +23,13 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
     List<Long> findClaimedPolicyIds(@Param("userId") Long userId, @Param("ids") Collection<Long> ids);
 
     /**
+     * 같은 사용자의 동시 요청을 줄 세우기 위해 사용자 행을 잠근다 (SELECT ... FOR UPDATE).
+     * 반드시 트랜잭션의 첫 쿼리여야 한다. 잠금을 얻은 뒤의 조회는 앞 요청이 커밋한 데이터를 본다.
+     */
+    @Query(value = "SELECT id FROM users WHERE id = :userId FOR UPDATE", nativeQuery = true)
+    List<Long> lockUser(@Param("userId") Long userId);
+
+    /**
      * 내 쿠폰함. 발급 최신순(id 내림차순), 커서보다 작은 id만 조회한다.
      * 상태 필터는 (DB 상태 목록) + (만료 시각 범위 lower < expiresAt <= upper)로 표현한다.
      *  - ISSUED : ACTIVE, 범위 (now, MAX]
@@ -46,14 +53,15 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
                              Pageable pageable);
 
     /**
-     * 쿠폰을 사용 처리한다. 아직 ACTIVE일 때만 바뀐다 (반환값 0이면 이미 사용된 쿠폰).
+     * 쿠폰을 사용 처리한다. 아직 ACTIVE이고 만료 전일 때만 바뀐다 (반환값 0이면 이미 사용됐거나 만료됨).
      * 동시에 두 번 눌러도 한 요청만 1을 돌려받으므로 재사용이 불가능하다.
+     * 만료 비교에는 DB 시계(NOW) 대신 앱이 넘긴 시각을 쓴다 (DB 서버 타임존이 앱과 다를 수 있어서).
      * status, used_order_id, used_at 은 DB 제약상 함께 바뀌어야 해서 한 문장으로 처리한다.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(value = "UPDATE coupon SET status = 'USED', used_order_id = :orderId, used_at = :usedAt "
-            + "WHERE id = :id AND status = 'ACTIVE'", nativeQuery = true)
+    @Query(value = "UPDATE coupon SET status = 'USED', used_order_id = :orderId, used_at = :now "
+            + "WHERE id = :id AND status = 'ACTIVE' AND expires_at > :now", nativeQuery = true)
     int markUsed(@Param("id") Long id,
                  @Param("orderId") Long orderId,
-                 @Param("usedAt") LocalDateTime usedAt);
+                 @Param("now") LocalDateTime now);
 }

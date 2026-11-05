@@ -72,14 +72,15 @@ public class CouponUseService {
         CouponPolicy policy = couponPolicyRepository.findById(coupon.getCouponPolicyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
 
-        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        // 만료 비교는 초 단위로 자르지 않고 정확한 현재 시각으로 한다
+        LocalDateTime now = LocalDateTime.now();
 
         // 검증 5. 미사용 상태 (409) - 재사용을 가장 먼저 걸러낸다. 최종 판단은 아래 조건부 UPDATE가 한다.
         if (coupon.getState() == CouponState.USED) {
             throw new BusinessException(ErrorCode.COUPON_CONFLICT);
         }
-        // 검증 3. 유효기간 (400)
-        if (coupon.getExpiresAt().isBefore(now)) {
+        // 검증 3. 유효기간 (400): 만료 시각과 같은 시각도 만료로 본다
+        if (!coupon.getExpiresAt().isAfter(now)) {
             throw new BusinessException(ErrorCode.COUPON_BAD_REQUEST);
         }
         // 검증 4. 사용 가능 가맹점 (400): 발행한 가게에서만, 그리고 활성 가맹점이어야 한다
@@ -102,9 +103,12 @@ public class CouponUseService {
                 Order.create(userId, merchant.getId(), request.itemName(), totalAmount, discountAmount));
         Long orderId = order.getId();
 
-        // 쿠폰을 USED로 바꾼다. 아직 ACTIVE일 때만 1행이 바뀐다 (동시 사용·재사용 방지)
+        // 쿠폰을 USED로 바꾼다. 아직 ACTIVE이고 만료 전일 때만 1행이 바뀐다 (동시 사용·재사용·검사 뒤 만료 방지)
         if (couponRepository.markUsed(couponId, orderId, now) == 0) {
-            throw new BusinessException(ErrorCode.COUPON_CONFLICT); // 롤백되어 주문도 남지 않는다
+            // 0건: 그 사이 다른 요청이 먼저 사용했거나, 검사 뒤에 만료됐다. 만료 시각은 바뀌지 않으므로 구분할 수 있다.
+            // 어느 쪽이든 예외로 롤백되어 주문도 남지 않는다.
+            boolean expired = !coupon.getExpiresAt().isAfter(now);
+            throw new BusinessException(expired ? ErrorCode.COUPON_BAD_REQUEST : ErrorCode.COUPON_CONFLICT);
         }
 
         // 체인에서 쿠폰 소각. 실패하면 예외로 롤백되어 쿠폰은 ACTIVE 그대로 남는다
@@ -123,7 +127,7 @@ public class CouponUseService {
         paid.markPaid();
 
         return new CouponUseResponse(
-                couponId, CouponStatus.USED, now, orderId, merchant.getId(),
+                couponId, CouponStatus.USED, now.truncatedTo(ChronoUnit.SECONDS), orderId, merchant.getId(),
                 paid.getItemName(), totalAmount, discountAmount, paid.getPaidAmount(), txHash);
     }
 }

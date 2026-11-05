@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -33,11 +34,17 @@ public class CouponClaimService {
     private final ChainClient chainClient;
 
     /**
-     * 쿠폰 받기: 검증 → 발급 수량 +1 → 체인 발행(NFT) → 쿠폰 저장.
+     * 쿠폰 받기: 사용자 잠금 → 검증 → 발급 수량 +1 → 체인 발행(NFT) → 쿠폰 저장.
      * 한 트랜잭션이라 중간에 실패하면 발급 수량 증가도 함께 되돌아간다.
+     * (체인 발행 자체는 DB 롤백으로 되돌릴 수 없으므로, 체인 호출 전에 중복을 정확히 걸러내는 것이 중요하다.
+     *  실체인 연동 시에는 발행 후 DB 실패에 대한 보상(소각) 전략이 추가로 필요하다.)
      */
     @Transactional
     public CouponClaimResponse claim(Long userId, Long couponPolicyId) {
+        // 같은 사용자의 동시 요청을 줄 세운다 (반드시 첫 쿼리).
+        // 잠금을 얻은 뒤의 조회는 앞 요청이 커밋한 결과까지 보므로, 아래 중복 검사가 정확해진다.
+        couponRepository.lockUser(userId);
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         if (!user.isActive()) {
@@ -80,14 +87,14 @@ public class CouponClaimService {
             throw new BusinessException(ErrorCode.CHAIN_ERROR); // 롤백됨
         }
 
-        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
         LocalDateTime expiresAt = now.plusDays(validDays);
         Coupon coupon;
         try {
             coupon = couponRepository.saveAndFlush(
                     Coupon.issue(couponPolicyId, userId, minted.tokenId(), expiresAt));
         } catch (DataIntegrityViolationException e) {
-            // 동시에 두 번 눌러서 유일 제약(user_id + coupon_policy_id)에 걸린 경우
+            // 마지막 안전망: 유일 제약(user_id + coupon_policy_id)에 걸린 경우
             throw new BusinessException(ErrorCode.CONFLICT);
         }
 

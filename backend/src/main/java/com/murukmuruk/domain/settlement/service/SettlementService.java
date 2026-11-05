@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -66,8 +67,9 @@ public class SettlementService {
 
     private SettlementItem toItem(SettlementRow row) {
         CouponType type = row.receiveType() == ReceiveType.CAMPAIGN ? CouponType.CAMPAIGN : CouponType.GENERAL;
-        return new SettlementItem(row.orderId(), row.usedAt(), row.couponName(), type,
-                maskName(row.customerName()), row.discountAmount());
+        // 사용 시각은 명세 형식(초 단위)에 맞춰 소수점 이하를 자른다
+        return new SettlementItem(row.orderId(), row.usedAt().truncatedTo(ChronoUnit.SECONDS),
+                row.couponName(), type, maskName(row.customerName()), row.discountAmount());
     }
 
     /** 첫 글자만 남기고 나머지는 *로 가린다 (지민 -> 지*, 홍길동 -> 홍**). 한 글자 이름도 * 하나를 붙인다. */
