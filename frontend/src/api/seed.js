@@ -7,11 +7,11 @@
 // - 'demo': 시연 시작 상태 → ① KCP가 들꽃공방 심사 ② 과수원집이 쿠폰 조건 등록(3/3)
 //           ③ KCP가 기획전 시작 승인 ④ 소비자 구매 … (이 상태에서는 아직 쿠폰이 발급되지 않음)
 
-import { addLedger, doPurchase, doRedeem } from './core.js'
+import { addLedger, doConfirm, doPurchase, doRedeem } from './core.js'
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 7
+export const SEED_VERSION = 9
 
 export function createSeed(mode = 'ready') {
   const db = createDemoStart()
@@ -22,6 +22,16 @@ export function createSeed(mode = 'ready') {
 function createDemoStart() {
   const db = {
     version: SEED_VERSION,
+
+    // 무럭무럭 계정 (데이터베이스의 회원 목록). 구글 로그인한 이메일이 여기 있으면 역할 화면으로, 없으면 회원가입으로
+    // KCP 관리자는 가입이 없고 여기 미리 넣어 둔 계정만 있다
+    accounts: [
+      { id: 'user', name: '지민', email: 'jimin@example.com', role: 'consumer' },
+      { id: 'store', name: '과수원집', email: 'orchard@example.com', role: 'store', merchantId: 'm1' },
+      { id: 'store2', name: '봄꽃상회', email: 'flower@example.com', role: 'store', merchantId: 'm2' },
+      { id: 'store3', name: '바다찬', email: 'sea@example.com', role: 'store', merchantId: 'm3' },
+      { id: 'kcp', name: 'KCP 운영팀', email: 'ops@example.com', role: 'kcp' },
+    ],
 
     // 소비자 이름 (가게·KCP 화면에는 "지*"처럼 가려서 보여줌)
     users: { user: '지민', u2: '서연', u3: '민호', u4: '하은', u5: '수빈' },
@@ -101,8 +111,16 @@ function makeReady(db) {
   addLedger(db, '2026-11-01 09:00', 'ADMIN', '겨울 제철 연합 기획전 진행 중으로 바꿈', 'KCP', { campaignId: 'c1' })
 
   // 다른 손님들의 지난 구매·사용 (실제 규칙 그대로 실행해서 만든다)
-  const buy = (user, merchantId, at) => doPurchase(db, user, merchantId, at).issued
-  const redeem = (user, coupons, merchantId, at) => doRedeem(db, user, coupons.find((c) => c.merchantId === merchantId).id, merchantId, at)
+  // 지난 기록이라 A 구매 확정·B 구매 확정까지 모두 끝난 상태로 만든다
+  const buy = (user, merchantId, at) => {
+    const { order, issued } = doPurchase(db, user, merchantId, at)
+    doConfirm(db, user, order.id, at)
+    return issued
+  }
+  const redeem = (user, coupons, merchantId, at) => {
+    const { order } = doRedeem(db, user, coupons.find((c) => c.merchantId === merchantId).id, merchantId, at)
+    doConfirm(db, user, order.id, at)
+  }
   const a = buy('u2', 'm1', '2026-11-01 10:12') // 서연: 과수원집 구매 → 봄꽃상회·바다찬 쿠폰
   const b = buy('u3', 'm3', '2026-11-01 13:40') // 민호: 바다찬 구매 → 과수원집·봄꽃상회 쿠폰
   redeem('u2', a, 'm2', '2026-11-01 19:30')
