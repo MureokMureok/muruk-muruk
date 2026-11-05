@@ -6,6 +6,9 @@ export const won = (n) => `${(n ?? 0).toLocaleString('ko-KR')}원`
 // 35000 → "35,000" (단위 없이)
 export const num = (n) => (n ?? 0).toLocaleString('ko-KR')
 
+// 최소 주문 조건 문구. 일반 쿠폰은 최소 주문이 없을 수 있다
+export const minOrderText = (n) => (n > 0 ? `${won(n)} 이상` : '조건 없음')
+
 // "2026-12-14" → "12/14"
 export const md = (dateText) => {
   if (!dateText) return ''

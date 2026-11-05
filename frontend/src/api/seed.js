@@ -7,11 +7,11 @@
 // - 'demo': 시연 시작 상태 → ① KCP가 들꽃공방 심사 ② 과수원집이 쿠폰 조건 등록(3/3)
 //           ③ KCP가 기획전 시작 승인 ④ 소비자 구매 … (이 상태에서는 아직 쿠폰이 발급되지 않음)
 
-import { addLedger, doConfirm, doPurchase, doRedeem } from './core.js'
+import { addLedger, doConfirm, doPublishPolicy, doPurchase, doRedeem } from './core.js'
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 10
+export const SEED_VERSION = 11
 
 export function createSeed(mode = 'ready') {
   const db = createDemoStart()
@@ -85,6 +85,7 @@ function createDemoStart() {
       },
     ],
 
+    couponPolicies: [], // 가게가 직접 발행한 일반 쿠폰 (단일 쿠폰). 손님이 받으면 coupons에 한 장씩 생긴다
     coupons: [], // 소비자가 가진 쿠폰 (발급된 쿠폰 한 장 한 장)
     orders: [], // 주문(모의 결제)
     ledger: [], // 기록 (모의). 실제로는 블록체인에 남는 이벤트
@@ -130,5 +131,8 @@ function makeReady(db) {
   redeem('u4', c, 'm3', '2026-11-02 18:10')
   redeem('u5', d, 'm2', '2026-11-02 20:11')
   redeem('u3', b, 'm2', '2026-11-02 21:30')
+
+  doPublishPolicy(db, 'm2', { name: '봄꽃상회 꽃다발 2,000원 쿠폰', value: 2000, minOrder: 20000, validDays: 14, quantity: 50 }, '2026-11-03 10:00')
+  doPublishPolicy(db, 'm3', { name: '바다찬 첫 주문 1,500원 쿠폰', value: 1500, minOrder: 0, validDays: 7, quantity: 30 }, '2026-11-03 11:30')
   return db
 }

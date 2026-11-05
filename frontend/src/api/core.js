@@ -15,6 +15,9 @@
 //   - B 구매 확정: PROCESSING → USED / B 주문 취소·환불: PROCESSING → AVAILABLE(복원)
 //   - 유효기간 경과: AVAILABLE → EXPIRED(만료, 저장하지 않고 화면에 줄 때 계산 — api.js의 couponView)
 // 주문 상태: PAID(결제됨) → CONFIRMED(구매 확정) / CANCELLED(취소·환불)
+//
+// 단일 쿠폰(일반 쿠폰): 가게가 발행 → 손님이 직접 받기 → 같은 가게에서 사용
+// A 가게 구매가 없어 잠김·소멸이 없다. 받으면 바로 AVAILABLE이고, 그다음은 위의 B 가게 규칙과 같다
 
 // 실패를 알려줄 때 쓰는 에러. code로 어떤 실패인지 구분한다 (백엔드 에러 형식 제안과 같음)
 export class ApiError extends Error {
@@ -116,6 +119,42 @@ export function doPurchase(db, userId, merchantId, at, { failFirst = false } = {
     })
   }
   return { order, issued, missed }
+}
+
+// 일반 쿠폰 발행. 값 규칙은 백엔드 CouponPolicyCreateRequest와 같다
+export function doPublishPolicy(db, merchantId, form, at) {
+  const m = findMerchant(db, merchantId)
+  if (m?.status !== 'APPROVED') throw new ApiError('NOT_APPROVED', '승인된 가맹점만 쿠폰을 발행할 수 있어요.')
+  const name = form.name.trim()
+  if (!name || name.length > 100) throw new ApiError('INVALID', '쿠폰 이름은 1자 이상 100자 이하로 입력해 주세요.')
+  if (!(form.value >= 1)) throw new ApiError('INVALID', '할인 금액을 입력해 주세요.')
+  if (!(form.validDays >= 1)) throw new ApiError('INVALID', '유효 기간은 1일 이상이어야 해요.')
+  if (!(form.quantity >= 1)) throw new ApiError('INVALID', '발행 수량은 1장 이상이어야 해요.')
+  const policy = { id: newId('p'), merchantId, name, value: form.value, minOrder: form.minOrder, validDays: form.validDays, quantity: form.quantity, createdAt: at }
+  db.couponPolicies.push(policy)
+  addLedger(db, at, 'ADMIN', `${m.name} 일반 쿠폰 발행 · ${name} · ${won(policy.value)} · ${policy.quantity}장`, m.name, { merchantId, policyId: policy.id })
+  return policy
+}
+
+const claimedOf = (db, policyId) => db.coupons.filter((c) => c.policyId === policyId)
+
+// 발행 수량 대비 받은 수·사용 수
+export function policyStats(db, policy) {
+  const claimed = claimedOf(db, policy.id)
+  return { claimed: claimed.length, used: claimed.filter((c) => c.status === 'USED').length, qtyLeft: Math.max(0, policy.quantity - claimed.length) }
+}
+
+// 쿠폰 받기. 한 사람이 같은 쿠폰을 한 번만 받는다 (백엔드 유일 제약과 같음)
+export function doClaim(db, userId, policyId, at) {
+  const policy = db.couponPolicies.find((p) => p.id === policyId)
+  if (!policy || findMerchant(db, policy.merchantId)?.status !== 'APPROVED') throw new ApiError('POLICY_NOT_FOUND', '받을 수 없는 쿠폰이에요.')
+  if (claimedOf(db, policyId).some((c) => c.ownerId === userId)) throw new ApiError('ALREADY_CLAIMED', '이미 받은 쿠폰이에요.')
+  if (policyStats(db, policy).qtyLeft === 0) throw new ApiError('SOLD_OUT', '쿠폰이 모두 소진됐어요.')
+  const coupon = { id: newId('cp'), policyId, title: policy.name, merchantId: policy.merchantId, value: policy.value, minOrder: policy.minOrder, expiresAt: addDays(dateOf(at), policy.validDays), ownerId: userId, status: 'AVAILABLE', issuedAt: at }
+  db.coupons.push(coupon)
+  const shop = nameOf(db, policy.merchantId)
+  addLedger(db, at, 'ISSUE', `${shop} 일반 쿠폰 받기 · ${policy.name}`, shop, { merchantId: policy.merchantId, userId, couponIds: [coupon.id], claimed: true })
+  return coupon
 }
 
 // 쿠폰 사용 때 확인하는 5가지 (소비자에게 보이는 쉬운 말)

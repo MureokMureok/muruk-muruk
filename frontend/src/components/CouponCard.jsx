@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { mmdd, won } from '../utils/format.js'
+import { minOrderText, mmdd, won } from '../utils/format.js'
 
 // 쿠폰 카드 (가이드 2 — "앱의 얼굴"): 왼쪽 정보 / 점선 절취선 / 오른쪽 할인 금액(가장 크게)
 // - coupon: { merchantName, value, minOrder, expiresAt, status }
@@ -21,13 +21,13 @@ const AUTO_BADGE = {
 function CouponCard({ coupon, caption, sub, badge, large, to }) {
   const dim = coupon.status === 'USED' || coupon.status === 'EXPIRED' || coupon.status === 'VOIDED'
   const chip = badge ?? AUTO_BADGE[coupon.status]
-  const detail = sub ?? [coupon.minOrder ? `${won(coupon.minOrder)} 이상` : null, coupon.expiresAt ? `${mmdd(coupon.expiresAt)}까지` : null].filter(Boolean).join(' · ')
+  const detail = sub ?? [coupon.minOrder ? minOrderText(coupon.minOrder) : null, coupon.expiresAt ? `${mmdd(coupon.expiresAt)}까지` : null].filter(Boolean).join(' · ')
 
   const body = (
     <>
       <div className="l">
         <div className="top">
-          <small>{caption ?? `연합 기획전 · ${coupon.merchantName}`}</small>
+          <small>{caption ?? `${coupon.policyId ? '일반 쿠폰' : '연합 기획전'} · ${coupon.merchantName}`}</small>
           {chip && <span className={`chip ${chip.tone}`}>{chip.label}</span>}
         </div>
         <b>
