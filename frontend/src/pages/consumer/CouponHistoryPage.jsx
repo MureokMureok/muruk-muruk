@@ -9,9 +9,13 @@ import { mdhm } from '../../utils/format.js'
 // 기록 한 줄 → 타임라인 한 칸
 function toItem(h) {
   if (h.type === 'ISSUE') return { key: h.id, tone: 'ok', title: '발급 확인됨', sub: `${mdhm(h.at)} · ${h.merchantName} 구매로 발급` }
-  if (h.type === 'USE') return { key: h.id, tone: 'ok', title: '사용 확인됨', sub: `${mdhm(h.at)} · ${h.merchantName} 결제에 사용` }
+  if (h.type === 'CONFIRM') return { key: h.id, tone: 'ok', title: '구매 확정 · 사용 가능', sub: `${mdhm(h.at)} · ${h.merchantName} 구매 확정` }
+  if (h.type === 'APPLY') return { key: h.id, tone: 'w', title: '결제 적용 · 처리 중', sub: `${mdhm(h.at)} · ${h.merchantName} 결제에 적용` }
+  if (h.type === 'USE') return { key: h.id, tone: 'ok', title: '사용 확인됨', sub: `${mdhm(h.at)} · ${h.merchantName} 구매 확정` }
+  if (h.type === 'REFUND') return { key: h.id, tone: h.voided ? 'x' : 'n', title: h.detail.split(' · ')[1], sub: `${mdhm(h.at)} · ${h.merchantName} 주문 취소` }
   const reused = h.detail.includes('재사용')
-  return { key: h.id, tone: 'x', title: reused ? '재사용 시도 · 거절 기록됨' : '사용 시도 · 거절 기록됨', sub: `${mdhm(h.at)} · ${reused ? '이미 사용한 쿠폰' : h.detail.split(' · ')[1]}` }
+  const reusedWhat = h.detail.includes('처리 중') ? '결제에 적용 중인 쿠폰' : '이미 사용한 쿠폰'
+  return { key: h.id, tone: 'x', title: reused ? '재사용 시도 · 거절 기록됨' : '사용 시도 · 거절 기록됨', sub: `${mdhm(h.at)} · ${reused ? reusedWhat : h.detail.split(' · ')[1]}` }
 }
 
 // C-12 발급·사용 기록 (목업 v3)

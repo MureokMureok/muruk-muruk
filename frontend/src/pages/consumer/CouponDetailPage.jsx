@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { USE_CHECKS, calcDiscount, getCoupon, getProduct, redeemCoupon } from '../../api/api.js'
+import { USE_CHECKS, calcDiscount, cancelOrder, confirmOrder, getCoupon, getProduct, redeemCoupon } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import Icon from '../../components/Icon.jsx'
@@ -44,7 +44,8 @@ function Amounts({ amount, discount }) {
   )
 }
 
-// C-07 쿠폰 상세 → C-08 B가게 결제(가상) → C-09 사용 완료 / 사용 확인 중 / 재사용 거절 / 사용 실패 / 사용 불가 (목업 v3)
+// C-07 쿠폰 상세 → C-08 B가게 결제(가상) → 처리 중 → 구매 확정(사용 완료) 또는 환불(복원) (쿠폰 정책표 기준)
+// 그 밖에 사용 확인 중 / 재사용 거절 / 사용 실패 / 사용 불가 (목업 v3)
 function CouponScreen({ couponId }) {
   const user = getUser()
   const { data, reload } = useApi(async () => {
@@ -53,10 +54,14 @@ function CouponScreen({ couponId }) {
     return { coupon, product }
   }, [couponId])
 
-  // phase: detail(상세) → order(결제) → checking(확인 중) → done(사용 완료) / rejected(사용 못 함)
+  // phase: detail(상세) → order(결제) → checking(확인 중) → applied(결제 적용·처리 중) → used(사용 완료) / refunded(환불·복원)
+  //        실패하면 rejected(사용 못 함)
   const [phase, setPhase] = useState('detail')
   const [outcome, setOutcome] = useState(null)
-  const busy = useRef(false) // 결제 버튼 연속 클릭 → 쿠폰 두 번 사용 시도 방지
+  const [working, setWorking] = useState(false) // 구매 확정·취소 처리 중이면 버튼을 잠근다
+  const [notice, setNotice] = useState('') // 상세 화면 위에 보여줄 완료 안내
+  const [orderError, setOrderError] = useState('')
+  const busy = useRef(false) // 버튼 연속 클릭 → 같은 처리가 두 번 일어나는 것을 방지
 
   async function handleUse() {
     if (busy.current) return
@@ -65,8 +70,8 @@ function CouponScreen({ couponId }) {
     try {
       const r = await redeemCoupon(user.id, couponId, data.coupon.merchantId)
       setOutcome(r)
-      // 시연용 "사용 확인 중에서 멈춤"이면 확인 중 화면에 그대로 둔다 (처리는 끝났음 → 쿠폰함에서 사용 완료로 보임)
-      if (!r.pending) setPhase('done')
+      // 시연용 "사용 확인 중에서 멈춤"이면 확인 중 화면에 그대로 둔다 (처리는 끝났음 → 쿠폰함 사용 완료 탭에 "처리 중"으로 보임)
+      if (!r.pending) setPhase('applied')
     } catch (err) {
       setOutcome(err)
       setPhase('rejected')
@@ -74,6 +79,34 @@ function CouponScreen({ couponId }) {
     busy.current = false
     reload()
   }
+
+  // 구매 확정 / 주문 취소 공통 처리. run: confirmOrder 또는 cancelOrder, orderId: 처리할 주문, then: 끝난 뒤 할 일
+  async function handleOrder(run, orderId, then) {
+    if (busy.current) return
+    busy.current = true
+    setWorking(true)
+    setOrderError('')
+    try {
+      then(await run(user.id, orderId))
+    } catch (err) {
+      setOrderError(err.message)
+    }
+    busy.current = false
+    setWorking(false)
+    reload()
+  }
+
+  // B 가게 주문: 구매 확정 → 사용 완료 / 취소·환불 → 쿠폰 복원 (쿠폰의 useOrderId가 B 주문)
+  const finishUse = (orderId) =>
+    handleOrder(confirmOrder, orderId, (r) => {
+      setOutcome(r)
+      setPhase('used')
+    })
+  const refundUse = (orderId) =>
+    handleOrder(cancelOrder, orderId, (r) => {
+      setOutcome(r)
+      setPhase('refunded')
+    })
 
   if (!data) return <PhoneScreen title="쿠폰 상세" />
   const { coupon, product } = data
@@ -113,8 +146,67 @@ function CouponScreen({ couponId }) {
     )
   }
 
-  // ----- C-09 쿠폰 사용 완료 -----
-  if (phase === 'done') {
+  // ----- 결제에 쿠폰 적용 → 사용 처리 중: 구매 확정 또는 환불을 기다림 -----
+  if (phase === 'applied') {
+    const { order } = outcome
+    return (
+      <PhoneScreen
+        title="사용 결과"
+        back={false}
+        foot={
+          <>
+            <span className="demo">시연용 가상 처리예요. 실제 환불은 일어나지 않아요</span>
+            <button className="btn" disabled={working} onClick={() => finishUse(order.id)}>
+              구매 확정하기
+            </button>
+            <button className="btn g" disabled={working} onClick={() => refundUse(order.id)}>
+              주문 취소·환불하기
+            </button>
+            {/* 시연: 처리 중인 같은 쿠폰을 다시 써 보면 거절 */}
+            <button className="text-link center" disabled={working} onClick={handleUse}>
+              같은 쿠폰 다시 써보기 (시연용)
+            </button>
+          </>
+        }
+      >
+        <StatusView kind="ok" top sound="pay" title="결제에 쿠폰을 적용했어요" desc={`${name} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
+        <CouponCard coupon={outcome.coupon} sub="구매를 확정하면 사용 완료돼요" />
+        <Amounts amount={order.amount} discount={order.discount} />
+        <div className="nb warn">구매를 확정하면 쿠폰을 다시 쓸 수 없어요. 확정 전에 주문을 취소하면 쿠폰이 돌아와요.</div>
+        {orderError && <p className="nb err">{orderError}</p>}
+      </PhoneScreen>
+    )
+  }
+
+  // ----- 주문 취소·환불: 쿠폰 복원 (유효기간이 지났으면 만료) -----
+  if (phase === 'refunded') {
+    const back = outcome.coupons[0]
+    const late = back.status === 'EXPIRED'
+    return (
+      <PhoneScreen
+        title="주문 취소"
+        back={false}
+        foot={
+          <>
+            <Link className="btn" to="/coupons">
+              쿠폰함으로
+            </Link>
+            {!late && (
+              <button className="btn g" onClick={() => setPhase('detail')}>
+                쿠폰 상세 보기
+              </button>
+            )}
+          </>
+        }
+      >
+        <StatusView kind="ok" top title="주문을 취소했어요" desc={late ? '쿠폰 유효기간이 지나 만료됐어요' : '쿠폰이 돌아왔어요. 다시 쓸 수 있어요'} />
+        <CouponCard coupon={back} />
+      </PhoneScreen>
+    )
+  }
+
+  // ----- C-09 쿠폰 사용 완료 (B 구매 확정) -----
+  if (phase === 'used') {
     const { order, leftCoupons: left } = outcome
     return (
       <PhoneScreen
@@ -132,8 +224,8 @@ function CouponScreen({ couponId }) {
           </>
         }
       >
-        <StatusView kind="ok" top sound="pay" title="쿠폰을 사용했어요" desc={`${name} 결제에 ${won(order.discount)} 할인이 적용됐어요`} />
-        <CouponCard coupon={outcome.coupon} sub="다시 쓸 수 없어요" />
+        <StatusView kind="ok" top title="쿠폰 사용이 완료됐어요" desc={`${name} 구매를 확정했어요. ${won(order.discount)} 할인받았어요`} />
+        <CouponCard coupon={outcome.coupons[0]} sub="다시 쓸 수 없어요" />
         <Amounts amount={order.amount} discount={order.discount} />
         {left.length > 0 && (
           <Link className="nb ok row" to="/coupons">
@@ -179,6 +271,7 @@ function CouponScreen({ couponId }) {
   // ----- 쿠폰 재사용 거절 / 사용 불가 -----
   if (phase === 'rejected') {
     const reused = outcome.code === 'COUPON_ALREADY_USED'
+    const inProcess = outcome.couponStatus === 'PROCESSING' // 사용 처리 중인 쿠폰을 또 쓰려고 한 경우
     return (
       <PhoneScreen
         title="사용 결과"
@@ -197,11 +290,12 @@ function CouponScreen({ couponId }) {
         <StatusView
           kind="bad"
           sound="fail"
-          title={reused ? '이미 사용한 쿠폰이에요' : '쓸 수 없는 쿠폰이에요'}
+          title={reused ? (inProcess ? '이미 결제에 적용된 쿠폰이에요' : '이미 사용한 쿠폰이에요') : '쓸 수 없는 쿠폰이에요'}
           desc={
             reused ? (
               <>
-                {mdhm(outcome.usedAt)} {outcome.merchantName}에서 사용된 쿠폰이라
+                {mdhm(outcome.usedAt)} {outcome.merchantName}
+                {inProcess ? ' 결제에 적용된 쿠폰이라' : '에서 사용된 쿠폰이라'}
                 <br />
                 쓸 수 없어요. 결제는 진행되지 않았어요.
               </>
@@ -210,7 +304,7 @@ function CouponScreen({ couponId }) {
             )
           }
         >
-          <CouponCard coupon={{ ...coupon, status: 'USED' }} />
+          <CouponCard coupon={coupon} />
           {/* 시연용: 5가지 확인 중 어디서 막혔는지 */}
           <CheckList results={outcome.checks} failedKey={outcome.failedKey} />
         </StatusView>
@@ -266,14 +360,18 @@ function CouponScreen({ couponId }) {
         </div>
         <Amounts amount={product.price} discount={discount} />
         {!enough && <p className="nb err">{won(coupon.minOrder)} 이상부터 쓸 수 있어요</p>}
-        <div className="nb warn">결제 후 쿠폰이 바로 사용 처리돼요</div>
+        <div className="nb warn">결제하면 쿠폰은 처리 중으로 바뀌고, 구매를 확정하면 사용 완료돼요</div>
       </PhoneScreen>
     )
   }
 
-  // ----- C-07 쿠폰 상세 / 사용 불가 쿠폰(만료) -----
+  // ----- C-07 쿠폰 상세 / 잠김·처리 중 / 사용 불가 쿠폰(만료·소멸) -----
   const usable = coupon.status === 'AVAILABLE'
+  const locked = coupon.status === 'LOCKED'
+  const processing = coupon.status === 'PROCESSING'
   const expired = coupon.status === 'EXPIRED'
+  const voided = coupon.status === 'VOIDED'
+  const ended = expired || voided // 다시는 쓸 수 없는 쿠폰
   return (
     <PhoneScreen
       title="쿠폰 상세"
@@ -282,6 +380,32 @@ function CouponScreen({ couponId }) {
           <button className="btn y" onClick={() => setPhase('order')}>
             {name}에서 사용하기
           </button>
+        ) : locked ? (
+          // 잠김: A 가게 구매 확정 → 사용 가능 / A 주문 취소 → 소멸 (같은 구매로 받은 쿠폰 전부)
+          <>
+            <span className="demo">시연용 가상 처리예요. 실제 환불은 일어나지 않아요</span>
+            <button className="btn" disabled={working} onClick={() => handleOrder(confirmOrder, coupon.orderId, () => setNotice(`구매를 확정했어요. 이제 ${name}에서 쓸 수 있어요`))}>
+              {coupon.fromMerchantName} 구매 확정하기
+            </button>
+            <button className="btn g" disabled={working} onClick={() => handleOrder(cancelOrder, coupon.orderId, () => setNotice(''))}>
+              {coupon.fromMerchantName} 주문 취소하기
+            </button>
+          </>
+        ) : processing ? (
+          // 사용 처리 중: B 가게 구매 확정 → 사용 완료 / 취소·환불 → 복원
+          <>
+            <span className="demo">시연용 가상 처리예요. 실제 환불은 일어나지 않아요</span>
+            <button className="btn" disabled={working} onClick={() => finishUse(coupon.useOrderId)}>
+              {name} 구매 확정하기
+            </button>
+            <button className="btn g" disabled={working} onClick={() => refundUse(coupon.useOrderId)}>
+              주문 취소·환불하기
+            </button>
+            {/* 시연: 처리 중인 같은 쿠폰을 다시 써 보면 거절 */}
+            <button className="text-link center" disabled={working} onClick={handleUse}>
+              같은 쿠폰 다시 써보기 (시연용)
+            </button>
+          </>
         ) : coupon.status === 'USED' ? (
           // 시연용: 이미 쓴 쿠폰을 다시 써서 거절 장면 보여주기
           <button className="btn g" onClick={handleUse}>
@@ -294,6 +418,8 @@ function CouponScreen({ couponId }) {
         )
       }
     >
+      {notice && <div className="nb ok">{notice}</div>}
+      {orderError && <p className="nb err">{orderError}</p>}
       {expired && (
         <div className="nb err">
           <div>
@@ -303,8 +429,35 @@ function CouponScreen({ couponId }) {
           </div>
         </div>
       )}
-      <CouponCard coupon={coupon} large={!expired} />
-      {!expired && (
+      {voided && (
+        <div className="nb err">
+          <div>
+            <b>사라진 쿠폰이에요</b>
+            <br />
+            {coupon.fromMerchantName} 주문을 취소해서 쓸 수 없어요
+          </div>
+        </div>
+      )}
+      {locked && (
+        <div className="nb warn">
+          <div>
+            <b>구매 확정 후 쓸 수 있어요</b>
+            <br />
+            {coupon.fromMerchantName} 주문을 취소하면 이 구매로 받은 쿠폰 {coupon.issuedTogether}장이 함께 사라져요
+          </div>
+        </div>
+      )}
+      {processing && (
+        <div className="nb warn">
+          <div>
+            <b>결제에 적용돼 처리 중이에요</b>
+            <br />
+            구매를 확정하면 사용 완료되고, 주문을 취소하면 쿠폰이 돌아와요
+          </div>
+        </div>
+      )}
+      <CouponCard coupon={coupon} large={!ended} />
+      {!ended && (
         <div className="who">
           <span className="avatar s">{coupon.merchantShort}</span>
           <div>
@@ -322,10 +475,10 @@ function CouponScreen({ couponId }) {
         <dt>최소 주문</dt>
         <dd>{won(coupon.minOrder)} 이상</dd>
         <dt>유효기간</dt>
-        <dd>{expired ? `${mmdd(coupon.expiresAt)} 만료` : `${mmdd(coupon.expiresAt)}까지${usable ? ` (D-${dDay(coupon.expiresAt)})` : ''}`}</dd>
+        <dd>{voided ? '소멸' : expired ? `${mmdd(coupon.expiresAt)} 만료` : `${mmdd(coupon.expiresAt)}까지${usable ? ` (D-${dDay(coupon.expiresAt)})` : ''}`}</dd>
         <dt>사용처</dt>
         <dd>{name}</dd>
-        {!expired && (
+        {!ended && (
           <>
             <dt>사용 횟수</dt>
             <dd>1회</dd>
@@ -336,7 +489,7 @@ function CouponScreen({ couponId }) {
           </>
         )}
       </dl>
-      {!expired && (
+      {!ended && (
         <>
           <details className="nb">
             <summary>

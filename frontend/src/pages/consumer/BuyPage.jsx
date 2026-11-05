@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { getProduct, previewPurchase, purchase } from '../../api/api.js'
+import { confirmOrder, getProduct, previewPurchase, purchase } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
@@ -79,6 +79,8 @@ function BuyScreen({ merchantId }) {
   const [phase, setPhase] = useState('ready') // ready → paying → done
   const [result, setResult] = useState(null)
   const paying = useRef(false) // 결제 진행 중 표시 (화면을 다시 그리지 않고 바로 바뀌는 값)
+  const [confirmState, setConfirmState] = useState('none') // 구매 확정: none(전) → working(처리 중) → done(완료)
+  const [confirmError, setConfirmError] = useState('')
 
   async function handlePay() {
     // 비로그인: 로그인 후 이 화면으로 돌아오게 (구매는 다시 눌러야 함)
@@ -93,6 +95,21 @@ function BuyScreen({ merchantId }) {
     const r = await purchase(user.id, merchantId)
     setResult(r)
     setPhase('done')
+  }
+
+  // 구매 확정 → 잠겨 있던 쿠폰이 사용 가능으로
+  async function handleConfirm() {
+    if (confirmState !== 'none') return
+    setConfirmState('working')
+    setConfirmError('')
+    try {
+      const r = await confirmOrder(user.id, result.order.id)
+      setResult({ ...result, issuedCoupons: r.coupons })
+      setConfirmState('done')
+    } catch (err) {
+      setConfirmError(err.message)
+      setConfirmState('none')
+    }
   }
 
   if (!data) return <PhoneScreen title="상품" />
@@ -137,6 +154,8 @@ function BuyScreen({ merchantId }) {
                 <b>
                   {got.map((c) => `${c.merchantName} ${won(c.value)}`).join(', ')} ({got.length}장)
                 </b>
+                <br />
+                쿠폰함에서 구매를 확정하면 쓸 수 있어요
               </span>
             </div>
           )}
@@ -149,13 +168,19 @@ function BuyScreen({ merchantId }) {
   if (phase === 'done') {
     const got = result.issuedCoupons
     const max = got.reduce((s, c) => s + c.value, 0)
+    const needConfirm = got.length > 0 && confirmState !== 'done' // 아직 구매 확정 전
     return (
       <PhoneScreen
         title="결제 완료"
         back={false}
         foot={
           <>
-            <Link className="btn" to="/coupons">
+            {needConfirm && (
+              <button className="btn" disabled={confirmState === 'working'} onClick={handleConfirm}>
+                구매 확정하기
+              </button>
+            )}
+            <Link className={needConfirm ? 'btn g' : 'btn'} to="/coupons">
               쿠폰함 보기
             </Link>
             <Link className="btn g" to="/home">
@@ -180,6 +205,9 @@ function BuyScreen({ merchantId }) {
             <p className="cap center">구매한 {name} 쿠폰은 받지 않아요</p>
           </div>
         )}
+        {needConfirm && <div className="nb warn">구매를 확정하면 쿠폰을 쓸 수 있어요</div>}
+        {confirmState === 'done' && <div className="nb ok">구매를 확정했어요. 이제 쿠폰을 쓸 수 있어요</div>}
+        {confirmError && <p className="nb err">{confirmError}</p>}
         {got.length > 1 && (
           <div className="nb ok">
             {got.length === 2 ? '두 쿠폰을' : `쿠폰 ${got.length}장을`} 모두 사용하면 최대 {won(max)} 할인받아요
@@ -226,7 +254,7 @@ function BuyScreen({ merchantId }) {
         {preview.coupons.map((c, i) => (
           <CouponCard key={i} coupon={c} sub={subOf(c)} />
         ))}
-        <p className="cap">구매한 {name} 쿠폰은 받지 않아요</p>
+        <p className="cap">구매한 {name} 쿠폰은 받지 않아요 · 받은 쿠폰은 구매 확정 후 쓸 수 있어요</p>
       </section>
     </PhoneScreen>
   )
