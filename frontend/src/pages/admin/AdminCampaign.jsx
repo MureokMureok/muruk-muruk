@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createCampaign, getAdminCampaigns, getApprovedMerchants, setCampaignStatus } from '../../api/api.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { CAMPAIGN_STATUS, nearLimit } from '../../utils/labels.js'
 import { period } from '../../utils/format.js'
@@ -80,6 +81,7 @@ function AdminCampaign() {
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [ending, setEnding] = useState(false)
   if (!list) return null
 
   const c = list.find((x) => x.id === selId) ?? list[0]
@@ -100,8 +102,8 @@ function AdminCampaign() {
     setError('')
   }
 
-  async function handleStatus(next, confirmText) {
-    if (confirmText && !window.confirm(confirmText)) return
+  async function handleStatus(next) {
+    setEnding(false)
     setBusy(true)
     setError('')
     try {
@@ -115,6 +117,7 @@ function AdminCampaign() {
 
   return (
     <>
+      {ending && <ConfirmDialog message={`${c.title}을(를) 종료할까요? 종료하면 다시 진행할 수 없어요.`} confirmLabel="종료하기" danger onConfirm={() => handleStatus('ENDED')} onCancel={() => setEnding(false)} />}
       <div className="ph1">
         <div className="tt">
           <h1>연합 기획전 관리</h1>
@@ -261,7 +264,7 @@ function AdminCampaign() {
             </button>
           )}
           {(c.status === 'ACTIVE' || c.status === 'PAUSED') && (
-            <button className="btn r blk" disabled={busy} onClick={() => handleStatus('ENDED', `${c.title}을(를) 종료할까요? 종료하면 다시 진행할 수 없어요.`)}>
+            <button className="btn r blk" disabled={busy} onClick={() => setEnding(true)}>
               종료하기
             </button>
           )}

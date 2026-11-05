@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getMerchants, reviewMerchant } from '../../api/api.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { MERCHANT_STATUS } from '../../utils/labels.js'
 import { mmdd } from '../../utils/format.js'
@@ -14,6 +15,7 @@ function AdminMerchants() {
   const [selId, setSelId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [rejecting, setRejecting] = useState(false)
   if (!list) return null
 
   // 기본 선택: 심사 대기 중인 첫 가게
@@ -21,7 +23,7 @@ function AdminMerchants() {
   const waiting = list.filter((x) => x.status === 'APPLIED').length
 
   async function handleReview(approve) {
-    if (!approve && !window.confirm(`${m.name}의 참여 신청을 반려할까요?`)) return
+    setRejecting(false)
     setBusy(true)
     setError('')
     try {
@@ -41,6 +43,7 @@ function AdminMerchants() {
 
   return (
     <>
+      {rejecting && <ConfirmDialog message={`${m.name}의 참여 신청을 반려할까요?`} confirmLabel="반려하기" danger onConfirm={() => handleReview(false)} onCancel={() => setRejecting(false)} />}
       <div className="ph1">
         <div className="tt">
           <h1>가맹점 심사</h1>
@@ -111,7 +114,7 @@ function AdminMerchants() {
               <button className="btn blk" disabled={busy} onClick={() => handleReview(true)}>
                 {busy ? '기록하는 중…' : '승인하기'}
               </button>
-              <button className="btn r blk" disabled={busy} onClick={() => handleReview(false)}>
+              <button className="btn r blk" disabled={busy} onClick={() => setRejecting(true)}>
                 반려하기
               </button>
             </>
