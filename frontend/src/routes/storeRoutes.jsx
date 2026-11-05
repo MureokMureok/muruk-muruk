@@ -1,10 +1,10 @@
 import { Route } from 'react-router-dom'
 import RequireRole from '../auth/RequireRole.jsx'
 import { ROLES } from '../auth/mockAuth.js'
-import ConsoleLayout from '../components/ConsoleLayout.jsx'
 import StoreBurden from '../pages/store/StoreBurden.jsx'
 import StoreCampaign from '../pages/store/StoreCampaign.jsx'
 import StoreDashboard from '../pages/store/StoreDashboard.jsx'
+import StoreGate from '../pages/store/StoreGate.jsx'
 import StoreTerms from '../pages/store/StoreTerms.jsx'
 
 // 가맹점 센터 왼쪽 메뉴 (목업 v3 M1~M4)
@@ -20,7 +20,7 @@ const STORE_MENU = [
 export function storeRoutes() {
   return (
     <Route element={<RequireRole role={ROLES.STORE} />}>
-      <Route path="/store" element={<ConsoleLayout variant="store" menu={STORE_MENU} soon="일반 쿠폰 발행" />}>
+      <Route path="/store" element={<StoreGate menu={STORE_MENU} soon="일반 쿠폰 발행" />}>
         <Route index element={<StoreDashboard />} />
         <Route path="campaign" element={<StoreCampaign />} />
         <Route path="terms" element={<StoreTerms />} />
