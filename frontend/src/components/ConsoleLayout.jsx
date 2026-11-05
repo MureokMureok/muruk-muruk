@@ -59,9 +59,11 @@ function ConsoleLayout({ variant, menu, soon }) {
             </NavLink>
           ))}
           <div className="sep" />
-          <span className="nv">
-            {soon} <span className="chip b">준비 중</span>
-          </span>
+          {soon && (
+            <span className="nv">
+              {soon} <span className="chip b">준비 중</span>
+            </span>
+          )}
           {/* 발표 리허설용 */}
           <div className="tools">
             <span>시연 도구</span>
