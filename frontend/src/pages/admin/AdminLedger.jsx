@@ -7,7 +7,10 @@ import { mdhm, shortTx } from '../../utils/format.js'
 const FILTERS = [
   { key: 'ALL', label: '전체' },
   { key: 'ISSUE', label: '발급' },
+  { key: 'CONFIRM', label: '구매 확정' },
+  { key: 'APPLY', label: '결제 적용' },
   { key: 'USE', label: '사용' },
+  { key: 'REFUND', label: '취소·환불' },
   { key: 'REJECT', label: '거절' },
   { key: 'ADMIN', label: '관리' },
 ]
