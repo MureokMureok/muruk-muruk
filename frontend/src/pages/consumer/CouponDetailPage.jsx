@@ -5,6 +5,7 @@ import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import Icon from '../../components/Icon.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { dDay, mdhm, mmdd, won } from '../../utils/format.js'
@@ -54,11 +55,12 @@ function CouponScreen({ couponId }) {
     return { coupon, product }
   }, [couponId])
 
-  // phase: detail(상세) → order(결제) → checking(확인 중) → applied(결제 적용·처리 중) → used(사용 완료) / refunded(환불·복원)
+  // phase: detail(상세) → order(결제) → using(처리하는 동안) → applied(결제 적용·처리 중) → used(사용 완료) / refunded(환불·복원)
+  //        checking: 시연용 "사용 확인 중에서 멈춤"
   //        실패하면 rejected(사용 못 함)
   const [phase, setPhase] = useState('detail')
   const [outcome, setOutcome] = useState(null)
-  const [working, setWorking] = useState(false) // 구매 확정·취소 처리 중이면 버튼을 잠근다
+  const [working, setWorking] = useState('') // 구매 확정·취소 처리 중이면 그 안내 문구 (버튼을 잠그고 새싹이를 보여준다)
   const [notice, setNotice] = useState('') // 상세 화면 위에 보여줄 완료 안내
   const [orderError, setOrderError] = useState('')
   const busy = useRef(false) // 버튼 연속 클릭 → 같은 처리가 두 번 일어나는 것을 방지
@@ -66,12 +68,12 @@ function CouponScreen({ couponId }) {
   async function handleUse() {
     if (busy.current) return
     busy.current = true
-    setPhase('checking')
+    setPhase('using')
     try {
       const r = await redeemCoupon(user.id, couponId, data.coupon.merchantId)
       setOutcome(r)
       // 시연용 "사용 확인 중에서 멈춤"이면 확인 중 화면에 그대로 둔다 (처리는 끝났음 → 쿠폰함 사용 완료 탭에 "처리 중"으로 보임)
-      if (!r.pending) setPhase('applied')
+      setPhase(r.pending ? 'checking' : 'applied')
     } catch (err) {
       setOutcome(err)
       setPhase('rejected')
@@ -84,7 +86,7 @@ function CouponScreen({ couponId }) {
   async function handleOrder(run, orderId, then) {
     if (busy.current) return
     busy.current = true
-    setWorking(true)
+    setWorking(run === confirmOrder ? '구매를 확정하고 있어요' : '주문을 취소하고 있어요')
     setOrderError('')
     try {
       then(await run(user.id, orderId))
@@ -92,7 +94,7 @@ function CouponScreen({ couponId }) {
       setOrderError(err.message)
     }
     busy.current = false
-    setWorking(false)
+    setWorking('')
     reload()
   }
 
@@ -113,7 +115,16 @@ function CouponScreen({ couponId }) {
   if (!coupon) return <PhoneScreen title="쿠폰 상세">쿠폰을 찾을 수 없어요.</PhoneScreen>
   const name = coupon.merchantName
 
-  // ----- 쿠폰 사용 확인 중: 같은 쿠폰으로 다시 결제하지 않도록 -----
+  // ----- 쿠폰 사용 처리하는 동안: 새싹이가 자란다 -----
+  if (phase === 'using') {
+    return (
+      <PhoneScreen title="사용 결과" back={false}>
+        <SproutLoading growing title="쿠폰 사용 처리 중" sub="내 쿠폰인지 확인해요" />
+      </PhoneScreen>
+    )
+  }
+
+  // ----- 쿠폰 사용 확인 중 (시연용 "멈춤"): 같은 쿠폰으로 다시 결제하지 않도록 -----
   if (phase === 'checking') {
     return (
       <PhoneScreen
@@ -174,6 +185,7 @@ function CouponScreen({ couponId }) {
         <Amounts amount={order.amount} discount={order.discount} />
         <div className="nb warn">구매를 확정하면 쿠폰을 다시 쓸 수 없어요. 확정 전에 주문을 취소하면 쿠폰이 돌아와요.</div>
         {orderError && <p className="nb err">{orderError}</p>}
+        {working && <SproutOverlay growing title={working} />}
       </PhoneScreen>
     )
   }
@@ -418,6 +430,7 @@ function CouponScreen({ couponId }) {
         )
       }
     >
+      {working && <SproutOverlay growing title={working} />}
       {notice && <div className="nb ok">{notice}</div>}
       {orderError && <p className="nb err">{orderError}</p>}
       {expired && (

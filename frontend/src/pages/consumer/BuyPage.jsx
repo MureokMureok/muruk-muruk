@@ -4,6 +4,7 @@ import { confirmOrder, getProduct, previewPurchase, purchase } from '../../api/a
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import Timeline from '../../components/Timeline.jsx'
 import { useApi } from '../../hooks/useApi.js'
@@ -116,8 +117,15 @@ function BuyScreen({ merchantId }) {
   const { product, preview } = data
   const name = product.merchantName
 
-  // ----- 결제·쿠폰 발급 확인 중 (처리하는 동안 / 시연용 "확인 중에서 멈춤") -----
-  if (phase === 'paying') return <IssuePending merchantName={name} count={preview.coupons.length} />
+  // ----- 결제 처리하는 동안: 새싹이가 자란다 -----
+  if (phase === 'paying') {
+    return (
+      <PhoneScreen title="결제" back={false}>
+        <SproutLoading growing title="결제하고 있어요" sub={`쿠폰 ${preview.coupons.length}장을 준비하고 있어요`} />
+      </PhoneScreen>
+    )
+  }
+  // ----- 쿠폰 발급 확인 중 (시연용 "확인 중에서 멈춤") -----
   if (phase === 'done' && result.pending) return <IssuePending merchantName={name} count={result.issuedCoupons.length + result.missedCoupons.length} buttons />
 
   // ----- 발급 실패 (일부 또는 전부): 결제는 됐지만 못 받은 쿠폰이 있음 -----
@@ -208,6 +216,7 @@ function BuyScreen({ merchantId }) {
         {needConfirm && <div className="nb warn">구매를 확정하면 쿠폰을 쓸 수 있어요</div>}
         {confirmState === 'done' && <div className="nb ok">구매를 확정했어요. 이제 쿠폰을 쓸 수 있어요</div>}
         {confirmError && <p className="nb err">{confirmError}</p>}
+        {confirmState === 'working' && <SproutOverlay growing title="구매를 확정하고 있어요" />}
         {got.length > 1 && (
           <div className="nb ok">
             {got.length === 2 ? '두 쿠폰을' : `쿠폰 ${got.length}장을`} 모두 사용하면 최대 {won(max)} 할인받아요

@@ -4,6 +4,7 @@ import { getMyCoupons } from '../../api/api.js'
 import { getUser } from '../../auth/mockAuth.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
+import { SproutLoading } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { dDay, mmdd, won } from '../../utils/format.js'
@@ -51,6 +52,8 @@ function CouponsPage() {
           </button>
         ))}
       </div>
+
+      {!coupons && <SproutLoading delay />}
 
       {coupons && shown.length === 0 && (
         <StatusView kind="empty" title={current.empty} desc={tab === 'USABLE' && <>연합 기획전 가게에서 구매하면<br />다른 가게 쿠폰을 받아요</>}>

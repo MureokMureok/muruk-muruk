@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { getCampaign } from '../../api/api.js'
 import CouponCard from '../../components/CouponCard.jsx'
 import Icon from '../../components/Icon.jsx'
+import { SproutLoading } from '../../components/SproutLoading.jsx'
 import TabBar from '../../components/TabBar.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { period, won } from '../../utils/format.js'
@@ -27,6 +28,8 @@ function ConsumerHome() {
           <Icon name="search" size={18} />
           <span>기획전·가게·상품 검색</span>
         </Link>
+
+        {!campaign && <SproutLoading delay />}
 
         {campaign && (
           <>
