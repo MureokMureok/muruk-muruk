@@ -213,6 +213,7 @@ export function doRedeem(db, userId, couponId, merchantId, at) {
       couponId,
       reason: code,
       couponStatus: c?.status,
+      summary: reason,
     })
     throw new ApiError(code, FAIL_MESSAGES[code], { checks: results, failedKey: failed.key, couponStatus: c?.status, usedAt: c?.usedAt ?? c?.appliedAt, merchantName: c ? nameOf(db, c.merchantId) : '' })
   }
@@ -248,7 +249,7 @@ export function doConfirm(db, userId, orderId, at) {
     c.status = 'AVAILABLE'
   })
   if (unlocked.length > 0) {
-    addLedger(db, at, 'CONFIRM', `${shop} 구매 확정 · 쿠폰 ${unlocked.length}장 사용 가능`, shop, { merchantId: order.merchantId, userId, couponIds: unlocked.map((c) => c.id) })
+    addLedger(db, at, 'CONFIRM', `${shop} 구매 확정 · 쿠폰 ${unlocked.length}장 사용 가능`, shop, { merchantId: order.merchantId, userId, couponIds: unlocked.map((c) => c.id), summary: `쿠폰 ${unlocked.length}장 사용 가능` })
   }
 
   const applied = db.coupons.find((c) => c.id === order.couponId && c.status === 'PROCESSING')
@@ -276,7 +277,7 @@ export function doCancel(db, userId, orderId, at) {
     c.status = 'VOIDED'
   })
   if (voided.length > 0) {
-    addLedger(db, at, 'REFUND', `${shop} 주문 취소 · 쿠폰 ${voided.length}장 소멸`, shop, { merchantId: order.merchantId, userId, couponIds: voided.map((c) => c.id), voided: true })
+    addLedger(db, at, 'REFUND', `${shop} 주문 취소 · 쿠폰 ${voided.length}장 소멸`, shop, { merchantId: order.merchantId, userId, couponIds: voided.map((c) => c.id), voided: true, summary: `쿠폰 ${voided.length}장 소멸` })
   }
 
   const applied = db.coupons.find((c) => c.id === order.couponId && c.status === 'PROCESSING')
@@ -285,8 +286,8 @@ export function doCancel(db, userId, orderId, at) {
     delete applied.appliedAt
     delete applied.discount
     delete applied.useOrderId
-    const late = applied.expiresAt < dateOf(at)
-    addLedger(db, at, 'REFUND', `${shop} 주문 취소·환불 · ${late ? '유효기간이 지나 쿠폰 만료' : '쿠폰 복원'}`, shop, { merchantId: order.merchantId, userId, couponId: applied.id })
+    const summary = applied.expiresAt < dateOf(at) ? '유효기간이 지나 쿠폰 만료' : '쿠폰 복원'
+    addLedger(db, at, 'REFUND', `${shop} 주문 취소·환불 · ${summary}`, shop, { merchantId: order.merchantId, userId, couponId: applied.id, summary })
   }
   return { order, coupons: applied ? [applied] : voided }
 }
