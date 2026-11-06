@@ -94,7 +94,7 @@ Preparing ──시작 승인(조건 전원 등록)──▶ Active ⇄ Paused
 |---|---|---|---|
 | `reviewMerchant(merchantId, approve)` | ADMIN | 가맹점 승인/반려 (K1) | 이미 심사함 `NotPending` → `NOT_PENDING` |
 | `createCampaign(campaignId, merchantIds, startsAt, endsAt)` | ADMIN | 기획전 만들기 → `Preparing` (K2) | 승인 안 된 가게 `NotApproved`, 가게 2곳 미만·종료 < 시작·가게 중복·번호 0 `InvalidCampaign` → `INVALID`, 21곳 이상 `TooManyMerchants`, 중복 번호 `CampaignExists` |
-| `registerTerms(campaignId, merchantId, amount, minOrder, validity, cap)` | OPERATOR | 쿠폰 조건 등록·변경 (M2 "기획전에 등록하기") | 없는 기획전 `CampaignNotFound`, 미참여 가게 `NotInCampaign`, 준비 중 아님 `TermsLocked` → `LOCKED`, 할인 0·최소 주문 < 할인·할인 한도 < 할인 `InvalidTerms` → `INVALID` |
+| `registerTerms(campaignId, merchantId, amount, minOrder, validity, cap)` | OPERATOR | 쿠폰 조건 등록·변경 (M2 "기획전에 등록하기") | 없는 기획전 `CampaignNotFound`, 미참여 가게 `NotInCampaign`, 준비 중 아님·종료 시각 지남 `TermsLocked` → `LOCKED`, 할인 0·최소 주문 < 할인·할인 한도 < 할인 `InvalidTerms` → `INVALID` |
 | `setCampaignStatus(campaignId, next)` | ADMIN | 시작 승인 / 일시 중지 / 다시 진행 / 종료 (K2) | 없는 기획전 `CampaignNotFound`, 허용 안 된 전환·종료 시각 지남 `InvalidStatus` → `INVALID_STATUS`, 조건 미등록 가게 있음 `NotReady` → `NOT_READY` |
 | `issueForPurchase(campaignId, buyMerchantId, to, orderRef)` | OPERATOR | 구매 시 쿠폰 발급, **확정 대기** (③④) | 받는 주소 0 `InvalidAddress`, 주문 ID 0 `InvalidRef`, 같은 주문 재호출 `OrderAlreadyIssued`. 진행 중이 아니거나 미참여 가게면 **에러 없이 0장** |
 | `confirmPurchase(orderRef)` | OPERATOR | 구매 확정 → 그 주문의 쿠폰을 사용 가능으로 | 확정 대기 주문이 아님 `OrderNotPending` |

@@ -235,6 +235,26 @@ describe("2단계 연합 기획전", function () {
         .withArgs(CAMPAIGN);
     });
 
+    it("종료 시각이 지난 준비 중 기획전은 종료로 보이고, 조건 등록도 막힌다", async function () {
+      const { coupon, backend, endsAt } = await withCampaign();
+      await time.increaseTo(endsAt + 1n);
+      expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Ended);
+      const t = TERMS[ORCHARD];
+      await expect(coupon.connect(backend).registerTerms(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.validity, t.cap))
+        .to.be.revertedWithCustomError(coupon, "TermsLocked")
+        .withArgs(CAMPAIGN);
+    });
+
+    it("종료 시각 정각까지는 준비 중이라 조건을 등록할 수 있다", async function () {
+      const { coupon, backend, endsAt } = await withCampaign();
+      const t = TERMS[ORCHARD];
+      await time.setNextBlockTimestamp(endsAt); // 등록 거래가 정확히 종료 시각에 들어가게
+      await expect(
+        coupon.connect(backend).registerTerms(CAMPAIGN, ORCHARD, t.amount, t.minOrder, t.validity, t.cap),
+      ).to.emit(coupon, "TermsRegistered");
+      expect((await coupon.campaignOf(CAMPAIGN))[0]).to.equal(CampaignStatus.Preparing);
+    });
+
     it("없는 기획전은 바꿀 수 없고, 상태 변경은 KCP만 할 수 있다", async function () {
       const { coupon, backend } = await withTerms();
       await expect(coupon.setCampaignStatus(9n, CampaignStatus.Active))

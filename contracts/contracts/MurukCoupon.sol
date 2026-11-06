@@ -105,7 +105,8 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         CampaignData storage c = _campaigns[campaignId];
         if (c.status == CampaignStatus.None) revert CampaignNotFound(campaignId);
         if (!_inCampaign[campaignId][merchantId]) revert NotInCampaign(campaignId, merchantId);
-        if (c.status != CampaignStatus.Preparing) revert TermsLocked(campaignId);
+        // 종료 시각이 지난 준비 중 기획전은 이미 끝난 것으로 본다 (조회 결과 Ended와 맞춤)
+        if (_effectiveStatus(c) != CampaignStatus.Preparing) revert TermsLocked(campaignId);
         if (amount == 0 || minOrder < amount || cap < amount) revert InvalidTerms();
 
         Term storage t = _terms[campaignId][merchantId];
@@ -159,9 +160,13 @@ contract MurukCoupon is IMurukCoupon, ERC1155, AccessControl {
         return _terms[campaignId][merchantId];
     }
 
-    /// @dev 진행 중·일시 중지라도 종료 시각이 지났으면 종료로 본다 (K2 "기간이 끝나면 자동 종료")
+    /// @dev 준비 중·진행 중·일시 중지라도 종료 시각이 지났으면 종료로 본다 (K2 "기간이 끝나면 자동 종료")
     function _effectiveStatus(CampaignData storage c) private view returns (CampaignStatus) {
-        if ((c.status == CampaignStatus.Active || c.status == CampaignStatus.Paused) && block.timestamp > c.endsAt) {
+        CampaignStatus s = c.status;
+        if (
+            (s == CampaignStatus.Preparing || s == CampaignStatus.Active || s == CampaignStatus.Paused) &&
+            block.timestamp > c.endsAt
+        ) {
             return CampaignStatus.Ended;
         }
         return c.status;

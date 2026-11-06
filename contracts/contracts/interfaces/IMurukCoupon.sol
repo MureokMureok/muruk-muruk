@@ -199,7 +199,7 @@ interface IMurukCoupon {
     error CampaignExists(uint256 campaignId);
     error CampaignNotFound(uint256 campaignId);
     error NotInCampaign(uint256 campaignId, uint256 merchantId);
-    error TermsLocked(uint256 campaignId);                       // LOCKED — 준비 중이 아니면 조건 변경 불가
+    error TermsLocked(uint256 campaignId);                       // LOCKED — 준비 중이 아니거나 종료 시각이 지나면 조건 변경 불가
     error InvalidTerms();                                        // INVALID — 할인 금액·최소 주문·할인 한도
     error InvalidStatus(uint256 campaignId);                     // INVALID_STATUS — 지금 상태에서 못 바꿈 (종료 시각 지남 포함)
     error NotReady(uint256 campaignId);                          // NOT_READY — 조건 미등록 가게가 있음
