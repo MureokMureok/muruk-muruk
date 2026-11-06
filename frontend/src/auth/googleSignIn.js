@@ -4,10 +4,13 @@
 //
 // 클라이언트 ID는 frontend/.env의 VITE_GOOGLE_CLIENT_ID에 넣는다 (백엔드 GOOGLE_CLIENT_ID와 같은 값)
 // 팀 규칙: 값을 코드·문서·채팅·AI 도구에 올리지 않는다
-export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+// npm run dev:mock은 구글 없이 시험 계정으로 모든 역할 화면을 보는 모드라 값을 쓰지 않는다
+export const GOOGLE_CLIENT_ID = import.meta.env.MODE === 'mock' ? '' : import.meta.env.VITE_GOOGLE_CLIENT_ID
 
 const SCRIPT_URL = 'https://accounts.google.com/gsi/client'
 let scriptLoading = null // 구글 스크립트는 한 번만 불러온다
+let initialized = false
+let latestOnCredential = null
 
 function loadScript() {
   if (window.google?.accounts?.id) return Promise.resolve()
@@ -29,10 +32,15 @@ function loadScript() {
 // container 안에 구글 버튼을 그린다. 로그인이 끝나면 onCredential(ID 토큰)을 부른다
 export async function renderGoogleButton(container, onCredential) {
   await loadScript()
-  window.google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: (response) => onCredential(response.credential),
-  })
+  latestOnCredential = onCredential
+  // initialize는 페이지당 한 번만 허용된다. 로그인 화면에 다시 들어와도 마지막 화면의 함수가 불리게 변수로 넘긴다
+  if (!initialized) {
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (response) => latestOnCredential(response.credential),
+    })
+    initialized = true
+  }
   window.google.accounts.id.renderButton(container, {
     theme: document.documentElement.dataset.theme === 'dark' ? 'filled_black' : 'outline',
     size: 'large',

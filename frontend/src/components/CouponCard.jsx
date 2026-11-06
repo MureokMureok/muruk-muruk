@@ -21,7 +21,7 @@ const AUTO_BADGE = {
 function CouponCard({ coupon, caption, sub, badge, large, to }) {
   const dim = coupon.status === 'USED' || coupon.status === 'EXPIRED' || coupon.status === 'VOIDED'
   const chip = badge ?? AUTO_BADGE[coupon.status]
-  const detail = sub ?? [coupon.minOrder ? minOrderText(coupon.minOrder) : null, coupon.expiresAt ? `${mmdd(coupon.expiresAt)}까지` : null].filter(Boolean).join(' · ')
+  const detail = sub ?? [coupon.minOrder != null ? minOrderText(coupon.minOrder) : null, coupon.expiresAt ? `${mmdd(coupon.expiresAt)}까지` : null].filter(Boolean).join(' · ')
 
   const body = (
     <>

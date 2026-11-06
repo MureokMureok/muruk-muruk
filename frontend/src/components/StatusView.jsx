@@ -18,7 +18,7 @@ function StatusView({ kind, title, desc, strong, top, sound, children }) {
 
   const tone = { ok: 'ok', wait: 'wait', bad: 'bad', warn: 'bad' }[kind] ?? ''
   return (
-    <div className={`stb ${top ? 'top' : ''}`} role={kind === 'wait' ? 'status' : undefined}>
+    <div className={`stb ${top ? 'top' : ''}`} role={{ wait: 'status', bad: 'alert', warn: 'alert', offline: 'alert' }[kind]}>
       <div className={`ic ${tone}`}>
         {kind === 'wait' && <WaitDots />}
         {(kind === 'ok' || kind === 'bad' || kind === 'warn') && <ResultMark kind={kind} />}

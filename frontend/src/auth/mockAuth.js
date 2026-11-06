@@ -22,6 +22,7 @@ export const ROLES = {
 // (토큰은 api/http.js에 따로 저장)
 const STORAGE_KEY = 'muruk.user'
 const PENDING_KEY = 'muruk.pendingGoogle'
+const MY_NAMES_KEY = 'muruk.myNames'
 
 function save(user) {
   cancelSignUp() // 토큰이 든 이전 가입 대기 정보로 계정이 바뀌지 않게
@@ -63,7 +64,21 @@ function saveLogin(accessToken, user) {
   return save({ ...user, provider: 'google' })
 }
 
-function saveConsumer({ accessToken, userId, name }, email) {
+// 백엔드에 이름 저장 API가 없어 이 브라우저에 사용자별로 남긴다. 로그아웃해도 지우지 않아야 다시 로그인할 때 이름이 유지된다
+function readMyNames() {
+  try {
+    return JSON.parse(localStorage.getItem(MY_NAMES_KEY)) ?? {}
+  } catch {
+    return {}
+  }
+}
+
+function rememberMyName(userId, name) {
+  localStorage.setItem(MY_NAMES_KEY, JSON.stringify({ ...readMyNames(), [userId]: name }))
+}
+
+function saveConsumer({ accessToken, userId, name: googleName }, email) {
+  const name = readMyNames()[userId] ?? googleName
   ensureMockUser(userId, name) // 쿠폰·주문은 아직 모의 데이터라 거기에도 이름을 알려 둠
   return saveLogin(accessToken, { id: userId, name, email, role: ROLES.CONSUMER })
 }
@@ -113,29 +128,26 @@ function finishSignUp(account) {
   return saveAccount(account)
 }
 
-// 백엔드에 이름 변경 API가 생기기 전에는 이 브라우저에만 남고, 다시 로그인하면 구글 이름으로 돌아간다
-async function saveMyName(name) {
-  try {
-    await request('PATCH', '/api/users/me', { name })
-  } catch (err) {
-    if (err.status !== 404 && err.status !== 405) throw err
-  }
+// 다른 탭에서 로그아웃하면 화면은 그대로인데 대기 정보만 사라질 수 있다
+function pendingSignUp() {
+  const g = getPendingGoogle()
+  if (!g) throw new Error('가입 정보가 만료됐어요. 다시 로그인해 주세요.')
+  return g
 }
 
 export async function signUpAsConsumer(name) {
-  const g = getPendingGoogle()
+  const g = pendingSignUp()
   if (USE_BACKEND) {
-    // 계정은 첫 로그인 때 이미 만들어졌으니 이름만 바꾼다
-    setToken(g.consumer.accessToken)
-    await saveMyName(name.trim())
-    return saveConsumer({ ...g.consumer, name: name.trim() }, g.email)
+    // 계정은 첫 로그인 때 이미 만들어졌으니 이름만 남긴다
+    rememberMyName(g.consumer.userId, name.trim())
+    return saveConsumer(g.consumer, g.email)
   }
   return finishSignUp(await signUpConsumer({ id: g.id, email: g.email, name }))
 }
 
 // form: { storeName, category(백엔드 업종 값), bizNumber }
 export async function signUpAsMerchant(form) {
-  const g = getPendingGoogle()
+  const g = pendingSignUp()
   if (USE_BACKEND) {
     let result
     try {
