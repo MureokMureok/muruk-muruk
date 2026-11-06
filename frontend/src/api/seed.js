@@ -11,7 +11,7 @@ import { addLedger, doConfirm, doPublishPolicy, doPurchase, doRedeem } from './c
 
 // 처음 상태 데이터의 버전. 예시 데이터를 바꾸면 숫자를 올린다 →
 // 브라우저에 저장된 예전 시연 데이터가 자동으로 새 데이터로 바뀜 (api.js의 load 참고)
-export const SEED_VERSION = 13
+export const SEED_VERSION = 14
 
 export function createSeed(mode = 'ready') {
   const db = createDemoStart()
@@ -41,7 +41,7 @@ function createDemoStart() {
     merchants: [
       { id: 'm1', name: '과수원집', category: '제철 과일', short: '과', color: '#ffc091', status: 'APPROVED', appliedAt: '2026-10-20', bizChecked: true, channel: '자체 쇼핑몰', kcpPay: true, scale: '소형' },
       { id: 'm2', name: '봄꽃상회', category: '꽃·식물', short: '봄', color: '#ffd7ef', status: 'APPROVED', appliedAt: '2026-10-20', bizChecked: true, channel: '자체 쇼핑몰', kcpPay: true, scale: '소형' },
-      { id: 'm3', name: '바다찬', category: '수산·반찬', short: '바', color: '#a0e1e1', status: 'APPROVED', appliedAt: '2026-10-21', bizChecked: true, channel: '오픈마켓 + 자체 쇼핑몰', kcpPay: true, scale: '소형' },
+      { id: 'm3', name: '바다찬', category: '수산물', short: '바', color: '#a0e1e1', status: 'APPROVED', appliedAt: '2026-10-21', bizChecked: true, channel: '오픈마켓 + 자체 쇼핑몰', kcpPay: true, scale: '소형' },
       { id: 'm4', name: '들꽃공방', category: '꽃·식물', short: '들', color: '#ffe7a3', status: 'APPLIED', appliedAt: '2026-11-01', bizChecked: true, channel: '자체 쇼핑몰', kcpPay: true, scale: '소형' },
       { id: 'm5', name: '산골농원', category: '농산물', short: '산', color: '#d5e8b5', status: 'APPLIED', appliedAt: '2026-10-31', bizChecked: true, channel: '오픈마켓', kcpPay: false, scale: '소형' },
     ],

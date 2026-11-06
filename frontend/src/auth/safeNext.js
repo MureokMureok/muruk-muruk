@@ -4,7 +4,9 @@ export function safeNext(next) {
   if (!next) return null
   try {
     const url = new URL(next, window.location.origin)
-    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : null
+    // "/.//evil.example"은 같은 origin으로 풀리지만 경로가 //로 시작해 외부 주소가 된다
+    if (url.origin !== window.location.origin || url.pathname.startsWith('//')) return null
+    return url.pathname + url.search + url.hash
   } catch {
     return null
   }

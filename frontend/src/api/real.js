@@ -1,6 +1,7 @@
 // 실서버 호출. mock.js와 함수 이름·인자·돌려주는 값이 같아서 화면 코드는 바뀌지 않는다
 // 주소와 응답 필드는 frontend/docs/api-fields.md. 사용자·가맹점은 서버가 토큰으로 알아내므로 id 인자를 보내지 않는다
-import { request } from './http.js'
+import { MERCHANT_CATEGORY } from '../utils/labels.js'
+import { request as send } from './http.js'
 
 const path = (strings, ...values) => strings.reduce((out, s, i) => out + encodeURIComponent(values[i - 1]) + s)
 
@@ -13,6 +14,17 @@ const orNull = (promise) =>
 
 // 백엔드 승인 상태 이름(ACTIVE)을 화면 이름(APPROVED)으로 맞춘다
 const toScreenStatus = (merchant) => (merchant?.status === 'ACTIVE' ? { ...merchant, status: 'APPROVED' } : merchant)
+
+// 화면은 mock.js처럼 업종을 한글로 받는다. 업종은 여러 응답의 여러 깊이에 있어서 응답 전체를 훑는다
+function withCategoryLabels(value) {
+  if (Array.isArray(value)) return value.map(withCategoryLabels)
+  if (value === null || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, v]) => [key, key === 'category' || key === 'merchantCategory' ? (MERCHANT_CATEGORY[v] ?? v) : withCategoryLabels(v)]),
+  )
+}
+
+const request = async (...args) => withCategoryLabels(await send(...args))
 
 // ---------- 소비자 ----------
 export const getCampaign = () => request('GET', '/api/campaigns/current')

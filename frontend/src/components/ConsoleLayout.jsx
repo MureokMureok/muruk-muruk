@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { getMerchant, resetDemo } from '../api/api.js'
-import { REAL_MODE } from '../api/mode.js'
+import { isRealApi } from '../api/mode.js'
 import { getUser, logout } from '../auth/mockAuth.js'
 import { useApi } from '../hooks/useApi.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
@@ -36,7 +36,7 @@ function ConsoleLayout({ variant, menu, soon }) {
 
   return (
     <div className="pc">
-      {resetMode && <ConfirmDialog message="시연 데이터를 처음 상태로 되돌릴까요? 쿠폰·주문·기록이 모두 지워져요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
+      {resetMode && <ConfirmDialog message="시연 데이터를 처음 상태로 되돌릴까요? 쿠폰·주문·기록과 새로 가입한 계정이 모두 지워져요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
       <header className="gnb">
         <img src="/logo.png" alt="무럭무럭" />
         <span className={`where ${kcp ? 'kcp' : ''}`}>{kcp ? 'KCP 관리자' : '가맹점 센터'}</span>
@@ -69,7 +69,7 @@ function ConsoleLayout({ variant, menu, soon }) {
           )}
           {/* 발표 리허설용 */}
           <div className="tools">
-            {!REAL_MODE && (
+            {!isRealApi('purchase') && (
               <>
                 <span>시연 도구</span>
                 <button className="text-link" onClick={() => setResetMode('ready')}>
