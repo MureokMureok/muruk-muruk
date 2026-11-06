@@ -5,6 +5,7 @@
 // 같은 데이터를 공유해 시연 장면이 이어진다. resetDemo()로 처음 상태로 되돌릴 수 있다.
 // 규칙(발급·사용 검증 등)은 core.js에 있다.
 
+import { MERCHANT_CATEGORY } from '../utils/labels.js'
 import {
   ApiError,
   USE_CHECKS,
@@ -147,8 +148,6 @@ export function ensureMockUser(id, name) {
   save(db)
 }
 
-// 백엔드 업종 값 → 모의 데이터의 업종 글자
-const CATEGORY_LABEL = { FLOWER_PLANT: '꽃·식물', FRUIT: '제철 과일', SEAFOOD: '수산·반찬', FARM_PRODUCE: '농산물', SIDE_DISH: '수산·반찬' }
 
 // 새 가게 표시 색
 const STORE_COLORS = ['#ffc091', '#ffd7ef', '#a0e1e1', '#ffe7a3', '#d5e8b5']
@@ -162,7 +161,7 @@ export async function signUpMerchant({ id, email, storeName, category, bizNumber
   if (db.merchants.some((m) => m.name === name)) throw new ApiError('DUPLICATE_STORE', '이미 등록된 가게 이름이에요.')
   const n = db.merchants.length + 1
   const merchantId = `m${n}`
-  db.merchants.push({ id: merchantId, name, category: CATEGORY_LABEL[category], short: name[0], color: STORE_COLORS[n % STORE_COLORS.length], status: 'APPLIED', appliedAt: today(), bizNumber: bizNumber.replace(/\D/g, ''), bizChecked: false, channel: '미입력', kcpPay: false, scale: '소형' })
+  db.merchants.push({ id: merchantId, name, category: MERCHANT_CATEGORY[category], short: name[0], color: STORE_COLORS[n % STORE_COLORS.length], status: 'APPLIED', appliedAt: today(), bizNumber: bizNumber.replace(/\D/g, ''), bizChecked: false, channel: '미입력', kcpPay: false, scale: '소형' })
   db.products.push({ merchantId, name: `${name} 대표 상품`, price: 20000 }) // 백엔드에 상품이 없어 시연용 기본값
   const account = { id, name, email, role: 'store', merchantId }
   db.accounts.push(account)

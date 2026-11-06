@@ -14,6 +14,16 @@ export const MERCHANT_STATUS = {
   APPLIED: { label: '심사 대기', tone: 'y' },
   APPROVED: { label: '승인', tone: '' },
   REJECTED: { label: '반려', tone: 'r' },
+  SUSPENDED: { label: '정지', tone: 'r' },
+}
+
+// 가맹점 업종: 백엔드 값(MerchantCategory) → 화면 글자
+export const MERCHANT_CATEGORY = {
+  FLOWER_PLANT: '꽃·식물',
+  FRUIT: '제철 과일',
+  SEAFOOD: '수산물',
+  FARM_PRODUCE: '농산물',
+  SIDE_DISH: '반찬·밀키트',
 }
 
 // 기록 종류

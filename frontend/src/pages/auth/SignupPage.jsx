@@ -6,15 +6,10 @@ import Icon from '../../components/Icon.jsx'
 import { SproutOverlay } from '../../components/SproutLoading.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import Timeline from '../../components/Timeline.jsx'
+import { MERCHANT_CATEGORY } from '../../utils/labels.js'
 
-// 가맹점 업종: [화면 글자, 백엔드 값] (backend MerchantCategory)
-const CATEGORIES = [
-  ['꽃·식물', 'FLOWER_PLANT'],
-  ['제철 과일', 'FRUIT'],
-  ['수산물', 'SEAFOOD'],
-  ['농산물', 'FARM_PRODUCE'],
-  ['반찬·밀키트', 'SIDE_DISH'],
-]
+// 가맹점 업종 선택지: [화면 글자, 백엔드 값]
+const CATEGORIES = Object.entries(MERCHANT_CATEGORY).map(([value, label]) => [label, value])
 
 // 상단 바: 뒤로 + 제목 + 단계 표시
 function SignupBar({ title, step, onBack }) {
