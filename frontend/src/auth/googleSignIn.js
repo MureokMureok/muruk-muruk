@@ -2,7 +2,8 @@
 // 구글이 만든 버튼을 화면에 그리고, 로그인이 끝나면 "ID 토큰"을 받는다.
 // 이 ID 토큰이 백엔드 POST /api/auth/google 이 받는 값이다 (backend AuthController).
 //
-// 클라이언트 ID는 frontend/.env의 VITE_GOOGLE_CLIENT_ID에 넣는다 (백엔드 GOOGLE_CLIENT_ID와 같은 값, 비밀 아님)
+// 클라이언트 ID는 frontend/.env의 VITE_GOOGLE_CLIENT_ID에 넣는다 (백엔드 GOOGLE_CLIENT_ID와 같은 값)
+// 팀 규칙: 값을 코드·문서·채팅·AI 도구에 올리지 않는다
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
 const SCRIPT_URL = 'https://accounts.google.com/gsi/client'
