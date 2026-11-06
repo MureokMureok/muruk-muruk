@@ -6,7 +6,7 @@ import { MERCHANT_STATUS } from '../../utils/labels.js'
 import { mmdd } from '../../utils/format.js'
 
 // 타깃 카테고리: 농수산물·꽃 (인수인계 5절 [확정])
-const TARGET = ['꽃·식물', '제철 과일', '농산물', '수산·반찬']
+const TARGET = ['꽃·식물', '제철 과일', '농산물', '수산물']
 
 // K1 가맹점 심사 (목업 v3 KCP 관리자) — 예전 "가맹점 등록(화이트리스트)" 대신
 // 승인된 가게만 연합 기획전에 참여하고 쿠폰 조건을 등록할 수 있다
@@ -119,7 +119,7 @@ function AdminMerchants() {
               </button>
             </>
           ) : (
-            <div className="nb">{m.status === 'APPROVED' ? '승인된 가게예요. 새 연합 기획전에 참여 가게로 넣을 수 있어요.' : '반려된 가게예요.'}</div>
+            <div className="nb">{m.status === 'APPROVED' ? '승인된 가게예요. 새 연합 기획전에 참여 가게로 넣을 수 있어요.' : m.status === 'SUSPENDED' ? '일시 정지된 가게예요.' : '반려된 가게예요.'}</div>
           )}
         </section>
       </div>
