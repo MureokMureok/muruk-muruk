@@ -136,9 +136,11 @@ export function doPublishPolicy(db, merchantId, form, at) {
   const name = form.name.trim()
   if (!name || name.length > 100) throw new ApiError('INVALID', '쿠폰 이름은 1자 이상 100자 이하로 입력해 주세요.')
   if (!(form.value >= 1)) throw new ApiError('INVALID', '할인 금액을 입력해 주세요.')
+  const minOrder = form.minOrder ?? 0 // 백엔드도 생략하면 0으로 본다
+  if (!(minOrder >= 0)) throw new ApiError('INVALID', '최소 주문 금액은 0원 이상이어야 해요.')
   if (!(form.validDays >= 1)) throw new ApiError('INVALID', '유효 기간은 1일 이상이어야 해요.')
   if (!(form.quantity >= 1)) throw new ApiError('INVALID', '발행 수량은 1장 이상이어야 해요.')
-  const policy = { id: newId('p'), merchantId, name, value: form.value, minOrder: form.minOrder, validDays: form.validDays, quantity: form.quantity, createdAt: at }
+  const policy = { id: newId('p'), merchantId, name, value: form.value, minOrder, validDays: form.validDays, quantity: form.quantity, createdAt: at }
   db.couponPolicies.push(policy)
   addLedger(db, at, 'ADMIN', `${m.name} 일반 쿠폰 발행 · ${name} · ${won(policy.value)} · ${policy.quantity}장`, m.name, { merchantId, policyId: policy.id })
   return policy
