@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { getStoreDashboard } from '../../api/api.js'
+import { isRealApi } from '../../api/mode.js'
 import { getUser } from '../../auth/mockAuth.js'
 import Icon from '../../components/Icon.jsx'
 import { useApi } from '../../hooks/useApi.js'
@@ -33,7 +34,7 @@ function StoreDashboard() {
         <div className="tt">
           <h1>안녕하세요, {d.merchant.name} 사장님</h1>
           <p>
-            {Number(d.asOf.slice(5, 7))}월 {Number(d.asOf.slice(8, 10))}일 기준 · 시연용 모의 데이터예요
+            {Number(d.asOf.slice(5, 7))}월 {Number(d.asOf.slice(8, 10))}일 기준{isRealApi('getStoreDashboard') ? '' : ' · 시연용 모의 데이터예요'}
           </p>
         </div>
       </div>

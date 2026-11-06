@@ -97,9 +97,7 @@ function StoreCampaign() {
                     </td>
                     <td>{t.merchantCategory}</td>
                     <td>{t.registered ? `${won(t.value)} · ${won(t.minOrder)} 이상` : <span className="muted">—</span>}</td>
-                    <td className="num">
-                      {t.issued} / {t.qtyTotal}장
-                    </td>
+                    <td className="num">{t.registered ? `${t.issued} / ${t.qtyTotal}장` : <span className="muted">—</span>}</td>
                     <td className="num">{t.used}장</td>
                     <td>
                       <span className={`chip ${chip.tone}`}>{chip.label}</span>
