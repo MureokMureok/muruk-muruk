@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SIMULATIONS, getMySummary, getSimulation, resetDemo, setSimulation } from '../../api/api.js'
+import { REAL_MODE } from '../../api/mode.js'
 import { getUser, logout } from '../../auth/mockAuth.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
@@ -85,8 +86,8 @@ function MyPage() {
         로그아웃
       </button>
 
-      {/* 발표 질의응답용: 실패·확인 중 화면을 보여줄 때 */}
-      <section className="nb col tools">
+      {/* 발표 질의응답용: 실패·확인 중 화면을 보여줄 때. 실서버에는 시연 데이터가 없어 숨긴다 */}
+      {!REAL_MODE && <section className="nb col tools">
         <span className="cap">시연 도구 (발표용)</span>
         <label style={{ width: '100%' }}>
           <span className="cap">실패·확인 중 상황 만들기 (연결 오류 말고는 한 번만)</span>
@@ -104,7 +105,7 @@ function MyPage() {
         <button className="text-link" onClick={() => setResetMode('demo')}>
           시연 시작 상태로 (KCP 가맹점 심사부터)
         </button>
-      </section>
+      </section>}
     </PhoneScreen>
   )
 }
