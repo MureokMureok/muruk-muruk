@@ -7,7 +7,11 @@ import { network } from "hardhat";
 
 const connection = await network.getOrCreate();
 const { ethers } = connection;
-const [kcp, backend, consumer] = await ethers.getSigners();
+const signers = await ethers.getSigners();
+// KCP 테스트넷처럼 배포 계정이 하나뿐이면: 백엔드 역할도 같은 계정이 맡고, 소비자는 주소만 쓰므로 새 빈 주소를 만든다
+const [kcp] = signers;
+const backend = signers[1] ?? kcp;
+const consumer = signers[2] ?? ethers.Wallet.createRandom();
 
 const NAMES = { 1: "과수원집", 2: "봄꽃상회", 3: "바다찬", 4: "들꽃공방" };
 // seed.js 쿠폰 조건 (할인 금액, 최소 주문, 유효기간 0 = 받은 날부터 30일, 할인 한도)
@@ -105,7 +109,8 @@ for (const id of [1n, 2n, 3n]) {
   const t = await coupon.termOf(CAMPAIGN, id);
   console.log(`      ${NAMES[id].padEnd(5)} 발급 ${t.issuedCount}/${t.maxIssue}장 · 사용 ${t.usedCount}장 · 할인 부담 ${won(t.burden)}`);
 }
-const count = async (f) => (await coupon.queryFilter(f)).length;
+// 배포한 블록부터만 찾는다 (실제 체인은 블록이 많아서 처음부터 찾으면 조회 범위 제한에 걸릴 수 있음)
+const count = async (f) => (await coupon.queryFilter(f, dr.blockNumber)).length;
 console.log(
   `\n[8 기록 조회] 발급 ${await count(coupon.filters.CouponIssued())}건 · 사용 ${await count(coupon.filters.CouponRedeemed())}건 · 거절 ${await count(coupon.filters.RedeemRejected())}건 · 관리 ${(await count(coupon.filters.MerchantReviewed())) + (await count(coupon.filters.TermsRegistered())) + (await count(coupon.filters.CampaignStatusChanged())) + (await count(coupon.filters.CampaignCreated()))}건`,
 );
