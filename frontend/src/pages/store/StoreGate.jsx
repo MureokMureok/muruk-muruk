@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { getMerchant } from '../../api/api.js'
+import { isRealApi } from '../../api/mode.js'
 import { getUser, logout } from '../../auth/mockAuth.js'
 import ConsoleLayout from '../../components/ConsoleLayout.jsx'
 import StatusView from '../../components/StatusView.jsx'
@@ -28,7 +29,7 @@ function StoreGate({ menu, soon }) {
 
   if (loading && !merchant) return null
   if (missing) return <Navigate to="/login" replace />
-  if (merchant.status === 'APPROVED') return <ConsoleLayout variant="store" menu={menu} soon={soon} />
+  if (merchant.status === 'APPROVED' || (merchant.status === 'ACTIVE' && isRealApi('getStoreDashboard'))) return <ConsoleLayout variant="store" menu={menu} soon={soon} />
   // 승인된 진짜 가맹점: 가맹점 센터 화면은 아직 모의 데이터라 가게 정보가 맞지 않는다. 화면을 연결할 때까지 안내만
   if (merchant.status === 'ACTIVE') {
     return (

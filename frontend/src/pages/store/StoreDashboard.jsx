@@ -11,9 +11,9 @@ import { SproutLoading } from '../../components/SproutLoading.jsx'
 function logItem(l, merchantName) {
   if (l.type === 'USE') return { dot: '', icon: 'check', title: '쿠폰 사용', sub: `${mdhm(l.at)} · ${l.customer} · ${won(l.discount)}` }
   if (l.type === 'APPLY') return { dot: 'm', icon: 'ticket', title: '쿠폰 결제 적용 · 처리 중', sub: `${mdhm(l.at)} · ${l.customer} · ${won(l.discount)}` }
-  if (l.type === 'CONFIRM') return { dot: 'm', icon: 'check', title: '구매 확정', sub: `${mdhm(l.at)} · ${l.customer} · ${l.detail.split(' · ')[1]}` }
-  if (l.type === 'REFUND') return { dot: 'x', icon: 'alert', title: '주문 취소·환불', sub: `${mdhm(l.at)} · ${l.customer} · ${l.detail.split(' · ')[1]}` }
-  if (l.type === 'REJECT') return { dot: 'x', icon: 'alert', title: l.reason === 'COUPON_ALREADY_USED' ? '재사용 시도 거절' : '사용 거절', sub: `${mdhm(l.at)} · ${l.reason === 'COUPON_ALREADY_USED' ? '같은 쿠폰' : l.detail.split(' · ')[1]}` }
+  if (l.type === 'CONFIRM') return { dot: 'm', icon: 'check', title: '구매 확정', sub: `${mdhm(l.at)} · ${l.customer} · ${l.summary}` }
+  if (l.type === 'REFUND') return { dot: 'x', icon: 'alert', title: '주문 취소·환불', sub: `${mdhm(l.at)} · ${l.customer} · ${l.summary}` }
+  if (l.type === 'REJECT') return { dot: 'x', icon: 'alert', title: l.reason === 'COUPON_ALREADY_USED' ? '재사용 시도 거절' : '사용 거절', sub: `${mdhm(l.at)} · ${l.reason === 'COUPON_ALREADY_USED' ? '같은 쿠폰' : l.summary}` }
   if (l.type === 'ISSUE' && l.claimed) return { dot: 'm', icon: 'ticket', title: '일반 쿠폰 받기', sub: `${mdhm(l.at)} · ${l.customer}` }
   if (l.type === 'ISSUE') return { dot: 'm', icon: 'ticket', title: '쿠폰 발급', sub: `${mdhm(l.at)} · ${l.actor === merchantName ? '우리 가게' : l.actor} 구매` }
   return { dot: 'm', icon: 'sliders', title: '관리', sub: `${mdhm(l.at)} · ${l.detail}` }
