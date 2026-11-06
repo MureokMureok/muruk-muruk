@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { getCampaign } from '../../api/api.js'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { CAMPAIGN_IMAGE } from '../../utils/images.js'
 import { period, won } from '../../utils/format.js'
 
 // 기획전이 진행 중이 아닐 때 안내
@@ -27,7 +28,7 @@ function CampaignPage() {
       }
     >
       <div className="shopimg" style={{ height: 80 }}>
-        기획전 이미지
+        <img src={CAMPAIGN_IMAGE} alt="" />
       </div>
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 800 }}>{c.title}</h2>

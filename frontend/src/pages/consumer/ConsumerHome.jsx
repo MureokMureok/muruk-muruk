@@ -6,10 +6,12 @@ import Icon from '../../components/Icon.jsx'
 import { SproutLoading } from '../../components/SproutLoading.jsx'
 import TabBar from '../../components/TabBar.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { CAMPAIGN_IMAGE } from '../../utils/images.js'
 import { minOrderText, period, won } from '../../utils/format.js'
+import { MERCHANT_CATEGORY } from '../../utils/labels.js'
 
 // 카테고리 (목업 C-01). 검색 대상이 기획전·가게·상품 이름이라 지금은 눌러지지 않는 표시만
-const CATEGORIES = ['꽃·식물', '제철 과일', '수산물', '농산물', '반찬']
+const CATEGORIES = Object.values(MERCHANT_CATEGORY)
 
 // 기획전이 진행 중이 아닐 때 배너에 붙이는 표시
 const NOT_ACTIVE = { PREPARING: '시작 전', PAUSED: '일시 중지', ENDED: '종료' }
@@ -50,7 +52,9 @@ function ConsumerHome() {
                   </span>
                   {NOT_ACTIVE[campaign.status] && <span className="chip">{NOT_ACTIVE[campaign.status]}</span>}
                 </span>
-                <div className="im">기획전 이미지</div>
+                <div className="im">
+                  <img src={CAMPAIGN_IMAGE} alt="" />
+                </div>
                 <h3>{campaign.title}</h3>
                 <p>한 곳에서 사면 다른 가게 쿠폰을 드려요</p>
               </Link>

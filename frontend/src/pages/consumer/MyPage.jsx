@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SIMULATIONS, getMySummary, getSimulation, resetDemo, setSimulation } from '../../api/api.js'
-import { REAL_MODE } from '../../api/mode.js'
+import { isRealApi } from '../../api/mode.js'
 import { getUser, logout } from '../../auth/mockAuth.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
@@ -38,7 +38,7 @@ function MyPage() {
 
   return (
     <PhoneScreen large="MY" tabs>
-      {resetMode && <ConfirmDialog message="시연 데이터를 처음 상태로 되돌릴까요? 쿠폰·주문·기록이 모두 지워져요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
+      {resetMode && <ConfirmDialog message="시연 데이터를 처음 상태로 되돌릴까요? 쿠폰·주문·기록과 새로 가입한 계정이 모두 지워져요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
       <div className="profile">
         <span className="avatar">{user.name[0]}</span>
         <div>
@@ -86,8 +86,8 @@ function MyPage() {
         로그아웃
       </button>
 
-      {/* 발표 질의응답용: 실패·확인 중 화면을 보여줄 때. 실서버에는 시연 데이터가 없어 숨긴다 */}
-      {!REAL_MODE && <section className="nb col tools">
+      {/* 발표 질의응답용: 실패·확인 중 화면을 보여줄 때. 구매가 실서버로 가면 시연 데이터를 쓰지 않으므로 숨긴다 */}
+      {!isRealApi('purchase') && <section className="nb col tools">
         <span className="cap">시연 도구 (발표용)</span>
         <label style={{ width: '100%' }}>
           <span className="cap">실패·확인 중 상황 만들기 (연결 오류 말고는 한 번만)</span>

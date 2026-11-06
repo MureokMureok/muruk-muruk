@@ -9,6 +9,7 @@ import { SproutLoading, SproutOverlay } from '../../components/SproutLoading.jsx
 import StatusView from '../../components/StatusView.jsx'
 import Timeline from '../../components/Timeline.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { productImage } from '../../utils/images.js'
 import { mmdd, won } from '../../utils/format.js'
 
 // 받을 쿠폰 조건 한 줄: "15,000원 이상 · 받은 날부터 30일"
@@ -74,7 +75,8 @@ function BuyScreen({ merchantId }) {
   const location = useLocation()
   const user = getUser()
   const { data } = useApi(async () => {
-    const [product, preview] = await Promise.all([getProduct(merchantId), previewPurchase(merchantId)])
+    const product = await getProduct(merchantId)
+    const preview = product ? await previewPurchase(merchantId) : null
     return { product, preview }
   }, [merchantId])
 
@@ -255,7 +257,7 @@ function BuyScreen({ merchantId }) {
     >
       {payError && <p className="nb err">{payError}</p>}
       <div className="shopimg" style={{ height: 150 }}>
-        상품 이미지
+        {productImage(merchantId) ? <img src={productImage(merchantId)} alt="" /> : '상품 이미지'}
       </div>
       <div>
         <span className="cap">

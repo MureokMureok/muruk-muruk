@@ -4,6 +4,7 @@ import { getCampaigns } from '../../api/api.js'
 import Icon from '../../components/Icon.jsx'
 import StatusView from '../../components/StatusView.jsx'
 import { useApi } from '../../hooks/useApi.js'
+import { productImage } from '../../utils/images.js'
 import { CAMPAIGN_STATUS } from '../../utils/labels.js'
 import { won } from '../../utils/format.js'
 import { addRecent, clearRecent, filterRows, getAutosave, getRecent, highlight, matches, removeRecent, setAutosave, suggestionsOf, toSearchRows } from '../../utils/search.js'
@@ -165,7 +166,7 @@ function Results({ q, rows, names, onPick }) {
       {list.length === 0 && <p className="cap center">이 검색어로는 지금 쿠폰을 받는 상품이 없어요</p>}
       {list.map((p) => (
         <Link className="sr" key={p.key} to={`/campaign/buy/${p.merchantId}`}>
-          <div className="shopimg sr-im">상품 이미지</div>
+          <div className="shopimg sr-im">{productImage(p.merchantId) ? <img src={productImage(p.merchantId)} alt="" /> : '상품 이미지'}</div>
           <div className="sr-b">
             <span className="cap">
               <Hl text={p.merchantName} q={q} /> · {p.merchantCategory}

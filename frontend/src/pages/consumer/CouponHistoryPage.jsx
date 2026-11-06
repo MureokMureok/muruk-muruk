@@ -26,7 +26,8 @@ function CouponHistoryPage() {
   const { couponId } = useParams()
   const userId = getUser().id
   const { data } = useApi(async () => {
-    const [coupon, history] = await Promise.all([getCoupon(couponId, userId), getCouponHistory(couponId)])
+    const coupon = await getCoupon(couponId, userId)
+    const history = coupon ? await getCouponHistory(couponId) : []
     return { coupon, history }
   }, [couponId, userId])
 
