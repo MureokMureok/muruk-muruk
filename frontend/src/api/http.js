@@ -35,7 +35,7 @@ export async function request(method, path, body) {
     // 본문이 JSON이 아니면 아래에서 실패로 처리
   }
   if (!res.ok || !data?.isSuccess) {
-    throw new ApiError(data?.code ?? `HTTP${res.status}`, data?.message ?? '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.', { status: res.status })
+    throw new ApiError(data?.code ?? `HTTP${res.status}`, data?.message ?? '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.', { ...data?.result, status: res.status })
   }
   return data.result
 }

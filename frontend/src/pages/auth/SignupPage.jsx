@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { USE_BACKEND, cancelSignUp, getPendingGoogle, signUpAsConsumer, signUpAsMerchant } from '../../auth/mockAuth.js'
+import { cancelSignUp, getPendingGoogle, signUpAsConsumer, signUpAsMerchant } from '../../auth/mockAuth.js'
 import { safeNext } from '../../auth/safeNext.js'
 import Icon from '../../components/Icon.jsx'
 import { SproutOverlay } from '../../components/SproutLoading.jsx'
@@ -118,17 +118,7 @@ function ConsumerSignup({ google, next, onBack }) {
     <div className="phone-app">
       <SignupBar title="이용자 가입" onBack={onBack} />
       <main className="ct">
-        {/* 진짜 백엔드는 구글 계정 이름을 그대로 쓴다 (이름 변경 API 없음) */}
-        {USE_BACKEND ? (
-          <div className="field">
-            <div className="lb">이름</div>
-            <div className="inp lock">
-              <input value={name} aria-label="이름" readOnly />
-            </div>
-          </div>
-        ) : (
-          <TextField label="이름" value={name} onChange={setName} autoComplete="name" />
-        )}
+        <TextField label="이름" help="쿠폰함과 MY에 보여요. 닉네임을 써도 괜찮아요." maxLength={50} value={name} onChange={setName} autoComplete="name" />
         <div className="field">
           <div className="lb">Google 계정</div>
           <div className="inp lock">
