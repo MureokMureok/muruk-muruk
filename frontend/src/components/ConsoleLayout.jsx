@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { getMerchant, resetDemo } from '../api/api.js'
+import { REAL_MODE } from '../api/mode.js'
 import { getUser, logout } from '../auth/mockAuth.js'
 import { useApi } from '../hooks/useApi.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
@@ -68,13 +69,17 @@ function ConsoleLayout({ variant, menu, soon }) {
           )}
           {/* 발표 리허설용 */}
           <div className="tools">
-            <span>시연 도구</span>
-            <button className="text-link" onClick={() => setResetMode('ready')}>
-              데이터 처음으로 (기획전 진행 중)
-            </button>
-            <button className="text-link" onClick={() => setResetMode('demo')}>
-              시연 시작 상태로 (가맹점 심사부터)
-            </button>
+            {!REAL_MODE && (
+              <>
+                <span>시연 도구</span>
+                <button className="text-link" onClick={() => setResetMode('ready')}>
+                  데이터 처음으로 (기획전 진행 중)
+                </button>
+                <button className="text-link" onClick={() => setResetMode('demo')}>
+                  시연 시작 상태로 (가맹점 심사부터)
+                </button>
+              </>
+            )}
             <button className="text-link" onClick={handleLogout}>
               로그아웃
             </button>

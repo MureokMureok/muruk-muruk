@@ -4,11 +4,12 @@
 //
 // [확정] 소비자·가맹점·KCP 관리자 모두 구글 로그인 (팀 결정)
 
-import { ensureMockUser, findAccount, signUpConsumer, signUpMerchant } from '../api/api.js'
-import { API_BASE, clearToken, request, setToken } from '../api/http.js'
-import { GOOGLE_CLIENT_ID, readIdToken } from './googleSignIn.js'
+import { clearToken, request, setToken } from '../api/http.js'
+import { ensureMockUser, findAccount, signUpConsumer, signUpMerchant } from '../api/mock.js'
+import { REAL_MODE } from '../api/mode.js'
+import { readIdToken } from './googleSignIn.js'
 
-export const USE_BACKEND = Boolean(API_BASE && GOOGLE_CLIENT_ID)
+export const USE_BACKEND = REAL_MODE
 
 // 역할 이름 (화면 이동 기준)
 export const ROLES = {
@@ -112,12 +113,22 @@ function finishSignUp(account) {
   return saveAccount(account)
 }
 
+// 백엔드에 이름 변경 API가 생기기 전에는 이 브라우저에만 남고, 다시 로그인하면 구글 이름으로 돌아간다
+async function saveMyName(name) {
+  try {
+    await request('PATCH', '/api/users/me', { name })
+  } catch (err) {
+    if (err.status !== 404 && err.status !== 405) throw err
+  }
+}
+
 export async function signUpAsConsumer(name) {
   const g = getPendingGoogle()
   if (USE_BACKEND) {
-    // 계정은 첫 로그인 때 이미 만들어졌다 (이름 변경 API는 없음)
-    cancelSignUp()
-    return saveConsumer(g.consumer, g.email)
+    // 계정은 첫 로그인 때 이미 만들어졌으니 이름만 바꾼다
+    setToken(g.consumer.accessToken)
+    await saveMyName(name.trim())
+    return saveConsumer({ ...g.consumer, name: name.trim() }, g.email)
   }
   return finishSignUp(await signUpConsumer({ id: g.id, email: g.email, name }))
 }
