@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { getMerchant, resetDemo } from '../api/api.js'
-import { isRealApi } from '../api/mode.js'
+import { ALL_MOCK } from '../api/mode.js'
 import { getUser, logout } from '../auth/mockAuth.js'
 import { useApi } from '../hooks/useApi.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
@@ -27,8 +27,12 @@ function ConsoleLayout({ variant, menu, soon }) {
 
   // 시연 도구 — mode: 'ready'(기획전 진행 중) / 'demo'(시연 시작 — KCP 가맹점 심사부터)
   async function handleReset() {
-    await resetDemo(resetMode)
-    window.location.reload()
+    try {
+      await resetDemo(resetMode)
+      window.location.reload()
+    } finally {
+      setResetMode(null) // 실패해도 확인창이 열린 채 남지 않게
+    }
   }
 
   const kcp = variant === 'kcp'
@@ -36,7 +40,7 @@ function ConsoleLayout({ variant, menu, soon }) {
 
   return (
     <div className="pc">
-      {resetMode && <ConfirmDialog message="시연 데이터를 처음 상태로 되돌릴까요? 쿠폰·주문·기록과 새로 가입한 계정이 모두 지워져요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
+      {resetMode && <ConfirmDialog message="이 브라우저의 시연 데이터를 처음 상태로 되돌릴까요? 시연 중 생긴 쿠폰·주문·기록과 계정이 지워져요. 서버에 저장된 계정과 데이터는 그대로예요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
       <header className="gnb">
         <img src="/logo.png" alt="무럭무럭" />
         <span className={`where ${kcp ? 'kcp' : ''}`}>{kcp ? 'KCP 관리자' : '가맹점 센터'}</span>
@@ -69,11 +73,11 @@ function ConsoleLayout({ variant, menu, soon }) {
           )}
           {/* 발표 리허설용 */}
           <div className="tools">
-            {!isRealApi('purchase') && (
+            {ALL_MOCK && (
               <>
                 <span>시연 도구</span>
                 <button className="text-link" onClick={() => setResetMode('ready')}>
-                  데이터 처음으로 (기획전 진행 중)
+                  시연 데이터 처음으로 (기획전 진행 중)
                 </button>
                 <button className="text-link" onClick={() => setResetMode('demo')}>
                   시연 시작 상태로 (가맹점 심사부터)

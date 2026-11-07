@@ -73,7 +73,7 @@ function Consent({ value, onChange }) {
 
 // ----- 이용자 가입: 이름·동의 → 완료 -----
 function ConsumerSignup({ google, next, onBack }) {
-  const [name, setName] = useState(google.name)
+  const [name, setName] = useState(google.name ?? '') // 구글 계정에 이름이 없을 수 있다
   const [consent, setConsent] = useState({ terms: false, privacy: false })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -98,7 +98,7 @@ function ConsumerSignup({ google, next, onBack }) {
           <h1>회원가입</h1>
         </header>
         <main className="ct">
-          <StatusView kind="ok" title="가입이 끝났어요" desc={`${name.trim()}님, 쿠폰 지갑이 자동으로 만들어졌어요.`} />
+          <StatusView kind="ok" focusTitle title="가입이 끝났어요" desc={`${name.trim()}님, 쿠폰 지갑이 자동으로 만들어졌어요.`} />
         </main>
         <div className="cta flat">
           <Link className="btn" to={next || '/home'} replace>
@@ -161,7 +161,7 @@ function MerchantSignup({ onBack }) {
           <h1>가맹점 가입</h1>
         </header>
         <main className="ct">
-          <StatusView kind="ok" title="참여 신청을 받았어요" desc="KCP 심사가 끝나면 가맹점 센터를 쓸 수 있어요.">
+          <StatusView kind="ok" focusTitle title="참여 신청을 받았어요" desc="KCP 심사가 끝나면 가맹점 센터를 쓸 수 있어요.">
             <Timeline
               items={[
                 { key: 1, tone: 'ok', title: '참여 신청 완료' },
