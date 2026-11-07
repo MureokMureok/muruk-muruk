@@ -34,10 +34,13 @@ public class CouponPolicyQueryService {
     /** 지금 받을 수 있는 쿠폰 목록 (커서 방식, id 내림차순) */
     @Transactional(readOnly = true)
     public CouponPolicyListResponse getClaimable(Long userId, Long cursor, Integer size) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
-        if (!user.isActive()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN); // 일시 정지된 계정
+        // 로그인한 사용자만 계정 확인 (비회원 둘러보기는 userId가 null)
+        if (userId != null) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+            if (!user.isActive()) {
+                throw new BusinessException(ErrorCode.FORBIDDEN); // 일시 정지된 계정
+            }
         }
 
         int pageSize = size == null ? DEFAULT_SIZE : size;
@@ -58,7 +61,7 @@ public class CouponPolicyQueryService {
 
         // 이 페이지의 정책 중 내가 이미 받은 것
         Set<Long> claimedIds = new HashSet<>();
-        if (!page.isEmpty()) {
+        if (userId != null && !page.isEmpty()) {
             List<Long> ids = page.stream().map(CouponPolicyRow::couponPolicyId).toList();
             claimedIds.addAll(couponRepository.findClaimedPolicyIds(userId, ids));
         }
