@@ -29,8 +29,9 @@ public class AdminMerchantService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "변경할 수 있는 상태는 ACTIVE, SUSPENDED, REJECTED입니다.");
         }
 
-        // 2. 가맹점 조회 → 없으면 404
-        Merchant merchant = merchantRepository.findById(merchantId)
+        // 2. 가맹점 행을 잠그고 조회 → 없으면 404
+        //    승인과 반려가 동시에 들어와도 한쪽씩 처리되게 한다 (뒤에 온 요청은 앞 요청이 끝난 뒤의 최신 상태를 본다)
+        Merchant merchant = merchantRepository.findForUpdate(merchantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 가맹점입니다."));
 
         MerchantStatus current = merchant.getStatus();

@@ -188,21 +188,39 @@ public class RedeemService {
     /**
      * 거절: 기록(REJECT)을 새 트랜잭션으로 바로 커밋해 남기고, 에러를 던져 이 요청은 롤백한다.
      * 에러 응답의 result에는 다섯 가지 확인 결과(checks), 실패한 항목(failedKey), 쿠폰 상태, 사용·적용 시각, 가게 이름을 싣는다.
+     * 단, 남의 쿠폰이면(로컬 소유자가 요청한 사람이 아니면) 쿠폰 정보가 새지 않게 failedKey만 알려 주고 나머지는 비운다.
      * 항상 예외를 던지므로 이 메서드 뒤의 코드는 실행되지 않는다.
      */
     private void reject(Ctx ctx, ErrorCode code, String detail) {
         Coupon coupon = ctx.coupon();
-        String couponStatus = coupon == null ? null
+        // 로컬 기준 소유자가 아닌 사람의 요청. (체인이 NOT_OWNER를 돌려줬어도 로컬 소유자라면 해당하지 않는다)
+        boolean foreign = coupon != null && !coupon.getUserId().equals(ctx.userId());
+        String couponStatus = (coupon == null || foreign) ? null
                 : CouponViewStatus.of(coupon.getState(), coupon.getExpiresAt(), LocalDateTime.now()).name();
         ledgerService.recordReject(detail, ctx.actor(), ctx.merchantId(), ctx.userId(), ctx.couponId(),
                 code.getCode(), couponStatus);
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("checks", ctx.checks());
-        data.put("failedKey", failedKeyOf(code));
-        data.put("couponStatus", couponStatus);
-        data.put("usedAt", coupon == null ? null : usedAtOf(coupon));
-        data.put("merchantName", ctx.merchantName());
+        if (foreign) {
+            // 남의 쿠폰: 다른 항목은 확인하지 않은 것으로 돌려준다 (쿠폰 상태·사용 시각·가게 이름 숨김)
+            Map<String, Boolean> checks = new LinkedHashMap<>();
+            checks.put("owner", false);
+            checks.put("merchant", false);
+            checks.put("expiry", false);
+            checks.put("minOrder", false);
+            checks.put("unused", false);
+            data.put("checks", checks);
+            data.put("failedKey", "owner");
+            data.put("couponStatus", null);
+            data.put("usedAt", null);
+            data.put("merchantName", null);
+        } else {
+            data.put("checks", ctx.checks());
+            data.put("failedKey", failedKeyOf(code));
+            data.put("couponStatus", couponStatus);
+            data.put("usedAt", coupon == null ? null : usedAtOf(coupon));
+            data.put("merchantName", ctx.merchantName());
+        }
         throw new BusinessException(code).withData(data);
     }
 
