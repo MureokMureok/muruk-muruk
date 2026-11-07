@@ -7,9 +7,28 @@ export const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 const TOKEN_KEY = 'muruk.token' // 백엔드가 준 액세스 토큰 (리프레시 토큰은 이번 범위에 없음)
 
-export const getToken = () => localStorage.getItem(TOKEN_KEY)
-export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t)
-export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
+// 저장소가 막힌 브라우저(사생활 보호 모드 등)에서도 요청·로그아웃이 멈추지 않게 실패를 삼킨다
+export function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null // 못 읽으면 로그인 안 한 것으로 본다
+  }
+}
+export function setToken(t) {
+  try {
+    localStorage.setItem(TOKEN_KEY, t)
+  } catch {
+    // 저장 못 하면 새로고침 뒤 다시 로그인해야 한다
+  }
+}
+export function clearToken() {
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // 지울 수 없어도 로그아웃 흐름은 이어 간다
+  }
+}
 
 export async function request(method, path, body) {
   const token = getToken()

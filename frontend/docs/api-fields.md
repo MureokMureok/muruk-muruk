@@ -16,7 +16,7 @@
 | `VITE_GOOGLE_CLIENT_ID` | 구글 클라이언트 ID. 둘 다 있어야 실서버 모드이고, 없으면 전부 모의로 동작합니다 |
 | `VITE_REAL_APIS` | 실서버로 부를 함수 이름. 예: `getCampaign,purchase` / 전부: `all` / 비우면 로그인만 실서버 |
 
-`purchase`를 실서버로 켜면 MY와 콘솔의 시연 도구가 숨겨집니다. 값이 있어도 `npm run dev:mock`(5174번)은 전부 모의로 동작합니다.
+`VITE_REAL_APIS`에 함수를 하나라도 적으면 MY와 콘솔의 시연 도구가 숨겨집니다. 시연 도구는 모의 데이터에서만 동작하기 때문입니다. 값이 있어도 `npm run dev:mock`(5174번)은 전부 모의로 동작합니다.
 
 ## 공통 규칙
 
@@ -66,7 +66,7 @@
 ## 소비자
 
 ### getCampaign
-`GET /api/campaigns/current` · 로그인 없이 호출. 소비자 화면에 보여 줄 기획전 1개 (진행 중 → 일시 중지 → 준비 중 → 종료 순)
+`GET /api/campaigns/current` · 로그인 없이 호출. 소비자 화면에 보여 줄 기획전 1개 (진행 중 → 일시 중지 → 준비 중 → 종료 순). 기획전이 하나도 없으면 404를 주면 화면이 "진행 중인 기획전이 없어요"로 바꿔 보여 줍니다
 ```fields
 title
 startDate

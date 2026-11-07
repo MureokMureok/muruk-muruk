@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { playSound } from '../utils/sound.js'
 import Icon from './Icon.jsx'
 
@@ -7,14 +7,22 @@ import Icon from './Icon.jsx'
 // strong: 설명을 굵게 (발급 완료 "쿠폰 2장을 받았어요")
 // top: 화면 위쪽에 붙여서 (아래에 쿠폰 카드 등이 이어지는 결과 화면)
 // sound: 화면이 나타날 때 낼 효과음 ('issue' / 'pay' / 'fail', 없으면 무음) — utils/sound.js
+// focusTitle: 나타날 때 제목으로 포커스를 옮긴다 (입력 화면이 결과 화면으로 통째로 바뀔 때)
 //
 // 아이콘 애니메이션: 동그라미가 톡 튀어나온 뒤, ✓·✕·! 선이 붓으로 그리듯 그려진다 (styles/app.css)
 // 확인 중에는 점 3개가 하나씩 늘어나는 애니메이션 (. → .. → ...)
-function StatusView({ kind, title, desc, strong, top, sound, children }) {
+function StatusView({ kind, title, desc, strong, top, sound, focusTitle, children }) {
+  const titleRef = useRef(null)
+
   // 처음 나타날 때 한 번만 소리
   useEffect(() => {
     if (sound) playSound(sound)
   }, [sound])
+
+  // 화면 낭독기는 새로 생긴 안내 영역을 놓칠 수 있다. 포커스를 받은 제목은 바로 읽고, 누른 버튼이 사라져 포커스를 잃는 것도 막는다
+  useEffect(() => {
+    if (focusTitle) titleRef.current?.focus()
+  }, [focusTitle])
 
   const tone = { ok: 'ok', wait: 'wait', bad: 'bad', warn: 'bad' }[kind] ?? ''
   return (
@@ -26,7 +34,9 @@ function StatusView({ kind, title, desc, strong, top, sound, children }) {
         {kind === 'offline' && <Icon name="wifi" size={32} />}
         {kind === 'search' && <Icon name="search" size={32} />}
       </div>
-      <h2>{title}</h2>
+      <h2 ref={titleRef} tabIndex={focusTitle ? -1 : undefined}>
+        {title}
+      </h2>
       {desc && <p className={strong ? 'strong' : ''}>{desc}</p>}
       {children && <div className="box">{children}</div>}
     </div>
