@@ -84,6 +84,42 @@ function AdminCampaign() {
   const [ending, setEnding] = useState(false)
   if (!list) return null
 
+  // 실서버 첫 상태처럼 기획전이 없어도 첫 기획전을 만들 수 있어야 해서 제목·만들기 폼은 따로 둔다
+  const head = (
+    <>
+      <div className="ph1">
+        <div className="tt">
+          <h1>연합 기획전 관리</h1>
+          <p>기획전을 만들고, 참여 가게의 쿠폰 조건이 모두 등록되면 시작을 승인해요</p>
+        </div>
+        {!creating && (
+          <button className="btn" onClick={() => setCreating(true)}>
+            새 기획전 만들기
+          </button>
+        )}
+      </div>
+
+      {creating && (
+        <CreateForm
+          onCancel={() => setCreating(false)}
+          onDone={(id) => {
+            setCreating(false)
+            setSelId(id)
+            reload()
+          }}
+        />
+      )}
+    </>
+  )
+  if (list.length === 0) {
+    return (
+      <>
+        {head}
+        {!creating && <p className="empty">아직 기획전이 없어요</p>}
+      </>
+    )
+  }
+
   const c = list.find((x) => x.id === selId) ?? list[0]
   const st = CAMPAIGN_STATUS[c.status]
   const registered = c.terms.filter((t) => t.registered).length
@@ -108,7 +144,7 @@ function AdminCampaign() {
     setError('')
     try {
       await setCampaignStatus(c.id, next)
-      reload()
+      await reload()
     } catch (err) {
       setError(err.message)
     }
@@ -118,28 +154,7 @@ function AdminCampaign() {
   return (
     <>
       {ending && <ConfirmDialog message={`${c.title}을(를) 종료할까요? 종료하면 다시 진행할 수 없어요.`} confirmLabel="종료하기" danger onConfirm={() => handleStatus('ENDED')} onCancel={() => setEnding(false)} />}
-      <div className="ph1">
-        <div className="tt">
-          <h1>연합 기획전 관리</h1>
-          <p>기획전을 만들고, 참여 가게의 쿠폰 조건이 모두 등록되면 시작을 승인해요</p>
-        </div>
-        {!creating && (
-          <button className="btn" onClick={() => setCreating(true)}>
-            새 기획전 만들기
-          </button>
-        )}
-      </div>
-
-      {creating && (
-        <CreateForm
-          onCancel={() => setCreating(false)}
-          onDone={(id) => {
-            setCreating(false)
-            setSelId(id)
-            reload()
-          }}
-        />
-      )}
+      {head}
 
       <div className="split">
         <div className="col">

@@ -18,6 +18,24 @@ function AdminMerchants() {
   const [rejecting, setRejecting] = useState(false)
   if (!list) return null
 
+  const head = (
+    <div className="ph1">
+      <div className="tt">
+        <h1>가맹점 심사</h1>
+        <p>승인된 가게만 연합 기획전에 참여하고 쿠폰 조건을 등록할 수 있어요</p>
+      </div>
+    </div>
+  )
+  // 실서버 첫 상태처럼 신청이 하나도 없을 때
+  if (list.length === 0) {
+    return (
+      <>
+        {head}
+        <p className="empty">아직 참여 신청이 없어요</p>
+      </>
+    )
+  }
+
   // 기본 선택: 심사 대기 중인 첫 가게
   const m = list.find((x) => x.id === selId) ?? list.find((x) => x.status === 'APPLIED') ?? list[0]
   const waiting = list.filter((x) => x.status === 'APPLIED').length
@@ -44,12 +62,7 @@ function AdminMerchants() {
   return (
     <>
       {rejecting && <ConfirmDialog message={`${m.name}의 참여 신청을 반려할까요?`} confirmLabel="반려하기" danger onConfirm={() => handleReview(false)} onCancel={() => setRejecting(false)} />}
-      <div className="ph1">
-        <div className="tt">
-          <h1>가맹점 심사</h1>
-          <p>승인된 가게만 연합 기획전에 참여하고 쿠폰 조건을 등록할 수 있어요</p>
-        </div>
-      </div>
+      {head}
       <div className="split">
         <section className="card">
           <div className="hd">
