@@ -21,7 +21,9 @@ public interface SettlementRepository extends Repository<Order, Long> {
             + "join Coupon c on c.usedOrderId = o.id "
             + "join CouponPolicy p on p.id = c.couponPolicyId "
             + "join User u on u.id = o.userId "
-            + "where o.merchantId = :merchantId and o.status = :status and o.id < :cursor "
+            + "where o.merchantId = :merchantId "
+            + "and (o.status = :status or o.status = com.murukmuruk.domain.order.enums.OrderStatus.CONFIRMED) "
+            + "and c.state = com.murukmuruk.domain.coupon.enums.CouponState.USED and o.id < :cursor "
             + "order by o.id desc")
     List<SettlementRow> findSettlements(@Param("merchantId") Long merchantId,
                                         @Param("status") OrderStatus status,
@@ -33,7 +35,9 @@ public interface SettlementRepository extends Repository<Order, Long> {
             + "from com.murukmuruk.domain.order.entity.Order o "
             + "join Coupon c on c.usedOrderId = o.id "
             + "join CouponPolicy p on p.id = c.couponPolicyId "
-            + "where o.merchantId = :merchantId and o.status = :status and p.receiveType = :receiveType")
+            + "where o.merchantId = :merchantId "
+            + "and (o.status = :status or o.status = com.murukmuruk.domain.order.enums.OrderStatus.CONFIRMED) "
+            + "and c.state = com.murukmuruk.domain.coupon.enums.CouponState.USED and p.receiveType = :receiveType")
     Long sumDiscountByReceiveType(@Param("merchantId") Long merchantId,
                                   @Param("status") OrderStatus status,
                                   @Param("receiveType") ReceiveType receiveType);
@@ -43,7 +47,9 @@ public interface SettlementRepository extends Repository<Order, Long> {
             + "from com.murukmuruk.domain.order.entity.Order o "
             + "join Coupon c on c.usedOrderId = o.id "
             + "join CouponPolicy p on p.id = c.couponPolicyId "
-            + "where o.merchantId = :merchantId and o.status = :status and p.receiveType <> :receiveType")
+            + "where o.merchantId = :merchantId "
+            + "and (o.status = :status or o.status = com.murukmuruk.domain.order.enums.OrderStatus.CONFIRMED) "
+            + "and c.state = com.murukmuruk.domain.coupon.enums.CouponState.USED and p.receiveType <> :receiveType")
     Long sumDiscountExcludingReceiveType(@Param("merchantId") Long merchantId,
                                          @Param("status") OrderStatus status,
                                          @Param("receiveType") ReceiveType receiveType);

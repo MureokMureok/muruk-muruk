@@ -4,7 +4,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** 실제 체인을 부르지 않고 그럴듯한 값만 돌려주는 가짜 구현 (개발·시연용) */
@@ -43,6 +46,72 @@ public class FakeChainClient implements ChainClient {
     public String burnCoupon(long tokenId, String userWalletAddress, String merchantWalletAddress) {
         log.info("[FakeChain] 쿠폰 소각 tokenId={} user={} merchant={}",
                 tokenId, userWalletAddress, merchantWalletAddress);
+        return randomTxHash();
+    }
+
+    // ───────────── 기획전 흐름 ─────────────
+
+    @Override
+    public String createCampaign(long campaignId, List<Long> merchantIds, long startsAtEpochSec, long endsAtEpochSec) {
+        log.info("[FakeChain] 기획전 만들기 campaignId={} merchants={} endsAt={}", campaignId, merchantIds, endsAtEpochSec);
+        return randomTxHash();
+    }
+
+    @Override
+    public String registerTerms(long campaignId, long merchantId, long discountAmount, long minOrderAmount,
+                                String validity, long cap) {
+        log.info("[FakeChain] 쿠폰 조건 등록 campaignId={} merchantId={} discount={} minOrder={} validity={} cap={}",
+                campaignId, merchantId, discountAmount, minOrderAmount, validity, cap);
+        return randomTxHash();
+    }
+
+    @Override
+    public String setCampaignStatus(long campaignId, String status) {
+        log.info("[FakeChain] 기획전 상태 변경 campaignId={} status={}", campaignId, status);
+        return randomTxHash();
+    }
+
+    @Override
+    public IssueResult issueForPurchase(long campaignId, long buyMerchantId, String userWalletAddress,
+                                        String orderRef, List<Long> targetMerchantIds) {
+        Map<Long, Long> tokens = new HashMap<>();
+        for (Long merchantId : targetMerchantIds) {
+            tokens.put(merchantId, tokenSequence.incrementAndGet());
+        }
+        log.info("[FakeChain] 구매 발급 campaignId={} buy={} to={} orderRef={} tokens={}",
+                campaignId, buyMerchantId, userWalletAddress, orderRef, tokens);
+        return new IssueResult(tokens, randomTxHash());
+    }
+
+    @Override
+    public String confirmPurchase(String orderRef) {
+        log.info("[FakeChain] 구매 확정 orderRef={}", orderRef);
+        return randomTxHash();
+    }
+
+    @Override
+    public String cancelPurchase(String orderRef) {
+        log.info("[FakeChain] 구매 취소 orderRef={}", orderRef);
+        return randomTxHash();
+    }
+
+    @Override
+    public LockResult lockForPayment(long tokenId, String userWalletAddress, long merchantId,
+                                     long orderAmount, String payRef) {
+        log.info("[FakeChain] 쿠폰 잠금 tokenId={} user={} merchantId={} amount={} payRef={}",
+                tokenId, userWalletAddress, merchantId, orderAmount, payRef);
+        return new LockResult(true, null, randomTxHash());
+    }
+
+    @Override
+    public String confirmPayment(String payRef) {
+        log.info("[FakeChain] 결제 확정(쿠폰 소각) payRef={}", payRef);
+        return randomTxHash();
+    }
+
+    @Override
+    public String cancelPayment(String payRef) {
+        log.info("[FakeChain] 결제 취소(쿠폰 복원) payRef={}", payRef);
         return randomTxHash();
     }
 

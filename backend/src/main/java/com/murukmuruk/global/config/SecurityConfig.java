@@ -47,12 +47,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/merchants/auth/**").permitAll()      // 가맹점 로그인
                         .requestMatchers("/api/admin/auth/**").permitAll()          // 관리자 로그인
                         .requestMatchers("/actuator/health").permitAll()            // 헬스체크
+                        // 비회원도 둘러볼 수 있는 화면: 기획전, 가게 상품, 구매 미리보기, 받을 수 있는 쿠폰 (조회만)
+                        .requestMatchers(HttpMethod.GET, "/api/campaigns", "/api/campaigns/**",
+                                "/api/merchants/*/product", "/api/merchants/*/purchase-preview",
+                                "/api/coupon-policies").permitAll()
                         // Swagger 화면과 API 문서 (개발용. 배포 전에는 막아야 함)
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         // ---- 역할별 접근 (다른 역할 토큰이면 403) ----
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/merchants/me/**").hasRole("MERCHANT")
-                        .requestMatchers("/api/users/**", "/api/coupons/**",
+                        .requestMatchers("/api/users/**", "/api/coupons/**", "/api/me/**",
                                 "/api/coupon-policies/**", "/api/orders/**").hasRole("USER")
                         .anyRequest().authenticated())                              // 나머지는 로그인 필요
                 .exceptionHandling(e -> e
