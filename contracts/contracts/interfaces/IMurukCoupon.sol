@@ -2,205 +2,280 @@
 pragma solidity ^0.8.24;
 
 /// @title IMurukCoupon — 무럭무럭 연합 기획전 쿠폰 (ERC-1155, 양도 불가)
-/// @notice 인터페이스 v1. 동작 기준은 프론트 모의 API(frontend/src/api/api.js, PR #1)와 docs/mvp-spec.md MVP 목록.
-///         모든 사용자는 구글 로그인 → 백엔드 서버 지갑이 대신 호출한다.
+/// @notice 인터페이스 v3 (11/3 팀 확정 + 11/4 사용자 결정: 락업 2종 · 주문당 쿠폰 1장 · 기획전 가게 수 상한).
+///         동작 기준은 프론트 모의 API(feature/frontend 브랜치 frontend/src/api/core.js · api.js, 11/3)와
+///         Figma 와이어프레임(소비자 · 가맹점 센터 M1~M4 · KCP 관리자 K1~K3), KCP 미팅 "락업"(10/30), 공동구매 설계안 슬라이드(11/4).
+///         - 예치금·충전금 없음: 가게는 "할인 한도(상한)"만 정한다. 최대 발급 수 = 할인 한도 ÷ 할인 금액
+///         - 쿠폰은 정액권만. 가맹점 직접 발행(첫 구매 보너스 등)은 이번 범위 밖
+///         - 발급 락업: 구매하면 "확정 대기"로 발급 → 구매 확정 시 사용 가능 / 구매 취소 시 무효
+///         - 사용 락업: 결제 시작 시 "결제 중"으로 잠금 → 결제 확정 시 소각 / 결제 취소 시 복원
+///         - 모든 사용자는 소셜 로그인 → 백엔드 서버 지갑이 대신 호출한다
 ///         ADMIN = KCP 관리자 기능, OPERATOR = 백엔드(가맹점·소비자 요청 대행).
-///         금액 단위는 원(KRW) 정수, 시각은 unix seconds. 쿠폰은 정액권만.
-/// @dev tokenId 하나 = 쿠폰 한 장 (발행량 1, 1부터 증가). 쿠폰마다 만료일·사용 여부가 달라서 묶지 않는다.
-///      가맹점은 merchantId(번호)로 구분 — 지갑 주소 방식은 백엔드 확인 후 결정.
+///         금액 단위는 원(KRW) 정수, 시각은 unix seconds.
+/// @dev tokenId 하나 = 쿠폰 한 장 (발행량 1, 1부터 증가). 가맹점은 merchantId(번호)로 구분한다 (K1: 지갑 주소 받지 않음).
 interface IMurukCoupon {
     // ───────────── 타입 ─────────────
 
-    /// @notice 기획전 상태. 모의 API campaign.status와 같다.
+    /// @notice 가맹점 심사 상태 (모의 API merchant.status). 신청(APPLIED)은 체인 밖 — 체인에는 심사 결과만 남긴다.
+    enum MerchantStatus {
+        None,     // 심사 전
+        Approved, // 승인 → 기획전 참여·쿠폰 조건 등록 가능
+        Rejected  // 반려
+    }
+
+    /// @notice 기획전 상태 (모의 API campaign.status)
     enum CampaignStatus {
-        None,            // 없음
-        Signing,         // 가맹점 서명 중
-        PendingApproval, // 전원 서명 → 규칙 잠김, KCP 승인 대기
-        Active,          // 승인됨 → 구매 시 쿠폰 발급
-        Rejected         // 반려됨
+        None,      // 없음
+        Preparing, // 준비 중 — 참여 가게들이 쿠폰 조건 등록
+        Active,    // 진행 중 — 구매하면 쿠폰 발급
+        Paused,    // 일시 중지 — 새 발급만 멈춤, 받은 쿠폰은 유효기간까지 사용 가능
+        Ended      // 종료 — 직접 종료했거나 종료 시각이 지남 (조회 시 계산)
     }
 
-    /// @notice 쿠폰 출처
-    enum CouponSource {
-        Campaign, // 연합 기획전 쿠폰 (다른 가게에서 사면 받음)
-        Issuance  // 가맹점 직접 발행 쿠폰 (그 가게에서 조건 충족 시 받음)
+    /// @notice 쿠폰 유효기간 방식 (모의 API term.validity, Figma M2)
+    enum Validity {
+        Days30,     // 받은 날(발급일)부터 30일 (마지막 날 23:59:59 KST까지)
+        CampaignEnd // 기획전 종료 시각까지
     }
 
-    /// @notice 가맹점 직접 발행 쿠폰을 받는 조건 (모의 API issuance.receive)
-    enum ReceiveRule {
-        FirstPurchase, // 우리 가게 첫 구매 + receiveMin 이상
-        MinAmount      // receiveMin 이상 구매
+    /// @notice 쿠폰에 저장되는 상태
+    enum CouponState {
+        None,
+        Pending,   // 확정 대기 — 구매 확정 전 (발급 락업)
+        Available, // 사용 가능
+        Locked,    // 결제 중 — 결제 확정 전 (사용 락업)
+        Used,      // 사용 완료 (소각)
+        Voided     // 무효 — 구매 취소로 회수 (소각)
     }
 
-    /// @notice 쿠폰 상태. Expired는 저장값이 아니라 조회 시 계산한다.
+    /// @notice 화면용 쿠폰 상태 (statusOf). Expired는 저장값이 아니라 조회 시 계산한다.
     enum Status {
         None,      // 없는 쿠폰
+        Pending,   // 확정 대기
         Available, // 사용 가능
-        Used,      // 사용 완료 (소각됨, 기록은 남음)
-        Expired    // 유효기간 지남
+        InUse,     // 결제 중
+        Used,      // 사용 완료
+        Expired,   // 유효기간 지남
+        Voided     // 무효 (구매 취소)
     }
 
-    /// @notice 사용 검증 실패 사유. 화면 ⑨-c "쿠폰 확인 결과" 5항목과 순서가 같다.
+    /// @notice 사용 검증 실패 사유. 1~5는 모의 API USE_CHECKS · 화면 ⑨-c "쿠폰 확인 결과" 5항목, 6~8은 락업 상태.
+    ///         검사 순서: NotOwner → WrongMerchant → Voided → NotConfirmed → Expired → BelowMinOrder → AlreadyUsed → InUse
     enum Reason {
         Ok,
-        NotOwner,      // 내 쿠폰인가 (없는 쿠폰 포함 — 모의 API와 같음)
-        WrongMerchant, // 쓸 수 있는 가게인가
-        Expired,       // 유효기간 안인가
-        BelowMinOrder, // 최소 주문 금액
-        AlreadyUsed    // 아직 안 쓴 쿠폰인가
+        NotOwner,      // 내 쿠폰인가 (없는 쿠폰 포함)       NOT_OWNER
+        WrongMerchant, // 쓸 수 있는 가게인가                 WRONG_MERCHANT
+        Expired,       // 유효기간 안인가                     EXPIRED
+        BelowMinOrder, // 최소 주문 금액                      MIN_ORDER_NOT_MET
+        AlreadyUsed,   // 아직 안 쓴 쿠폰인가                 COUPON_ALREADY_USED
+        NotConfirmed,  // 구매 확정 전 쿠폰 (발급 락업)
+        InUse,         // 다른 결제에 사용 중 (사용 락업)
+        Voided         // 구매 취소로 무효가 된 쿠폰
     }
 
-    /// @notice 가맹점. 남은 한도 = limit - reserved
-    struct Merchant {
-        bool whitelisted;
-        uint256 limit;    // KCP가 등록한 발행 한도 (입금액 합계)
-        uint256 reserved; // 기획전 충전금·직접 발행분으로 묶인 금액
+    /// @notice 발급 주문(쿠폰을 받게 한 구매) 상태
+    enum OrderStatus {
+        None,
+        Pending,   // 구매 확정 대기 — 받은 쿠폰은 확정 대기
+        Confirmed, // 구매 확정 — 쿠폰 사용 가능
+        Cancelled  // 구매 취소 — 쿠폰 무효
     }
 
-    /// @notice 기획전에서 가게 한 곳의 조건 (모의 API campaign.terms[])
-    struct CampaignTerm {
-        uint256 amount;       // 할인 금액
-        uint256 minOrder;     // 최소 주문 금액
-        uint256 fund;         // 충전금 (서명 때 한도에서 묶음)
-        uint256 fundReserved; // 발급된 쿠폰 할인액만큼 미리 확보한 금액
-        uint256 fundUsed;     // 실제 사용된 할인액 (정산 = 이 가게 부담)
-        bool signed;
+    /// @notice 쿠폰 결제(사용) 상태
+    enum PaymentStatus {
+        None,
+        Locked,    // 결제 중 — 쿠폰 잠김
+        Confirmed, // 결제 확정 — 쿠폰 소각
+        Cancelled  // 결제 취소 — 쿠폰 복원
     }
 
-    /// @notice 가맹점 직접 발행 쿠폰 묶음 (모의 API issuances[])
-    struct Issuance {
-        uint256 merchantId;
-        uint256 amount;      // 할인 금액
-        uint256 minOrder;    // 사용할 때 최소 주문 금액
-        ReceiveRule receiveRule; // 받는 조건
-        uint256 receiveMin;  // 받는 조건의 구매 금액 기준
-        uint64 expiresAt;    // 발행 시점 + 유효일수 (묶음 전체 공통)
-        uint32 qty;          // 발행 수량
-        uint32 issuedCount;
-        uint32 usedCount;
-        uint256 usedAmount;  // 실제 사용된 할인액
+    /// @notice 기획전에서 가게 한 곳의 쿠폰 조건과 집계 (모의 API campaign.terms[] + termStats)
+    struct Term {
+        uint256 amount;      // 할인 금액 (value)
+        uint256 minOrder;    // 최소 주문 금액
+        uint256 cap;         // 할인 한도 (상한)
+        uint256 maxIssue;    // 최대 발급 수 = cap ÷ amount (등록 때 계산)
+        Validity validity;
+        bool registered;     // 기획전에 등록했는지
+        uint256 issuedCount; // 발급된 수 (구매 취소로 무효가 되면 다시 줄어듦)
+        uint256 usedCount;   // 사용된 수
+        uint256 burden;      // 할인 부담 = 실제로 쓰인 할인액 합계 (M4)
     }
 
     struct Coupon {
-        CouponSource source;
-        uint256 campaignId;     // source == Campaign일 때
-        uint256 issuanceId;     // source == Issuance일 때
+        uint256 campaignId;
         uint256 merchantId;     // 사용처 = 할인 부담 가게
-        uint256 fromMerchantId; // 쿠폰을 받게 한 구매 가게
+        uint256 fromMerchantId; // 쿠폰을 받게 한 구매 가게 ("어디서 온 손님", M4)
         uint256 amount;
         uint256 minOrder;
+        bytes32 orderRef;       // 쿠폰을 받게 한 주문
         uint64 issuedAt;
-        uint64 expiresAt;
-        bool used;
+        uint64 expiresAt;       // 발급 때 정해짐 (확정 대기 중에도 유효기간은 흐른다)
         uint64 usedAt;
+        CouponState state;
+        uint256 discount;       // 사용 때 실제 할인액
     }
 
-    // ───────────── 이벤트 (체인 기록 화면 · 발급·사용 기록 ⑫ · 정산의 원본) ─────────────
+    struct Order {
+        OrderStatus status;
+        uint256 campaignId;
+        address buyer;
+    }
 
-    event MerchantWhitelisted(uint256 indexed merchantId);
-    event LimitAdded(uint256 indexed merchantId, uint256 amount, uint256 newLimit, bytes32 depositRef);
+    struct Payment {
+        PaymentStatus status;
+        uint256 tokenId;
+        uint256 merchantId;
+        uint256 orderAmount;
+    }
 
-    event CampaignCreated(uint256 indexed campaignId, uint256[] merchantIds, uint32 validDays);
-    event CampaignSigned(uint256 indexed campaignId, uint256 indexed merchantId, uint256 amount, uint256 minOrder, uint256 fund);
-    /// @notice 참여 가게 전원 서명 → 규칙 잠금 (이후 누구도 조건을 바꿀 수 없음)
-    event CampaignLocked(uint256 indexed campaignId);
-    event CampaignDecided(uint256 indexed campaignId, bool approved);
+    // ───────────── 이벤트 (기록 조회 K3 · 발급·사용 기록 ⑫ · 할인 부담 M4의 원본) ─────────────
 
-    event IssuanceCreated(uint256 indexed issuanceId, uint256 indexed merchantId, uint256 amount, uint32 qty, uint256 total);
+    event MerchantReviewed(uint256 indexed merchantId, bool approved);
 
+    event CampaignCreated(uint256 indexed campaignId, uint256[] merchantIds, uint64 startsAt, uint64 endsAt);
+    /// @notice 쿠폰 조건 등록 (준비 중에 다시 등록하면 덮어쓰고 이벤트가 또 남는다 → "조건 변경 이력")
+    event TermsRegistered(
+        uint256 indexed campaignId,
+        uint256 indexed merchantId,
+        uint256 amount,
+        uint256 minOrder,
+        Validity validity,
+        uint256 cap,
+        uint256 maxIssue
+    );
+    event CampaignStatusChanged(uint256 indexed campaignId, CampaignStatus from, CampaignStatus to);
+
+    /// @notice 쿠폰 발급 (확정 대기 상태로)
     event CouponIssued(
         uint256 indexed tokenId,
         uint256 indexed merchantId,
         address indexed to,
-        CouponSource source,
+        uint256 campaignId,
         uint256 fromMerchantId,
         bytes32 orderRef,
         uint64 expiresAt
     );
-    /// @notice 충전금이 부족해 그 가게 기획전 쿠폰만 못 줬을 때 (④-c "2장 중 1장")
+    /// @notice 그 가게 할인 한도까지 다 발급돼서 쿠폰을 못 줬을 때 (④-c "쿠폰이 모두 소진됐어요")
     event IssueSkipped(bytes32 indexed orderRef, uint256 indexed merchantId);
+    /// @notice 구매 확정 → 그 주문의 쿠폰이 사용 가능해짐 (쿠폰마다 CouponActivated)
+    event PurchaseConfirmed(bytes32 indexed orderRef, uint256 count);
+    event CouponActivated(uint256 indexed tokenId, uint64 expiresAt);
+    /// @notice 구매 취소 → 그 주문의 쿠폰이 무효 (쿠폰마다 CouponVoided)
+    event PurchaseCancelled(bytes32 indexed orderRef, uint256 count);
+    event CouponVoided(uint256 indexed tokenId);
 
-    /// @notice 사용 완료 → 소각. 정산은 이 이벤트의 discount를 merchantId별로 합산한다.
-    event CouponRedeemed(uint256 indexed tokenId, uint256 indexed merchantId, address indexed owner, uint256 discount, bytes32 orderRef);
+    /// @notice 결제 시작 → 쿠폰 잠금 (사용 락업)
+    event CouponLocked(
+        uint256 indexed tokenId,
+        uint256 indexed merchantId,
+        address indexed owner,
+        uint256 orderAmount,
+        bytes32 payRef
+    );
+    /// @notice 결제 취소 → 쿠폰 복원
+    event CouponUnlocked(uint256 indexed tokenId, bytes32 indexed payRef);
+    /// @notice 결제 확정 → 소각. 할인 부담은 merchantId별 discount 합계, "쿠폰으로 생긴 매출"은 orderAmount 합계 (M4),
+    ///         가게 간 손님 흐름은 fromMerchantId → merchantId 건수 (K2 · M1 "우리에게 온 손님")
+    event CouponRedeemed(
+        uint256 indexed tokenId,
+        uint256 indexed merchantId,
+        address indexed owner,
+        uint256 fromMerchantId,
+        uint256 discount,
+        uint256 orderAmount,
+        bytes32 payRef
+    );
     /// @notice 사용 거절도 체인에 남긴다 (⑨-c 재사용 거절, ⑫ "재사용 시도 · 거절"). 쿠폰 상태는 그대로.
-    event RedeemRejected(uint256 indexed tokenId, address indexed owner, Reason reason, bytes32 orderRef);
+    ///         merchantId = 사용을 시도한 가게 (M1 "최근 기록"에 그 가게 기준으로 보여줌)
+    event RedeemRejected(uint256 indexed tokenId, address indexed owner, uint256 indexed merchantId, Reason reason, bytes32 payRef);
 
     // ───────────── 에러 (모의 API ApiError code와 대응) ─────────────
 
-    error NotWhitelisted(uint256 merchantId);                                   // NOT_WHITELISTED
-    error NoLimit(uint256 merchantId);                                          // NO_LIMIT
-    error LimitExceeded(uint256 merchantId, uint256 requested, uint256 remaining); // LIMIT_EXCEEDED
+    error NotPending(uint256 merchantId);                        // NOT_PENDING — 이미 심사한 가게
+    error NotApproved(uint256 merchantId);                       // 승인되지 않은 가게
+    error InvalidCampaign();                                     // INVALID — 기간·참여 가게(2곳 이상)·번호
+    error TooManyMerchants(uint256 max);                         // 기획전 참여 가게 수 상한
     error CampaignExists(uint256 campaignId);
     error CampaignNotFound(uint256 campaignId);
     error NotInCampaign(uint256 campaignId, uint256 merchantId);
-    error CampaignNotSigning(uint256 campaignId);                               // LOCKED
-    error AlreadySigned(uint256 campaignId, uint256 merchantId);                // ALREADY_SIGNED
-    error CampaignNotPending(uint256 campaignId);                               // NOT_PENDING
+    error TermsLocked(uint256 campaignId);                       // LOCKED — 준비 중이 아니거나 종료 시각이 지나면 조건 변경 불가
+    error InvalidTerms();                                        // INVALID — 할인 금액·최소 주문·할인 한도
+    error InvalidStatus(uint256 campaignId);                     // INVALID_STATUS — 지금 상태에서 못 바꿈 (종료 시각 지남 포함)
+    error NotReady(uint256 campaignId);                          // NOT_READY — 조건 미등록 가게가 있음
     error OrderAlreadyIssued(bytes32 orderRef);
-    error InvalidAmount();
+    error OrderNotPending(bytes32 orderRef);                     // 구매 확정·취소는 확정 대기 주문에서만
+    error PaymentExists(bytes32 payRef);                         // 한 결제에 쿠폰은 1장만
+    error PaymentNotLocked(bytes32 payRef);                      // 결제 확정·취소는 결제 중일 때만
     error TransferDisabled();
+    error InvalidAddress();                                      // 지갑 주소 0
+    error InvalidRef();                                          // orderRef·payRef 0
 
     // ───────────── KCP 관리자 (ADMIN) ─────────────
 
-    /// @notice 가맹점 확인 후 등록 (모의 API whitelistMerchant)
-    function whitelistMerchant(uint256 merchantId) external;
+    /// @notice 가맹점 심사 — 승인/반려 (K1, 모의 API reviewMerchant). 심사 전 가게만.
+    function reviewMerchant(uint256 merchantId, bool approve) external;
 
-    /// @notice 입금 확인된 금액만큼 발행 한도 추가 (모의 API registerLimit). 입금 자체는 체인 밖.
-    /// @param depositRef 백엔드 입금 내역 ID의 해시 (기록 추적용)
-    function addLimit(uint256 merchantId, uint256 amount, bytes32 depositRef) external;
+    /// @notice 연합 기획전 만들기 (K2, 모의 API createCampaign). 승인된 가게 2~20곳, 종료 ≥ 시작. 상태는 Preparing.
+    ///         기획전 이름은 체인에 올리지 않는다 (백엔드 DB).
+    /// @param endsAt 종료일 23:59:59 같은 "마지막으로 발급할 수 있는 시각"
+    function createCampaign(uint256 campaignId, uint256[] calldata merchantIds, uint64 startsAt, uint64 endsAt) external;
 
-    /// @notice 연합 기획전 생성. 참여 가게는 등록된 가맹점이어야 한다. 상태는 Signing으로 시작.
-    /// @param validDays 기획전 쿠폰 유효기간 — 받은 날부터 며칠 (모의 API validDays = 30)
-    function createCampaign(uint256 campaignId, uint256[] calldata merchantIds, uint32 validDays) external;
-
-    /// @notice 승인(Active) 또는 반려(Rejected). PendingApproval 상태에서만. KCP는 규칙을 바꿀 수 없다.
-    function decideCampaign(uint256 campaignId, bool approve) external;
+    /// @notice 시작 승인(Active) / 일시 중지(Paused) / 다시 진행(Active) / 종료(Ended) (K2, 모의 API setCampaignStatus)
+    ///         Preparing → Active (참여 가게 조건이 모두 등록돼야), Active → Paused·Ended, Paused → Active·Ended.
+    ///         종료 시각이 지난 뒤에는 어떤 전환도 할 수 없다 (이미 자동 종료). 시작은 KCP 승인으로 하고 startsAt은 기록용.
+    function setCampaignStatus(uint256 campaignId, CampaignStatus next) external;
 
     // ───────────── 백엔드 (OPERATOR) — 가맹점 요청 대행 ─────────────
 
-    /// @notice 가맹점이 기획전 조건에 서명. 충전금을 남은 한도에서 묶는다.
-    ///         참여 가게 전원이 서명하면 자동으로 PendingApproval(규칙 잠금)으로 바뀐다.
-    function signCampaign(uint256 campaignId, uint256 merchantId, uint256 amount, uint256 minOrder, uint256 fund) external;
-
-    /// @notice 가맹점 직접 발행 쿠폰 묶음 등록. amount × qty를 남은 한도에서 묶는다.
-    /// @return issuanceId 1부터 증가
-    function createIssuance(
+    /// @notice 가게 쿠폰 조건 등록 (M2 "기획전에 등록하기", 모의 API saveTerms register=true).
+    ///         준비 중일 때만, 다시 등록하면 덮어쓴다. 할인 금액 > 0, 최소 주문 ≥ 할인 금액, 할인 한도 ≥ 할인 금액.
+    function registerTerms(
+        uint256 campaignId,
         uint256 merchantId,
         uint256 amount,
         uint256 minOrder,
-        ReceiveRule receiveRule,
-        uint256 receiveMin,
-        uint32 validDays,
-        uint32 qty
-    ) external returns (uint256 issuanceId);
+        Validity validity,
+        uint256 cap
+    ) external;
 
-    // ───────────── 백엔드 (OPERATOR) — 소비자 요청 대행 ─────────────
+    // ───────────── 백엔드 (OPERATOR) — 소비자 요청 대행: 발급 (발급 락업) ─────────────
 
-    /// @notice 구매 완료 시 쿠폰 발급 (모의 API purchase).
-    ///         1) 기획전 쿠폰: 기획전이 Active이고 구매 가게가 참여 중이면, 나머지 참여 가게 쿠폰 1장씩.
-    ///            그 가게 충전금(fund - fundReserved)이 할인액보다 적으면 건너뛰고 IssueSkipped.
-    ///         2) 보너스 쿠폰: 구매 가게의 직접 발행 묶음 중 받는 조건을 충족하고 수량이 남은 것.
-    ///            첫 구매 여부는 컨트랙트가 기록한 구매 이력으로 판단한다.
-    /// @dev 같은 orderRef로 두 번 부르면 OrderAlreadyIssued (새로고침·재요청 방지).
-    ///      campaignId = 0이면 기획전 쿠폰은 건너뛴다.
-    function issueForPurchase(uint256 campaignId, uint256 buyMerchantId, address to, uint256 orderAmount, bytes32 orderRef)
+    /// @notice 구매 완료 시 쿠폰 발급 (모의 API purchase · couponsForPurchase). 쿠폰은 **확정 대기**로 나간다.
+    ///         기획전이 진행 중(종료 시각 전)이고 구매 가게가 참여 중이면, 나머지 참여 가게 쿠폰을 1장씩.
+    ///         그 가게 발급 수가 최대 발급 수에 닿았으면 건너뛰고 IssueSkipped (그 가게만 멈추고 기획전은 계속).
+    /// @dev 같은 orderRef로 두 번 부르면 OrderAlreadyIssued (새로고침·재요청 방지). 쿠폰이 안 나가는 주문도 기록된다.
+    function issueForPurchase(uint256 campaignId, uint256 buyMerchantId, address to, bytes32 orderRef)
         external
         returns (uint256[] memory tokenIds);
 
-    /// @notice 쿠폰 사용 (모의 API redeemCoupon). **백엔드는 결제 승인 후에 호출한다** (결제 실패 시 쿠폰 보호).
-    ///         5가지 검사 통과 → 바로 소각하고 할인액을 충전금/발행분 사용액에 더한다.
-    /// @dev 검사 실패 시 되돌리지 않고 RedeemRejected를 남긴 뒤 (false, reason, 0)을 반환한다.
-    ///      그래야 "컨트랙트가 거절했다"는 기록이 체인에 남는다. 쿠폰 상태는 바뀌지 않는다.
-    function redeem(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount, bytes32 orderRef)
+    /// @notice 구매 확정 → 그 주문의 쿠폰을 사용 가능으로 (유효기간은 발급 때 정한 그대로)
+    function confirmPurchase(bytes32 orderRef) external;
+
+    /// @notice 구매 확정 전 취소·환불 → 그 주문의 쿠폰을 무효로 (소각, 그 가게 발급 수를 되돌림)
+    function cancelPurchase(bytes32 orderRef) external;
+
+    // ───────────── 백엔드 (OPERATOR) — 소비자 요청 대행: 사용 (사용 락업) ─────────────
+
+    /// @notice 결제 시작 → 쿠폰 잠금. 사용 검사를 통과해야 잠기고, 한 결제(payRef)에는 쿠폰 1장만 잠글 수 있다.
+    /// @dev 검사 실패 시 되돌리지 않고 RedeemRejected를 남긴 뒤 (false, reason)을 반환한다. 쿠폰 상태는 바뀌지 않는다.
+    ///      이미 쿠폰이 잠겼거나 확정된 payRef면 PaymentExists로 되돌린다 (결제 취소된 payRef는 다시 쓸 수 있음).
+    function lockForPayment(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount, bytes32 payRef)
         external
-        returns (bool ok, Reason reason, uint256 discount);
+        returns (bool ok, Reason reason);
+
+    /// @notice 결제 확정 → 쿠폰 소각, 할인 부담에 더함. 잠긴 뒤 유효기간이 지나도 확정할 수 있다.
+    function confirmPayment(bytes32 payRef) external returns (uint256 discount);
+
+    /// @notice 결제 취소 → 쿠폰을 사용 가능으로 되돌림 (⑨-d "쿠폰은 그대로 남아 있어요")
+    function cancelPayment(bytes32 payRef) external;
 
     // ───────────── 조회 (누구나) ─────────────
 
-    /// @notice redeem과 같은 검사를 상태 변경 없이 수행 (⑦ '사용하기' 활성, ⑧ 적용 가능 여부)
+    /// @notice lockForPayment와 같은 검사를 상태 변경 없이 수행 (⑦ '사용하기' 활성, ⑧ 적용 가능 여부)
     function check(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount) external view returns (Reason);
 
-    /// @notice 5가지 검사를 항목별로 반환 (⑨-c "쿠폰 확인 결과" 표시용)
+    /// @notice ⑨-c "쿠폰 확인 결과" 5항목. unused는 '지금 사용 가능 상태인가'(확정 대기·결제 중·사용 완료·무효면 false)
     function checkAll(uint256 tokenId, address owner, uint256 merchantId, uint256 orderAmount)
         external
         view
@@ -208,19 +283,19 @@ interface IMurukCoupon {
 
     function statusOf(uint256 tokenId) external view returns (Status);
     function couponOf(uint256 tokenId) external view returns (Coupon memory);
+    /// @notice 사용(소각)·무효 뒤에도 원래 주인을 돌려준다 (⑫ 기록 화면)
     function ownerOfCoupon(uint256 tokenId) external view returns (address);
 
-    function merchantOf(uint256 merchantId) external view returns (Merchant memory m, uint256 remaining);
+    function merchantOf(uint256 merchantId) external view returns (MerchantStatus);
+    /// @notice status는 종료 시각이 지났으면 Ended로 계산해서 돌려준다
     function campaignOf(uint256 campaignId)
         external
         view
-        returns (CampaignStatus status, uint256[] memory merchantIds, uint32 validDays);
-    function termOf(uint256 campaignId, uint256 merchantId) external view returns (CampaignTerm memory);
-    function issuanceOf(uint256 issuanceId) external view returns (Issuance memory);
-
-    /// @notice 주문으로 발급된 쿠폰 (④-b "발급 확인 중"에서 결과 조회). 미처리면 빈 배열.
-    function issuedFor(bytes32 orderRef) external view returns (uint256[] memory tokenIds);
-
-    /// @notice 이 소비자가 이 가게에서 구매한 적이 있는지 (첫 구매 판단)
-    function hasPurchased(address buyer, uint256 merchantId) external view returns (bool);
+        returns (CampaignStatus status, uint256[] memory merchantIds, uint64 startsAt, uint64 endsAt);
+    /// @notice 가게 조건 + 발급·사용 수·할인 부담 (M1·M3·M4, 소비자 ② "남은 수량")
+    function termOf(uint256 campaignId, uint256 merchantId) external view returns (Term memory);
+    /// @notice 이 주문으로 발급된 쿠폰 (④-b "발급 확인 중" 상태 조회)
+    function issuedFor(bytes32 orderRef) external view returns (uint256[] memory);
+    function orderOf(bytes32 orderRef) external view returns (Order memory);
+    function paymentOf(bytes32 payRef) external view returns (Payment memory);
 }
