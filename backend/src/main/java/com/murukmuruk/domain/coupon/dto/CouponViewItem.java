@@ -30,6 +30,10 @@ public record CouponViewItem(
         Long discount,              // 결제에 적용된 할인 (사용 처리 중·사용 완료일 때)
         String appliedAt,           // 결제에 적용한 시각
         String usedAt,              // 사용 완료 시각
-        Long ownerId
+        Long ownerId,
+        Long tokenId,               // 체인 쿠폰 번호
+        Long policyId,              // 일반 쿠폰일 때만 (기획전 쿠폰은 없음)
+        Long useOrderId,            // 쿠폰을 적용한 결제 주문 (사용 처리 중·사용 완료일 때). 확정·취소에 쓴다
+        String lastTx               // 이 쿠폰의 마지막 체인 거래 해시
 ) {
 }

@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,7 +49,7 @@ public class AdminCampaignController {
             description = "시작 승인(PREPARING→ACTIVE), 일시 중지(ACTIVE→PAUSED), 다시 진행(PAUSED→ACTIVE), 종료(→ENDED). "
                     + "시작 승인은 참여 가게가 모두 조건을 등록해야 하고(아니면 NOT_READY), 이때 가게마다 쿠폰 정책이 만들어집니다. "
                     + "허용되지 않는 변경은 INVALID_STATUS.")
-    @PostMapping("/{campaignId}/status")
+    @PatchMapping("/{campaignId}/status")
     public ApiResponse<CampaignResponse> changeStatus(@PathVariable Long campaignId,
                                                       @RequestBody CampaignStatusRequest request) {
         return ApiResponse.success(campaignAdminService.changeStatus(campaignId, request));

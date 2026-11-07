@@ -25,4 +25,9 @@ public record ApiResponse<T>(
     public static <T> ApiResponse<T> error(String code, String message) {
         return new ApiResponse<>(false, code, message, null);
     }
+
+    // 부가 정보가 있는 실패 응답 (result에 담긴다)
+    public static <T> ApiResponse<T> error(String code, String message, T result) {
+        return new ApiResponse<>(false, code, message, result);
+    }
 }

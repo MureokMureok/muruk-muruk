@@ -49,6 +49,7 @@ public class CampaignMerchantService {
     /**
      * 우리 가게 쿠폰 조건 저장. 준비 중(PREPARING)인 기획전만 바꿀 수 있다 (아니면 LOCKED).
      * register가 true면 "기획전에 등록하기"(체인에 조건 등록 + 기록), 아니면 임시 저장.
+     * 이미 등록한 조건을 임시 저장하려 하면 INVALID_STATUS로 거절한다.
      */
     @Transactional
     public CampaignResponse saveTerms(Long merchantId, Long campaignId, TermUpdateRequest request) {
@@ -85,6 +86,10 @@ public class CampaignMerchantService {
         }
 
         boolean register = Boolean.TRUE.equals(request.register());
+        // 이미 체인에 등록한 조건은 임시 저장으로 되돌릴 수 없다 (등록을 푸는 기능이 없다)
+        if (!register && term.isRegistered()) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS, "이미 등록한 조건은 임시 저장할 수 없어요.");
+        }
         term.update(value, minOrder, request.validity(), cap, register);
         campaignTermRepository.flush();
 

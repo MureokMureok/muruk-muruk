@@ -1,9 +1,9 @@
 package com.murukmuruk.domain.coupon.controller;
 
+import com.murukmuruk.domain.coupon.dto.CouponHistoryItem;
 import com.murukmuruk.domain.coupon.dto.CouponViewItem;
 import com.murukmuruk.domain.coupon.dto.MySummaryResponse;
 import com.murukmuruk.domain.coupon.service.MyCouponService;
-import com.murukmuruk.domain.ledger.dto.LedgerRowResponse;
 import com.murukmuruk.global.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,9 +46,10 @@ public class MyCouponController {
     }
 
     @Operation(summary = "쿠폰 이력",
-            description = "이 쿠폰의 발급·확정·적용·사용·거절 기록을 오래된 순으로 돌려줍니다.")
+            description = "이 쿠폰의 발급·확정·적용·사용·환불·거절 기록을 오래된 순으로 돌려줍니다. "
+                    + "거절 기록에는 reason(에러 코드)과 couponStatus(그때 쿠폰 상태)가 있어 \"재사용 시도\"를 구분할 수 있습니다.")
     @GetMapping("/coupons/{couponId}/history")
-    public ApiResponse<List<LedgerRowResponse>> history(@AuthenticationPrincipal Jwt jwt,
+    public ApiResponse<List<CouponHistoryItem>> history(@AuthenticationPrincipal Jwt jwt,
                                                         @PathVariable Long couponId) {
         Long userId = Long.valueOf(jwt.getSubject());
         return ApiResponse.success(myCouponService.history(userId, couponId));

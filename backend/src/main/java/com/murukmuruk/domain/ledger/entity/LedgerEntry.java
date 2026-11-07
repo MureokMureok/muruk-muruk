@@ -65,6 +65,12 @@ public class LedgerEntry {
     @Column(name = "tx_hash", updatable = false, columnDefinition = "CHAR(66)")
     private String txHash;
 
+    @Column(name = "reason_code", updatable = false, length = 40)
+    private String reasonCode; // REJECT 기록: 거절된 에러 코드
+
+    @Column(name = "coupon_status", updatable = false, length = 20)
+    private String couponStatus; // REJECT 기록: 그때의 쿠폰 화면 상태
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -72,7 +78,7 @@ public class LedgerEntry {
     @Builder
     private LedgerEntry(LedgerType type, String detail, String actor, Long merchantId, Long userId,
                         Long campaignId, Long couponId, Long orderId, Long discountAmount,
-                        Long orderAmount, String txHash) {
+                        Long orderAmount, String txHash, String reasonCode, String couponStatus) {
         this.type = type;
         this.detail = detail;
         this.actor = actor;
@@ -84,5 +90,7 @@ public class LedgerEntry {
         this.discountAmount = discountAmount;
         this.orderAmount = orderAmount;
         this.txHash = txHash;
+        this.reasonCode = reasonCode;
+        this.couponStatus = couponStatus;
     }
 }

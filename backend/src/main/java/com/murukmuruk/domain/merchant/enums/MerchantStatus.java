@@ -4,5 +4,6 @@ package com.murukmuruk.domain.merchant.enums;
 public enum MerchantStatus {
     APPLIED,   // 신청 (KCP 승인 대기)
     ACTIVE,    // 활성 (KCP 승인 완료)
-    SUSPENDED  // 일시 정지
+    SUSPENDED, // 일시 정지
+    REJECTED   // 신청 반려 (KCP가 신청을 받아주지 않음)
 }

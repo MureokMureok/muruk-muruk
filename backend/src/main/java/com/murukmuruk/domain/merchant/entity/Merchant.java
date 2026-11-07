@@ -83,6 +83,14 @@ public class Merchant extends BaseTimeEntity {
         this.status = MerchantStatus.ACTIVE;
     }
 
+    /** 반려: APPLIED → REJECTED */
+    public void reject() {
+        if (status != MerchantStatus.APPLIED) {
+            throw new BusinessException(ErrorCode.CONFLICT, "신청 대기 중인 가맹점만 반려할 수 있습니다.");
+        }
+        this.status = MerchantStatus.REJECTED;
+    }
+
     /** 정지: ACTIVE → SUSPENDED */
     public void suspend() {
         if (status != MerchantStatus.ACTIVE) {

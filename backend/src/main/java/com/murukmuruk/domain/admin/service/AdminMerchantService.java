@@ -19,18 +19,19 @@ public class AdminMerchantService {
     private final ChainClient chainClient;
 
     /**
-     * 가맹점 상태 변경. 허용: APPLIED→ACTIVE(승인), ACTIVE→SUSPENDED(정지), SUSPENDED→ACTIVE(해제)
+     * 가맹점 상태 변경. 허용: APPLIED→ACTIVE(승인), APPLIED→REJECTED(반려), ACTIVE→SUSPENDED(정지), SUSPENDED→ACTIVE(해제)
      * 승인은 체인 등록을 먼저 하고, 성공했을 때만 DB 상태를 바꾼다 (체인 실패 시 APPLIED 그대로, CHAIN500).
      */
     @Transactional
     public MerchantStatusChangeResponse changeStatus(Long merchantId, MerchantStatus target) {
-        // 1. APPLIED로 되돌리는 요청은 받지 않는다 (신청 반려 기능 없음) → 400
+        // 1. APPLIED로 되돌리는 요청은 받지 않는다 → 400
         if (target == MerchantStatus.APPLIED) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "변경할 수 있는 상태는 ACTIVE, SUSPENDED입니다.");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "변경할 수 있는 상태는 ACTIVE, SUSPENDED, REJECTED입니다.");
         }
 
-        // 2. 가맹점 조회 → 없으면 404
-        Merchant merchant = merchantRepository.findById(merchantId)
+        // 2. 가맹점 행을 잠그고 조회 → 없으면 404
+        //    승인과 반려가 동시에 들어와도 한쪽씩 처리되게 한다 (뒤에 온 요청은 앞 요청이 끝난 뒤의 최신 상태를 본다)
+        Merchant merchant = merchantRepository.findForUpdate(merchantId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "존재하지 않는 가맹점입니다."));
 
         MerchantStatus current = merchant.getStatus();
@@ -39,7 +40,10 @@ public class AdminMerchantService {
         }
 
         String txHash = null;
-        if (target == MerchantStatus.ACTIVE) {
+        if (target == MerchantStatus.REJECTED) {
+            // 반려: 체인에는 아무것도 하지 않는다. 신청 대기(APPLIED)일 때만 가능하고 아니면 409
+            merchant.reject();
+        } else if (target == MerchantStatus.ACTIVE) {
             if (current == MerchantStatus.APPLIED) {
                 // 승인: 체인 화이트리스트 등록이 먼저. 여기서 실패하면 아래 approve()까지 가지 않는다
                 txHash = registerOnChain(merchant.getWalletAddress());

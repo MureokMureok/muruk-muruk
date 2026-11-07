@@ -33,10 +33,12 @@ public class LedgerService {
      * 쿠폰 사용이 거절되면 호출한 쪽은 예외로 롤백되는데, 거절 기록은 남아야 하기 때문이다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordReject(String detail, String actor, Long merchantId, Long userId, Long couponId) {
+    public void recordReject(String detail, String actor, Long merchantId, Long userId, Long couponId,
+                             String reasonCode, String couponStatus) {
         ledgerRepository.save(LedgerEntry.builder()
                 .type(LedgerType.REJECT).detail(detail).actor(actor)
                 .merchantId(merchantId).userId(userId).couponId(couponId)
+                .reasonCode(reasonCode).couponStatus(couponStatus)
                 .build());
     }
 }

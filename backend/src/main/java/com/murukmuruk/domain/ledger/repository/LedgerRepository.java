@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 public interface LedgerRepository extends JpaRepository<LedgerEntry, Long> {
@@ -15,6 +16,9 @@ public interface LedgerRepository extends JpaRepository<LedgerEntry, Long> {
 
     /** 쿠폰 한 장의 발급·사용 기록 (최신순) */
     List<LedgerEntry> findByCouponIdOrderByIdDesc(Long couponId);
+
+    /** 여러 쿠폰의 기록 중 거래 해시가 있는 것 (최신순). 쿠폰마다 "마지막 거래 해시"를 찾는 데 쓴다 */
+    List<LedgerEntry> findByCouponIdInAndTxHashIsNotNullOrderByIdDesc(Collection<Long> couponIds);
 
     /** 기획전의 관리 기록 (가게 화면의 "조건 변경 이력") */
     List<LedgerEntry> findByCampaignIdAndTypeOrderByIdDesc(Long campaignId, LedgerType type);

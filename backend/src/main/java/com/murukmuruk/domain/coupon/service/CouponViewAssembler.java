@@ -6,8 +6,11 @@ import com.murukmuruk.domain.coupon.dto.CouponViewItem;
 import com.murukmuruk.domain.coupon.entity.Coupon;
 import com.murukmuruk.domain.coupon.entity.CouponPolicy;
 import com.murukmuruk.domain.coupon.enums.CouponViewStatus;
+import com.murukmuruk.domain.coupon.enums.ReceiveType;
 import com.murukmuruk.domain.coupon.repository.CouponPolicyRepository;
 import com.murukmuruk.domain.coupon.repository.CouponRepository;
+import com.murukmuruk.domain.ledger.entity.LedgerEntry;
+import com.murukmuruk.domain.ledger.repository.LedgerRepository;
 import com.murukmuruk.domain.merchant.entity.Merchant;
 import com.murukmuruk.domain.merchant.repository.MerchantRepository;
 import com.murukmuruk.domain.order.entity.Order;
@@ -18,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +39,7 @@ public class CouponViewAssembler {
     private final MerchantRepository merchantRepository;
     private final OrderRepository orderRepository;
     private final CouponRepository couponRepository;
+    private final LedgerRepository ledgerRepository;
 
     public List<CouponViewItem> assemble(List<Coupon> coupons) {
         if (coupons.isEmpty()) {
@@ -78,6 +83,13 @@ public class CouponViewAssembler {
                 : couponRepository.findByIssuedOrderIdIn(issuedOrderIds).stream()
                   .collect(Collectors.groupingBy(Coupon::getIssuedOrderId, Collectors.counting()));
 
+        // 쿠폰마다 마지막 거래 해시 (기록은 최신순이라 처음 만난 것이 마지막 거래)
+        Map<Long, String> lastTxByCoupon = new HashMap<>();
+        for (LedgerEntry entry : ledgerRepository.findByCouponIdInAndTxHashIsNotNullOrderByIdDesc(
+                coupons.stream().map(Coupon::getId).toList())) {
+            lastTxByCoupon.putIfAbsent(entry.getCouponId(), entry.getTxHash());
+        }
+
         return coupons.stream().map(c -> {
             CouponPolicy policy = policies.get(c.getCouponPolicyId());
             Merchant target = merchants.get(policy.getMerchantId());
@@ -106,7 +118,11 @@ public class CouponViewAssembler {
                     usedOrder == null ? null : usedOrder.getDiscountAmount(),
                     usedOrder == null ? null : TimeText.at(usedOrder.getCreatedAt()),
                     TimeText.at(c.getUsedAt()),
-                    c.getUserId());
+                    c.getUserId(),
+                    c.getTokenId(),
+                    policy.getReceiveType() == ReceiveType.CAMPAIGN ? null : policy.getId(),
+                    c.getUsedOrderId(),
+                    lastTxByCoupon.get(c.getId()));
         }).toList();
     }
 }
