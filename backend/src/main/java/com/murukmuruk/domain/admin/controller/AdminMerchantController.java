@@ -25,7 +25,7 @@ public class AdminMerchantController {
 
     /** PATCH /api/admin/merchants/{merchantId}/status : 승인·정지·해제 */
     @Operation(summary = "가맹점 상태 변경 (승인·정지·해제)",
-            description = "허용되는 변경은 승인(APPLIED→ACTIVE), 일시 정지(ACTIVE→SUSPENDED), 정지 해제(SUSPENDED→ACTIVE)입니다. "
+            description = "허용되는 변경은 승인(APPLIED→ACTIVE), 반려(APPLIED→REJECTED), 일시 정지(ACTIVE→SUSPENDED), 정지 해제(SUSPENDED→ACTIVE)입니다. "
                     + "APPLIED(심사 대기)로 바꾸는 요청은 400이고, 그 외 허용되지 않는 변경이나 같은 상태로의 변경은 409입니다. "
                     + "승인된 가맹점만 기획전에 참여할 수 있습니다.")
     @PatchMapping("/{merchantId}/status")

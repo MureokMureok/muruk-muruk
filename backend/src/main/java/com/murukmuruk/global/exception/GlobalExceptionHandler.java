@@ -21,12 +21,12 @@ public class GlobalExceptionHandler {
 
     // 우리가 직접 던진 예외 (BusinessException)
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
+    public ResponseEntity<ApiResponse<Object>> handleBusiness(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode();
         if (errorCode.getStatus().is5xxServerError()) { // 서버 쪽 오류(500, CHAIN500)는 로그를 남긴다
             log.error("business error: {}", e.getMessage(), e);
         }
-        return build(errorCode, e.getMessage());
+        return build(errorCode, e.getMessage(), e.getData());
     }
 
     // @Valid 검증 실패 (예: idToken이 비어 있음) → 400
@@ -72,5 +72,11 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ApiResponse<Void>> build(ErrorCode errorCode, String message) {
         return ResponseEntity.status(errorCode.getStatus())
                 .body(ApiResponse.error(errorCode.getCode(), message));
+    }
+
+    // 부가 정보(result)가 있는 실패 응답
+    private ResponseEntity<ApiResponse<Object>> build(ErrorCode errorCode, String message, Object data) {
+        return ResponseEntity.status(errorCode.getStatus())
+                .body(ApiResponse.error(errorCode.getCode(), message, data));
     }
 }

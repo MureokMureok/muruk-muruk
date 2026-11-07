@@ -31,6 +31,9 @@ public interface CouponPolicyRepository extends JpaRepository<CouponPolicy, Long
             + "WHERE id = :id AND issued_count > 0", nativeQuery = true)
     int decreaseIssuedCount(@Param("id") Long id);
 
+    /** 우리 가게가 직접 발행한 일반 쿠폰 목록 (기획전 쿠폰은 뺀다). 최신순 */
+    List<CouponPolicy> findByMerchantIdAndReceiveTypeNotOrderByIdDesc(Long merchantId, ReceiveType receiveType);
+
     /**
      * 지금 받을 수 있는 쿠폰: 받는 조건이 DIRECT, 가맹점이 ACTIVE, 수량이 남아 있는 것.
      * id 내림차순, 커서보다 작은 id만 조회한다.

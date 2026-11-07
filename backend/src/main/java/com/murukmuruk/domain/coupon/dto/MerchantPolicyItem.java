@@ -4,7 +4,7 @@ import com.murukmuruk.domain.coupon.entity.CouponPolicy;
 import com.murukmuruk.global.util.TimeText;
 
 /** 가맹점 콘솔 "우리 가게 쿠폰" 목록의 항목 (프론트 getStorePolicies와 같은 이름) */
-public record StorePolicyItem(
+public record MerchantPolicyItem(
         long id,
         String name,
         long value,          // 1장당 할인 금액
@@ -15,8 +15,8 @@ public record StorePolicyItem(
         long used,           // 그중 사용 완료한 장수
         String createdAt     // "2026-11-03 18:20"
 ) {
-    public static StorePolicyItem of(CouponPolicy p, long used) {
-        return new StorePolicyItem(p.getId(), p.getName(), p.getDiscountAmount(), p.getMinOrderAmount(),
+    public static MerchantPolicyItem of(CouponPolicy p, long used) {
+        return new MerchantPolicyItem(p.getId(), p.getName(), p.getDiscountAmount(), p.getMinOrderAmount(),
                 p.getValidDays(), p.getQuantity(), p.getIssuedCount(), used, TimeText.at(p.getCreatedAt()));
     }
 }
