@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 무럭무럭 새싹 아이콘 (연두 바탕 + 진녹색 새싹) -->
+  <rect width="32" height="32" rx="8" fill="#9fe870"/>
+  <g transform="translate(4 4)" fill="#163300">
+    <path d="M12 21.5V11" stroke="#163300" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+    <path d="M12 12.5C12 7.2 8.4 4 3 4c0 5.3 3.7 8.5 9 8.5Z"/>
+    <path d="M12 10.8c0-4.3 3-7 8-7 0 4.3-3 7-8 7Z"/>
+  </g>
+</svg>

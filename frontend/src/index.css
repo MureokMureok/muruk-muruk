@@ -1,0 +1,335 @@
+/* 무럭무럭 공통 디자인 값 — 소비자 UI 가이드 v2 (톤앤매너·컴포넌트) + 목업 v3 기준
+   모든 화면(소비자·가맹점 센터·KCP 관리자)이 같이 쓰는 색·글꼴·버튼·칩·안내 상자.
+   화면별 부품은 styles/app.css */
+:root {
+  /* 색 (가이드 2. 색) — 연두는 "브랜드와 행동", 노랑은 "혜택과 강조", 빨강은 "실패·거절"에만 */
+  --brand: #9fe870;   /* 연두: 주요 버튼·하단 탭·배너 */
+  --forest: #163300;  /* 진녹: 제목·강조 글자, 선택된 탭 바탕 */
+  --on-brand: #163300; /* 연두 위에 올리는 글자 (다크 모드에서도 그대로) */
+  --mint: #e2f6d5;    /* 쿠폰 카드·안내(정상) 바탕 */
+  --yel: #ffd11a;     /* 노랑 버튼: "지금 돈이 되는" 행동(쿠폰 사용하기)에만 */
+  --yelbg: #fff2b8;   /* 안내(주의)·"받기 전" 칩 바탕 */
+  --yelink: #5a4600;  /* 노랑 바탕 위 글자 */
+  --ink: #0e0f0c;     /* 제목·강조 글자 */
+  --body: #454745;    /* 본문 글자 */
+  --muted: #6b6c6a;   /* 보조 설명·작은 글자 */
+  --sand: #f3f5ef;    /* 연한 바탕·비활성 칩 */
+  --danger: #d03238;  /* 실패·거절 */
+  --dangerbg: #fde4e5;
+  --danger-ink: #8a1e23;
+  --info: #dfeaf7;    /* 진행 중·준비 중 칩 */
+  --info-ink: #1c3d63;
+  --gray: #eceee9;    /* 사용 완료·만료 카드 */
+  --line: rgba(14, 15, 12, 0.12);
+  --sel-bg: var(--forest); /* 선택된 탭 바탕 */
+  --sel-fg: var(--brand);  /* 선택된 탭 글자 */
+
+  /* 바탕 (다크 모드에서 바뀌는 값 — styles/app.css 맨 아래 참고) */
+  --bg: #fff;      /* 화면 바탕 */
+  --surface: #fff; /* 카드·버튼 바탕 */
+
+  /* 글꼴 (가이드 3. 글자) */
+  --f: 'Pretendard Variable', Pretendard, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+    'Malgun Gothic', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--body);
+  font-family: var(--f);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.02em; /* 본문 자간 -2% */
+  word-break: keep-all; /* 한글 단어 중간에서 줄바꿈 안 되게 */
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+h1,
+h2,
+h3,
+h4 {
+  color: var(--ink);
+  letter-spacing: -0.05em; /* 제목 자간 -5% */
+  line-height: 1.2;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* ---------- 1. 버튼 (가이드: 높이 50 / 작은 버튼 40, 완전 둥글게) ---------- */
+.btn {
+  min-height: 50px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 24px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  text-align: center;
+  white-space: nowrap;
+  background: var(--brand); /* 주요: 연두 바탕 + 진녹 글자 */
+  color: var(--on-brand);
+}
+.btn.g {
+  background: var(--surface); /* 보조: 흰 바탕 + 선 */
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+.btn.y {
+  background: var(--yel); /* 노랑: 쿠폰 사용처럼 돈이 되는 행동에만 */
+  color: #1d1a00;
+}
+.btn.r {
+  background: var(--surface); /* 위험: 반려·종료 */
+  box-shadow: inset 0 0 0 1px rgba(208, 50, 56, 0.45);
+  color: #b0262c;
+}
+.btn.d,
+.btn:disabled {
+  background: var(--gray); /* 비활성: 이유를 화면에 같이 적기 */
+  box-shadow: none;
+  color: var(--muted);
+}
+.btn.sm {
+  min-height: 40px;
+  font-size: 14px;
+  padding: 0 18px;
+}
+.btn.blk {
+  width: 100%;
+}
+
+/* 밑줄 글자 버튼 (시연 도구 등) */
+.text-link {
+  min-height: 36px;
+  font-size: 13.5px;
+  color: var(--body);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-align: left;
+}
+
+/* ---------- 3. 칩 (가이드: 높이 24, 한 칩은 한 가지 뜻만) ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+  background: var(--mint);
+  color: var(--forest);
+}
+.chip.y {
+  background: var(--yelbg);
+  color: var(--yelink);
+}
+.chip.r {
+  background: var(--dangerbg);
+  color: #b0262c;
+}
+.chip.g {
+  background: var(--gray);
+  color: var(--body);
+}
+.chip.b {
+  background: var(--info);
+  color: var(--info-ink);
+}
+.chip.dk {
+  background: var(--forest);
+  color: var(--brand);
+}
+
+/* ---------- 8. 안내 상자 (ok 민트 · warn 노랑 · err 빨강, "무슨 일 → 괜찮은 점" 순서) ---------- */
+.nb {
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  background: var(--sand);
+  color: var(--body);
+  display: flex;
+  gap: 8px;
+}
+.nb.ok {
+  background: var(--mint);
+  color: var(--forest);
+}
+.nb.warn {
+  background: var(--yelbg);
+  color: var(--yelink);
+}
+.nb.err {
+  background: var(--dangerbg);
+  color: var(--danger-ink);
+}
+.nb b {
+  color: inherit;
+}
+.nb.row {
+  justify-content: space-between;
+  align-items: center;
+}
+.nb.col {
+  flex-direction: column;
+  gap: 2px;
+}
+a.nb {
+  color: inherit;
+}
+
+/* ---------- 9. 정보 행 (라벨 회색 · 값 진하게) ---------- */
+.kv {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 0 10px;
+  margin: 0;
+}
+.kv dt,
+.kv dd {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.kv dt {
+  font-size: 14px;
+  color: var(--muted);
+}
+.kv dd {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  gap: 6px;
+}
+
+/* ---------- 11. 기록 타임라인 ---------- */
+.tl {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tl li {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  text-align: left;
+}
+.tl li:first-child {
+  border-top: 0;
+}
+.tl .dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--on-brand);
+  display: grid;
+  place-items: center;
+}
+.tl .dot svg {
+  width: 13px;
+  height: 13px;
+}
+.tl .dot.x {
+  background: var(--dangerbg);
+  color: var(--danger);
+}
+.tl .dot.w {
+  background: var(--yelbg);
+  color: var(--yelink);
+  font-weight: 900;
+  font-size: 11px;
+}
+.tl .dot.n {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.tl b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.tl b.off {
+  color: var(--muted);
+}
+.tl small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- 작은 글씨·도구 ---------- */
+.cap {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ink {
+  color: var(--ink);
+}
+.center {
+  text-align: center;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.mono {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+/* 가게 동그라미 아바타 ("봄") */
+.avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--forest);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 20px;
+  flex: none;
+}
+.avatar.s {
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
