@@ -24,11 +24,26 @@
 ## 브랜치 규칙
 
 - `main`: 시연 가능한 상태만. **직접 푸시 금지**, PR로만 반영
-- `develop`: 영역 통합용. 영역별 브랜치를 PR로 합칩니다
-- `feature/contracts`, `feature/backend`, `feature/frontend`: 영역별 작업 브랜치
-- 한 영역을 두 명 이상이 하면 `feature/frontend-로그인`처럼 한 단계 더 따서 작업
+- `develop`: 통합용. 작업 브랜치를 PR로 합칩니다
+- `feature/<영역>-<작업>`: `develop`에서 따서 작업하는 브랜치
+  - 영역: `backend`, `frontend`, `contracts`
+  - 예: `feature/backend-coupon-issue`, `feature/frontend-로그인`, `feature/contracts-v3`
 
-작업 순서: `git pull` → 자기 브랜치로 이동 → 작은 단위로 커밋·푸시 → 합칠 때 PR 생성 → 한 명이 훑어보고 머지
+```
+main
+ └─ develop
+     ├─ feature/backend-<작업>
+     ├─ feature/frontend-<작업>
+     └─ feature/contracts-<작업>
+```
+
+작업 순서: `git checkout develop` → `git pull` → `git checkout -b feature/<영역>-<작업>` → 작은 단위로 커밋·푸시 → PR(base: `develop`) 생성 → 한 명이 훑어보고 머지
+
+- PR의 base는 항상 `develop`입니다. 영역별 중간 브랜치는 두지 않습니다.
+- 브랜치 이름은 영역 이름으로 시작합니다 (`feature/backend-...`).
+- 머지가 끝난 브랜치는 삭제합니다.
+- 작업 중 `develop`이 바뀌었으면 `git merge develop`으로 최신을 받아옵니다.
+- `develop → main`은 시연 직전에 PR로 합칩니다.
 
 ## 커밋 메시지
 
