@@ -6,7 +6,8 @@
 
 const FOLLOW_KEY = 'muruk.followSystemTheme'
 const DARK_KEY = 'muruk.darkMode'
-const media = window.matchMedia('(prefers-color-scheme: dark)') // 시스템이 다크 모드인지 알려주는 도구
+// 시스템이 다크 모드인지 알려주는 도구. 오래된 웹뷰에는 없어서, 없으면 항상 밝은 모드로 본다
+const media = window.matchMedia?.('(prefers-color-scheme: dark)') ?? null
 
 function read(key) {
   try {
@@ -31,22 +32,22 @@ export const getDarkMode = () => read(DARK_KEY)
 export const setDarkMode = (on) => write(DARK_KEY, on)
 
 // 지금 시스템이 다크 모드인지 (설정 화면 안내용)
-export const systemIsDark = () => media.matches
+export const systemIsDark = () => media?.matches ?? false
 
 // 시스템 다크/라이트가 바뀔 때 알려 달라고 등록. 돌려준 함수를 부르면 등록 해제
 export function onSystemChange(fn) {
-  media.addEventListener('change', fn)
-  return () => media.removeEventListener('change', fn)
+  media?.addEventListener('change', fn)
+  return () => media?.removeEventListener('change', fn)
 }
 
 export function applyTheme() {
   // 시스템 따르기가 켜져 있으면 시스템 설정, 아니면 직접 고른 다크 모드
-  const dark = getFollowSystem() ? media.matches : getDarkMode()
+  const dark = getFollowSystem() ? systemIsDark() : getDarkMode()
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
 }
 
 // 앱 시작 시 한 번 호출: 지금 상태 적용 + 시스템 설정이 바뀌면 다시 적용
 export function initTheme() {
   applyTheme()
-  media.addEventListener('change', applyTheme)
+  media?.addEventListener('change', applyTheme)
 }

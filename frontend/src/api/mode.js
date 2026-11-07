@@ -13,3 +13,6 @@ const REAL_APIS = new Set(
 )
 
 export const isRealApi = (name) => REAL_MODE && (REAL_APIS.has('all') || REAL_APIS.has(name))
+
+// 시연 도구는 mock.js 안에서만 동작한다. 함수가 하나라도 실서버로 가면 고른 실패가 무시된 채 실제 요청이 나간다
+export const ALL_MOCK = !REAL_MODE || REAL_APIS.size === 0
