@@ -189,7 +189,8 @@ export async function getCampaign() {
   await wait(READ_MS)
   readGuard()
   const db = load()
-  return campaignView(db, mainCampaign(db))
+  const c = mainCampaign(db)
+  return c ? campaignView(db, c) : null // 기획전이 하나도 없으면 null (실서버 404와 같은 뜻)
 }
 
 // GET /api/campaigns — 기획전 목록. 소비자 검색은 별도 API 없이 이 목록을 받아 프론트에서 거른다 (utils/search.js)

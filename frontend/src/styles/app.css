@@ -648,6 +648,10 @@ mark {
   font-size: 20px;
   font-weight: 800;
 }
+/* 화면 낭독기용으로 코드가 옮긴 포커스라 누를 수 있는 것처럼 테두리를 그리지 않는다 */
+.stb h2[tabindex='-1']:focus {
+  outline: none;
+}
 .stb p {
   font-size: 14px;
   color: var(--body);
@@ -2118,6 +2122,10 @@ html[data-theme='dark'] .sprout-overlay {
   gap: 8px;
 }
 
+/* 빈 안내 영역이 화면 칸 사이 간격(gap)을 차지하지 않게 흐름에서 뺀다 */
+.toast-live {
+  position: fixed;
+}
 /* 2.5초: hooks/useToast.js의 TOAST_MS와 같은 값 */
 .toast {
   position: fixed;

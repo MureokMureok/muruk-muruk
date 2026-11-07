@@ -5,7 +5,7 @@ import { request as send } from './http.js'
 
 const path = (strings, ...values) => strings.reduce((out, s, i) => out + encodeURIComponent(values[i - 1]) + s)
 
-// 없는 가게·쿠폰은 화면에서 "찾을 수 없어요"로 보여 주므로 오류가 아니다
+// 없는 가게·쿠폰·기획전은 화면에서 "찾을 수 없어요"·"기획전 없음"으로 보여 주므로 오류가 아니다
 const orNull = (promise) =>
   promise.catch((err) => {
     if (err.status === 404) return null
@@ -27,7 +27,7 @@ function withCategoryLabels(value) {
 const request = async (...args) => withCategoryLabels(await send(...args))
 
 // ---------- 소비자 ----------
-export const getCampaign = () => request('GET', '/api/campaigns/current')
+export const getCampaign = () => orNull(request('GET', '/api/campaigns/current')) // 기획전이 하나도 없으면 404
 export const getCampaigns = () => request('GET', '/api/campaigns')
 export const getProduct = (merchantId) => orNull(request('GET', path`/api/merchants/${merchantId}/product`))
 export const previewPurchase = (merchantId) => request('GET', path`/api/merchants/${merchantId}/purchase-preview`)
