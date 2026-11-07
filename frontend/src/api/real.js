@@ -33,13 +33,29 @@ export const getProduct = (merchantId) => orNull(request('GET', path`/api/mercha
 export const previewPurchase = (merchantId) => request('GET', path`/api/merchants/${merchantId}/purchase-preview`)
 export const purchase = (_userId, merchantId) => request('POST', '/api/orders', { merchantId })
 export const getMyCoupons = () => request('GET', '/api/me/coupons')
-export const getCoupon = (couponId) => orNull(request('GET', path`/api/coupons/${couponId}`))
-export const getCouponHistory = (couponId) => request('GET', path`/api/coupons/${couponId}/history`)
+// 기획전 쿠폰 상세·기록은 /api/me 아래에 있다 (/api/coupons 는 일반 쿠폰 명세)
+export const getCoupon = (couponId) => orNull(request('GET', path`/api/me/coupons/${couponId}`))
+export const getCouponHistory = (couponId) => request('GET', path`/api/me/coupons/${couponId}/history`)
 export const getMySummary = () => request('GET', '/api/me/summary')
 export const redeemCoupon = (_userId, couponId, merchantId) => request('POST', '/api/orders', { merchantId, couponId })
 export const confirmOrder = (_userId, orderId) => request('POST', path`/api/orders/${orderId}/confirm`)
 export const cancelOrder = (_userId, orderId) => request('POST', path`/api/orders/${orderId}/cancel`)
-export const getCouponOffers = () => request('GET', '/api/coupon-policies')
+// 응답이 { items, nextCursor, hasNext } 이고 항목 이름이 화면(mock)과 달라서 맞춰 준다. 한 번에 최대 50개
+export const getCouponOffers = async () => {
+  const { items } = await request('GET', '/api/coupon-policies?size=50')
+  return items.map((o) => ({
+    id: o.couponPolicyId,
+    name: o.name,
+    merchantId: o.merchantId,
+    merchantName: o.merchantName,
+    category: o.category,
+    value: o.discountAmount,
+    minOrder: o.minOrderAmount,
+    validDays: o.validDays,
+    qtyLeft: o.remainingCount,
+    myCouponId: o.alreadyClaimed ? 'claimed' : null, // 화면은 받았는지 여부만 본다
+  }))
+}
 export const claimCoupon = (_userId, policyId) => request('POST', path`/api/coupon-policies/${policyId}/claim`)
 
 // ---------- 가맹점 ----------
