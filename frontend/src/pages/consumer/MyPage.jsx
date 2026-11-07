@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SIMULATIONS, getMySummary, getSimulation, resetDemo, setSimulation } from '../../api/api.js'
-import { isRealApi } from '../../api/mode.js'
+import { ALL_MOCK } from '../../api/mode.js'
 import { getUser, logout } from '../../auth/mockAuth.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
@@ -25,8 +25,12 @@ function MyPage() {
   // mode: 'ready'(기획전 진행 중, 바로 쿠폰 받기) / 'demo'(시연 시작 — KCP 가맹점 심사부터)
   const [resetMode, setResetMode] = useState(null)
   async function handleReset() {
-    await resetDemo(resetMode)
-    navigate('/home')
+    try {
+      await resetDemo(resetMode)
+      navigate('/home')
+    } finally {
+      setResetMode(null) // 실패해도 확인창이 열린 채 남지 않게
+    }
   }
 
   // 시연용 실패·멈춤 고르기 (다음 한 번만, 그 뒤 자동으로 정상)
@@ -38,7 +42,7 @@ function MyPage() {
 
   return (
     <PhoneScreen large="MY" tabs>
-      {resetMode && <ConfirmDialog message="시연 데이터를 처음 상태로 되돌릴까요? 쿠폰·주문·기록과 새로 가입한 계정이 모두 지워져요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
+      {resetMode && <ConfirmDialog message="이 브라우저의 시연 데이터를 처음 상태로 되돌릴까요? 시연 중 생긴 쿠폰·주문·기록과 계정이 지워져요. 서버에 저장된 계정과 데이터는 그대로예요." confirmLabel="되돌리기" danger onConfirm={handleReset} onCancel={() => setResetMode(null)} />}
       <div className="profile">
         <span className="avatar">{user.name[0]}</span>
         <div>
@@ -86,8 +90,8 @@ function MyPage() {
         로그아웃
       </button>
 
-      {/* 발표 질의응답용: 실패·확인 중 화면을 보여줄 때. 구매가 실서버로 가면 시연 데이터를 쓰지 않으므로 숨긴다 */}
-      {!isRealApi('purchase') && <section className="nb col tools">
+      {/* 발표 질의응답용: 실패·확인 중 화면을 보여줄 때 */}
+      {ALL_MOCK && <section className="nb col tools">
         <span className="cap">시연 도구 (발표용)</span>
         <label style={{ width: '100%' }}>
           <span className="cap">실패·확인 중 상황 만들기 (연결 오류 말고는 한 번만)</span>
@@ -100,7 +104,7 @@ function MyPage() {
           </select>
         </label>
         <button className="text-link" onClick={() => setResetMode('ready')}>
-          데이터 처음으로 (기획전 진행 중 · 바로 쿠폰 받기)
+          시연 데이터 처음으로 (기획전 진행 중 · 바로 쿠폰 받기)
         </button>
         <button className="text-link" onClick={() => setResetMode('demo')}>
           시연 시작 상태로 (KCP 가맹점 심사부터)

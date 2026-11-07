@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { getCampaign } from '../../api/api.js'
+import MissingScreen from '../../components/MissingScreen.jsx'
 import PhoneScreen from '../../components/PhoneScreen.jsx'
 import { useApi } from '../../hooks/useApi.js'
 import { CAMPAIGN_IMAGE } from '../../utils/images.js'
 import { period, won } from '../../utils/format.js'
+import { CAMPAIGN_STATUS } from '../../utils/labels.js'
 
 // 기획전이 진행 중이 아닐 때 안내
 const NOT_ACTIVE = {
@@ -15,16 +17,20 @@ const NOT_ACTIVE = {
 // C-02 연합 기획전 상세 (목업 v3)
 // 핵심: "어디서 사면 → 어떤 쿠폰" 연결이 한눈에 보이게. 로그인 없이 볼 수 있음
 function CampaignPage() {
-  const { data: c } = useApi(() => getCampaign(), [])
-  if (!c) return <PhoneScreen title="연합 기획전" />
+  const { data: c, loading } = useApi(() => getCampaign(), [])
+  if (loading && !c) return <PhoneScreen title="연합 기획전" />
+  if (!c) return <MissingScreen title="연합 기획전" message="진행 중인 기획전이 없어요" to="/home" toLabel="홈으로" />
 
   return (
     <PhoneScreen
       title="연합 기획전"
       foot={
-        <Link className="btn" to={`/campaign/buy/${c.terms[0].merchantId}`}>
-          {c.terms[0].merchantName} 상품 보기
-        </Link>
+        // 막 만든 기획전은 참여 가게가 아직 없을 수 있다
+        c.terms.length > 0 && (
+          <Link className="btn" to={`/campaign/buy/${c.terms[0].merchantId}`}>
+            {c.terms[0].merchantName} 상품 보기
+          </Link>
+        )
       }
     >
       <div className="shopimg" style={{ height: 80 }}>
@@ -69,7 +75,12 @@ function CampaignPage() {
             <Link className="store" key={t.merchantId} to={`/campaign/buy/${t.merchantId}`}>
               <div className="hd">
                 <b>{t.merchantName}에서 구매</b>
-                {open.length === 0 ? (
+                {/* 쿠폰은 진행 중인 기획전에서만 발급된다 */}
+                {c.status !== 'ACTIVE' ? (
+                  <span className={`chip ${CAMPAIGN_STATUS[c.status].tone}`}>{CAMPAIGN_STATUS[c.status].label}</span>
+                ) : gets.length === 0 ? (
+                  <span className="chip g">쿠폰 준비 중</span>
+                ) : open.length === 0 ? (
                   <span className="chip y">쿠폰 마감</span>
                 ) : open.length < gets.length ? (
                   <span className="chip y">일부 쿠폰 마감</span>

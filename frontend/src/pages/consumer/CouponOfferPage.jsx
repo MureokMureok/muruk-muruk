@@ -11,8 +11,9 @@ import { won } from '../../utils/format.js'
 // 아직 받지 않은 쿠폰: 직접 받기 버튼은 없고, 다른 가게에서 사면 자동으로 받는다
 function CouponOfferPage() {
   const { merchantId } = useParams()
-  const { data: c } = useApi(() => getCampaign(), [])
-  if (!c) return <PhoneScreen title="쿠폰 상세" />
+  const { data: c, loading } = useApi(() => getCampaign(), [])
+  if (loading && !c) return <PhoneScreen title="쿠폰 상세" />
+  if (!c) return <MissingScreen title="쿠폰 상세" message="진행 중인 기획전이 없어요" to="/home" toLabel="홈으로" />
 
   const t = c.terms.find((x) => x.merchantId === merchantId && x.registered)
   if (!t) return <MissingScreen title="쿠폰 상세" message="찾을 수 없는 쿠폰이에요" to="/home" toLabel="홈으로" />

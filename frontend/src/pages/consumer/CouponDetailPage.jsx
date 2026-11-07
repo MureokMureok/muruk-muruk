@@ -321,8 +321,8 @@ function CouponScreen({ couponId }) {
           }
         >
           <CouponCard coupon={coupon} />
-          {/* 시연용: 5가지 확인 중 어디서 막혔는지 */}
-          <CheckList results={outcome.checks} failedKey={outcome.failedKey} />
+          {/* 시연용: 5가지 확인 중 어디서 막혔는지. 연결 오류 등에는 확인 결과가 없다 */}
+          {outcome.checks && <CheckList results={outcome.checks} failedKey={outcome.failedKey} />}
         </StatusView>
       </PhoneScreen>
     )

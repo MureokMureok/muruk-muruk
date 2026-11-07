@@ -20,7 +20,7 @@ const NOT_ACTIVE = { PREPARING: '시작 전', PAUSED: '일시 중지', ENDED: '�
 // 순서: 로고 → 검색 → 연합 기획전 배너 → 구매하면 받는 쿠폰 → 카테고리 → 떠 있는 탭
 // 로그인 안 해도 볼 수 있다 (확정 정책: 비회원도 홈·기획전·쿠폰 정보 탐색 가능)
 function ConsumerHome() {
-  const { data: campaign } = useApi(() => getCampaign(), [])
+  const { data: campaign, loading: campaignLoading } = useApi(() => getCampaign(), [])
   const userId = getUser()?.id
   const { data: offers } = useApi(() => getCouponOffers(userId), [userId])
   const available = offers?.filter((offer) => !offer.myCouponId) ?? []
@@ -35,7 +35,8 @@ function ConsumerHome() {
           <span>기획전·가게·상품 검색</span>
         </Link>
 
-        {!campaign && <SproutLoading delay />}
+        {campaignLoading && !campaign && <SproutLoading delay />}
+        {!campaignLoading && !campaign && <p className="nb">지금 진행 중인 연합 기획전이 없어요. 기획전이 열리면 여기에서 알려 드릴게요.</p>}
 
         {campaign && (
           <>
