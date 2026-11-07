@@ -29,8 +29,10 @@ public class CampaignPublicController {
         return ApiResponse.success(campaignQueryService.list());
     }
 
-    @Operation(summary = "지금 진행 중인 기획전 (비회원 가능)",
-            description = "소비자 화면에 보여 줄 기획전과 참여 가게(남은 수량 포함)입니다. 진행 중인 기획전이 없으면 404.")
+    @Operation(summary = "소비자 화면의 기획전 (비회원 가능)",
+            description = "소비자 화면에 보여 줄 기획전과 참여 가게(남은 수량 포함)입니다. 진행 중(ACTIVE)인 기획전이 있으면 그중 먼저 만든 것을, "
+                    + "없으면 가장 최근 기획전을 돌려줍니다. 그래서 status가 PREPARING, PAUSED, ENDED일 수 있으니 "
+                    + "화면에서는 status를 확인해야 합니다. 기획전이 하나도 없을 때만 404입니다.")
     @GetMapping("/api/campaigns/current")
     public ApiResponse<CampaignResponse> current() {
         return ApiResponse.success(campaignQueryService.current());

@@ -72,15 +72,17 @@ public class CampaignTerm extends BaseTimeEntity {
         return term;
     }
 
-    /** 조건 저장. register가 true면 "기획전에 등록하기"(등록 시각 기록), false면 임시 저장 */
+    /**
+     * 조건 저장. register가 true면 "기획전에 등록하기"(등록 시각 기록), false면 임시 저장.
+     * 임시 저장은 등록 상태를 푼다. 이미 체인에 등록한 값과 달라진 채로 시작 승인이 되면 안 되므로,
+     * 값을 바꾼 가게는 다시 등록해야 한다.
+     */
     public void update(long discountAmount, long minOrderAmount, TermValidity validity, long cap, boolean register) {
         this.discountAmount = discountAmount;
         this.minOrderAmount = minOrderAmount;
         this.validity = validity;
         this.cap = cap;
-        if (register) {
-            this.registeredAt = LocalDateTime.now();
-        }
+        this.registeredAt = register ? LocalDateTime.now() : null;
     }
 
     public void attachPolicy(Long couponPolicyId) {

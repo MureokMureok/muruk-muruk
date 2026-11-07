@@ -41,11 +41,16 @@ public class MyCouponService {
         return couponViewAssembler.assemble(List.of(ownCoupon(userId, couponId))).get(0);
     }
 
-    /** GET /api/me/coupons/{couponId}/history : 이 쿠폰의 발급·사용 기록 (오래된 것부터) */
+    /**
+     * GET /api/me/coupons/{couponId}/history : 이 쿠폰의 발급·사용 기록 (오래된 것부터).
+     * 내 기록만 돌려준다. 다른 사람이 이 쿠폰을 쓰려다 거절된 기록(REJECT)에는 그 사람의 사용자 번호와 이름이 있어서 뺀다.
+     */
     public List<LedgerRowResponse> history(Long userId, Long couponId) {
         ownCoupon(userId, couponId);
         List<LedgerRowResponse> rows = new ArrayList<>(
-                ledgerRepository.findByCouponIdOrderByIdDesc(couponId).stream().map(LedgerRowResponse::from).toList());
+                ledgerRepository.findByCouponIdOrderByIdDesc(couponId).stream()
+                        .filter(e -> e.getUserId() == null || e.getUserId().equals(userId))
+                        .map(LedgerRowResponse::from).toList());
         Collections.reverse(rows);
         return rows;
     }
