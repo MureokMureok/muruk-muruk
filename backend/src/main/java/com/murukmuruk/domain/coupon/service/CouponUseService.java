@@ -6,6 +6,7 @@ import com.murukmuruk.domain.coupon.entity.Coupon;
 import com.murukmuruk.domain.coupon.entity.CouponPolicy;
 import com.murukmuruk.domain.coupon.enums.CouponState;
 import com.murukmuruk.domain.coupon.enums.CouponStatus;
+import com.murukmuruk.domain.coupon.enums.ReceiveType;
 import com.murukmuruk.domain.coupon.enums.UsableScope;
 import com.murukmuruk.domain.coupon.repository.CouponPolicyRepository;
 import com.murukmuruk.domain.coupon.repository.CouponRepository;
@@ -71,6 +72,11 @@ public class CouponUseService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         CouponPolicy policy = couponPolicyRepository.findById(coupon.getCouponPolicyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+
+        // 기획전 쿠폰은 결제 → 구매 확정 단계가 있는 POST /api/orders 흐름으로만 쓴다
+        if (policy.getReceiveType() == ReceiveType.CAMPAIGN) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
 
         // 만료 비교는 초 단위로 자르지 않고 정확한 현재 시각으로 한다
         LocalDateTime now = LocalDateTime.now();

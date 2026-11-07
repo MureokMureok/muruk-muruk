@@ -15,6 +15,61 @@ import java.util.List;
 
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
+    // ───────────── 기획전 쿠폰 ─────────────
+
+    /** 내 쿠폰 전체 (발급 최신순) */
+    List<Coupon> findByUserIdOrderByIdDesc(Long userId);
+
+    /** 이 주문으로 발급된 쿠폰 (구매 확정·취소 때 찾는다) */
+    List<Coupon> findByIssuedOrderId(Long issuedOrderId);
+
+    /** 여러 주문으로 발급된 쿠폰 (같은 구매로 받은 쿠폰 수 계산용) */
+    List<Coupon> findByIssuedOrderIdIn(Collection<Long> issuedOrderIds);
+
+    /** 이 주문(쿠폰을 적용한 결제)에 쓰인 쿠폰 */
+    List<Coupon> findByUsedOrderId(Long usedOrderId);
+
+    /** 정책들의 쿠폰 중 해당 상태인 것 (사용 수·할인 부담 계산용) */
+    List<Coupon> findByCouponPolicyIdInAndState(Collection<Long> couponPolicyIds, CouponState state);
+
+    /** 기획전 쿠폰 중 해당 상태인 것 (손님 흐름 계산용) */
+    List<Coupon> findByCampaignIdInAndState(Collection<Long> campaignIds, CouponState state);
+
+    /**
+     * 결제에 쿠폰을 적용한다 (사용 락업): ACTIVE이고 만료 전일 때만 IN_USE로 바뀐다 (반환값 0이면 못 씀).
+     * 같은 쿠폰을 동시에 두 결제에 적용해도 한 요청만 1을 돌려받는다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE coupon SET status = 'IN_USE', used_order_id = :orderId "
+            + "WHERE id = :id AND status = 'ACTIVE' AND expires_at > :now", nativeQuery = true)
+    int lockForUse(@Param("id") Long id, @Param("orderId") Long orderId, @Param("now") LocalDateTime now);
+
+    /** 결제 확정: 이 주문에 적용된 IN_USE 쿠폰을 USED로 (사용 완료) */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE coupon SET status = 'USED', used_at = :now "
+            + "WHERE used_order_id = :orderId AND status = 'IN_USE'", nativeQuery = true)
+    int confirmUse(@Param("orderId") Long orderId, @Param("now") LocalDateTime now);
+
+    /** 결제 취소: 이 주문에 적용된 IN_USE 쿠폰을 사용 가능(ACTIVE)으로 복원 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE coupon SET status = 'ACTIVE', used_order_id = NULL "
+            + "WHERE used_order_id = :orderId AND status = 'IN_USE'", nativeQuery = true)
+    int restoreUse(@Param("orderId") Long orderId);
+
+    /** 구매 확정: 이 주문으로 발급된 PENDING 쿠폰을 사용 가능(ACTIVE)으로 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE coupon SET status = 'ACTIVE' "
+            + "WHERE issued_order_id = :orderId AND status = 'PENDING'", nativeQuery = true)
+    int activatePending(@Param("orderId") Long orderId);
+
+    /** 구매 취소: 이 주문으로 발급된 PENDING 쿠폰을 무효(VOIDED)로 */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE coupon SET status = 'VOIDED' "
+            + "WHERE issued_order_id = :orderId AND status = 'PENDING'", nativeQuery = true)
+    int voidPending(@Param("orderId") Long orderId);
+
+    // ───────────── 일반 쿠폰 ─────────────
+
     /** 이미 받은 쿠폰인지 (같은 정책은 사용자당 1장) */
     boolean existsByUserIdAndCouponPolicyId(Long userId, Long couponPolicyId);
 

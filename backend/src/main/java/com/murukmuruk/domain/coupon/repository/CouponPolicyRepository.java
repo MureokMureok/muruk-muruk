@@ -24,6 +24,14 @@ public interface CouponPolicyRepository extends JpaRepository<CouponPolicy, Long
     int increaseIssuedCount(@Param("id") Long id);
 
     /**
+     * 발급 수량 -1. 기획전 구매가 취소돼 쿠폰이 무효가 되면 그 가게의 발급 수를 되돌려 다른 손님에게 다시 나갈 수 있게 한다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "UPDATE coupon_policy SET issued_count = issued_count - 1, updated_at = CURRENT_TIMESTAMP(6) "
+            + "WHERE id = :id AND issued_count > 0", nativeQuery = true)
+    int decreaseIssuedCount(@Param("id") Long id);
+
+    /**
      * 지금 받을 수 있는 쿠폰: 받는 조건이 DIRECT, 가맹점이 ACTIVE, 수량이 남아 있는 것.
      * id 내림차순, 커서보다 작은 id만 조회한다.
      */

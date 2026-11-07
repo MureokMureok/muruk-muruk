@@ -1,8 +1,10 @@
 package com.murukmuruk.domain.merchant.repository;
 
 import com.murukmuruk.domain.merchant.entity.Merchant;
+import com.murukmuruk.domain.merchant.enums.MerchantStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface MerchantRepository extends JpaRepository<Merchant, Long> {
@@ -14,4 +16,9 @@ public interface MerchantRepository extends JpaRepository<Merchant, Long> {
     boolean existsByGoogleSub(String googleSub);
 
     boolean existsByBusinessNo(String businessNo);
+
+    // 관리자 가맹점 목록 (최신 신청이 위)
+    List<Merchant> findAllByOrderByIdDesc();
+
+    List<Merchant> findByStatusOrderByIdDesc(MerchantStatus status);
 }

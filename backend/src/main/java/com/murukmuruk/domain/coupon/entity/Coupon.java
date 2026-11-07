@@ -56,11 +56,33 @@ public class Coupon {
     @Column(name = "used_at", updatable = false)
     private LocalDateTime usedAt;
 
+    @Column(name = "campaign_id", updatable = false)
+    private Long campaignId; // 기획전 쿠폰만
+
+    @Column(name = "from_merchant_id", updatable = false)
+    private Long fromMerchantId; // 쿠폰을 받게 한 구매 가게 (기획전 쿠폰만)
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    /** 새 쿠폰 발급: 처음 상태는 항상 ACTIVE */
+    /** 기획전 쿠폰 발급: 구매 확정 전이라 처음 상태는 PENDING(확정 대기) */
+    public static Coupon issueForPurchase(Long couponPolicyId, Long userId, long tokenId,
+                                          LocalDateTime expiresAt, Long issuedOrderId,
+                                          Long campaignId, Long fromMerchantId) {
+        Coupon coupon = new Coupon();
+        coupon.couponPolicyId = couponPolicyId;
+        coupon.userId = userId;
+        coupon.tokenId = tokenId;
+        coupon.state = CouponState.PENDING;
+        coupon.expiresAt = expiresAt;
+        coupon.issuedOrderId = issuedOrderId;
+        coupon.campaignId = campaignId;
+        coupon.fromMerchantId = fromMerchantId;
+        return coupon;
+    }
+
+    /** 새 쿠폰 발급(일반 쿠폰): 처음 상태는 항상 ACTIVE */
     public static Coupon issue(Long couponPolicyId, Long userId, long tokenId, LocalDateTime expiresAt) {
         Coupon coupon = new Coupon();
         coupon.couponPolicyId = couponPolicyId;
